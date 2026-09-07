@@ -1,215 +1,429 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../models/account_identity.dart';
+import '../../services/account_auth.dart';
 import '../../services/firestore_service.dart';
+import '../login_screen.dart';
+import 'admin_user_import_dialog.dart';
+import 'admin_requests_screen.dart';
 
 class AdminAccountScreen extends StatefulWidget {
-  const AdminAccountScreen({super.key});
-
+  const AdminAccountScreen({super.key, this.service});
+  final FirestoreService? service;
   @override
   State<AdminAccountScreen> createState() => _AdminAccountScreenState();
 }
 
 class _AdminAccountScreenState extends State<AdminAccountScreen> {
-  final FirestoreService _firestoreService = FirestoreService();
-  final Color primaryColor = const Color(0xFF6B0000);
-  String _searchQuery = '';
+  late final FirestoreService _service = widget.service ?? FirestoreService();
+  String _search = '';
+  AccountIdentity? get _identity => AccountSession.current;
 
-  void _showUserDialog({String? docId, Map<String, dynamic>? userData}) {
-    final nameController = TextEditingController(text: userData?['name'] ?? '');
-    final usernameController = TextEditingController(
-      text: userData?['username'] ?? '',
-    );
-    final passwordController = TextEditingController(
-      text: userData?['password'] ?? '',
-    );
-    String selectedRole = userData?['role'] ?? 'Học viên';
+  String _accountError(Object error) {
+    if (error is AccountProvisioningException) return error.message;
+    if (error is FirebaseFunctionsException) {
+      return error.message ?? 'Không thể hoàn tất thao tác tài khoản.';
+    }
+    if (error is FirebaseAuthException) {
+      return switch (error.code) {
+        'email-already-in-use' => 'Tên đăng nhập đã tồn tại.',
+        'weak-password' => 'Mật khẩu chưa đủ mạnh.',
+        'network-request-failed' =>
+          'Mất kết nối Firebase. Kiểm tra mạng rồi thử lại.',
+        'operation-not-allowed' =>
+          'Firebase Authentication chưa bật đăng nhập Email/Mật khẩu.',
+        _ => 'Không thể tạo thông tin đăng nhập (${error.code}).',
+      };
+    }
+    if (error is FirebaseException) {
+      return switch (error.code) {
+        'permission-denied' =>
+          'Tài khoản hiện tại không có quyền thực hiện thao tác này.',
+        'unavailable' => 'Firebase đang mất kết nối. Vui lòng thử lại.',
+        _ => 'Firebase chưa hoàn tất thao tác (${error.code}).',
+      };
+    }
+    return 'Chưa hoàn tất: $error';
+  }
 
-    final isEditing = docId != null;
-
-    showDialog(
+  Future<void> _showUserDialog({
+    String? id,
+    Map<String, dynamic>? user,
+    bool propose = false,
+  }) async {
+    if (_identity?.isAdmin != true || (propose && !_identity!.isRoot)) return;
+    if (id != null && !_identity!.canEdit(id, user!)) return;
+    final name = TextEditingController(text: user?['name'] ?? '');
+    final username = TextEditingController(text: user?['username'] ?? '');
+    final password = TextEditingController();
+    final form = GlobalKey<FormState>();
+    var busy = false;
+    String? error;
+    await showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setModalState) {
-          return AlertDialog(
-            title: Text(isEditing ? 'Sửa Tài Khoản' : 'Thêm Tài Khoản Mới'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Họ và tên'),
-                  ),
-                  TextField(
-                    controller: usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tên đăng nhập',
-                    ),
-                  ),
-                  TextField(
-                    controller: passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Mật khẩu'),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedRole,
-                    decoration: const InputDecoration(labelText: 'Vai trò'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'Học viên',
-                        child: Text('Học viên'),
+        builder: (context, update) => PopScope(
+          canPop: !busy,
+          child: AlertDialog(
+            title: Text(
+              propose
+                  ? 'Đề xuất Admin phụ'
+                  : id == null
+                  ? 'Thêm User'
+                  : 'Sửa tài khoản',
+            ),
+            content: SizedBox(
+              width: 430,
+              child: Form(
+                key: form,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (propose)
+                        const Text(
+                          'Tài khoản chỉ hoạt động sau khi admin tổng còn lại đồng ý.',
+                        ),
+                      TextFormField(
+                        controller: name,
+                        decoration: const InputDecoration(
+                          labelText: 'Họ và tên',
+                        ),
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty || v.length > 100
+                            ? 'Nhập họ tên, tối đa 100 ký tự.'
+                            : null,
                       ),
-                      DropdownMenuItem(
-                        value: 'Giáo viên',
-                        child: Text('Giáo viên'),
+                      TextFormField(
+                        controller: username,
+                        enabled: id == null,
+                        decoration: const InputDecoration(
+                          labelText: 'Tên đăng nhập',
+                        ),
+                        validator: (v) =>
+                            v == null ||
+                                !RegExp(r'^[A-Za-z0-9_.@-]{3,64}$').hasMatch(v)
+                            ? 'Tên đăng nhập 3–64 ký tự không dấu, không khoảng trắng.'
+                            : null,
                       ),
-                      DropdownMenuItem(value: 'Admin', child: Text('Admin')),
+                      if (id == null)
+                        TextFormField(
+                          controller: password,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Mật khẩu',
+                          ),
+                          validator: (v) =>
+                              v == null || v.length < 6 || v.length > 128
+                              ? 'Mật khẩu từ 6 đến 128 ký tự.'
+                              : null,
+                        )
+                      else
+                        const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: Text(
+                            'Bản Firebase miễn phí hiện chỉ cho sửa họ tên; '
+                            'không đổi mật khẩu của tài khoản khác tại đây.',
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      Text(
+                        propose
+                            ? 'Vai trò: Admin phụ (chờ duyệt)'
+                            : id == null
+                            ? 'Vai trò: User (Học viên)'
+                            : 'Không thay đổi vai trò hoặc người tạo qua màn hình sửa.',
+                      ),
+                      if (error != null)
+                        Text(error!, style: const TextStyle(color: Colors.red)),
                     ],
-                    onChanged: (val) {
-                      if (val != null) setModalState(() => selectedRole = val);
-                    },
                   ),
-                ],
+                ),
               ),
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
+                onPressed: busy ? null : () => Navigator.pop(context),
                 child: const Text('Hủy'),
               ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-                onPressed: () async {
-                  final name = nameController.text.trim();
-                  final username = usernameController.text.trim();
-                  final password = passwordController.text.trim();
-
-                  if (name.isNotEmpty &&
-                      username.isNotEmpty &&
-                      password.isNotEmpty) {
-                    if (isEditing) {
-                      await _firestoreService.updateUser(
-                        docId: docId,
-                        name: name,
-                        username: username,
-                        password: password,
-                        role: selectedRole,
-                      );
-                    } else {
-                      await _firestoreService.addUser(
-                        name: name,
-                        username: username,
-                        password: password,
-                        role: selectedRole,
-                      );
-                    }
-                    if (dialogContext.mounted) Navigator.pop(dialogContext);
-                  } else {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      const SnackBar(
-                        content: Text('Vui lòng điền đầy đủ thông tin!'),
-                      ),
-                    );
-                  }
-                },
+              FilledButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        if (!form.currentState!.validate()) return;
+                        update(() {
+                          busy = true;
+                          error = null;
+                        });
+                        try {
+                          if (propose) {
+                            await _service.proposeAdmin(
+                              name: name.text.trim(),
+                              username: username.text,
+                              password: password.text,
+                            );
+                          } else if (id != null) {
+                            await _service.updateUser(
+                              docId: id,
+                              name: name.text.trim(),
+                              username: username.text,
+                              password: password.text,
+                              role: user!['role'].toString(),
+                            );
+                          } else {
+                            await _service.addUser(
+                              name: name.text.trim(),
+                              username: username.text,
+                              password: password.text,
+                              role: 'user',
+                            );
+                          }
+                          if (context.mounted) Navigator.pop(context);
+                        } catch (e) {
+                          if (context.mounted) {
+                            update(() {
+                              busy = false;
+                              error = _accountError(e);
+                            });
+                          }
+                        }
+                      },
                 child: Text(
-                  isEditing ? 'Cập nhật' : 'Thêm',
-                  style: const TextStyle(color: Colors.white),
+                  busy
+                      ? 'Đang xử lý…'
+                      : propose
+                      ? 'Gửi yêu cầu'
+                      : id == null
+                      ? 'Thêm'
+                      : 'Cập nhật',
                 ),
               ),
             ],
-          );
-        },
+          ),
+        ),
       ),
     );
+    // Dispose after the dialog's exit animation has removed its text fields.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    name.dispose();
+    username.dispose();
+    password.dispose();
+  }
+
+  Future<void> _import() async {
+    final count = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AdminUserImportDialog(service: _service),
+    );
+    if (mounted && count != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Đã thêm $count User từ Excel.')));
+    }
+  }
+
+  Future<void> _delete(String id, Map<String, dynamic> user) async {
+    if (_identity?.canDelete(id, user) != true) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận xóa'),
+        content: Text(
+          'Xóa vĩnh viễn tài khoản "${user['username']}" và toàn bộ bài làm? '
+          'Dữ liệu sẽ không thể khôi phục.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _service.deleteUser(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã xóa vĩnh viễn tài khoản và toàn bộ bài làm.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_accountError(e))));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_identity?.isAdmin != true) {
+      return const Scaffold(
+        body: Center(child: Text('Cần đăng nhập quản trị.')),
+      );
+    }
+    final root = _identity!.isRoot;
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: primaryColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Quản lý Tài khoản',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        backgroundColor: const Color(0xFF6B0000),
+        foregroundColor: Colors.white,
+        title: Text(root ? 'Quản lý Tài khoản' : 'User do tôi tạo'),
+        actions: [
+          IconButton(
+            tooltip: 'Đăng xuất',
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await AccountAuth.signOut();
+              if (!context.mounted) return;
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (_) => false,
+              );
+            },
           ),
-        ),
+        ],
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.search, color: Colors.grey[400]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      onChanged: (val) =>
-                          setState(() => _searchQuery = val.toLowerCase()),
-                      decoration: const InputDecoration(
-                        hintText: 'Tìm kiếm tên hoặc tài khoản...',
-                        border: InputBorder.none,
-                        hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+            padding: const EdgeInsets.all(16),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _import,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Nhập User từ Excel'),
+                ),
+                if (root)
+                  OutlinedButton.icon(
+                    onPressed: () => _showUserDialog(propose: true),
+                    icon: const Icon(Icons.admin_panel_settings),
+                    label: const Text('Đề xuất Admin phụ'),
+                  ),
+                if (root)
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AdminRequestsScreen(service: _service),
                       ),
                     ),
+                    icon: const Icon(Icons.approval),
+                    label: const Text('Duyệt Admin phụ'),
                   ),
-                ],
+              ],
+            ),
+          ),
+          if (!root)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Admin phụ được quản lý User và các chức năng hệ thống, nhưng chỉ xóa được User do mình tạo; không được tạo bài thi/câu hỏi hoặc quản lý Admin.',
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              onChanged: (v) => setState(() => _search = v.toLowerCase()),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Tìm kiếm tên hoặc tài khoản...',
               ),
             ),
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _firestoreService.getUsersStream(),
+              stream: _service.getUsersStream(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return const Center(child: Text('Lỗi tải dữ liệu'));
+                  return const Center(
+                    child: Text(
+                      'Không tải được danh sách. Kiểm tra quyền và kết nối.',
+                    ),
+                  );
                 }
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
+                final creatorNames = <String, String>{
+                  for (final doc in snapshot.data!.docs)
+                    doc.id:
+                        (doc.data()['name'] ?? doc.data()['username'] ?? doc.id)
+                            .toString(),
+                };
                 final docs = snapshot.data!.docs.where((doc) {
                   final data = doc.data();
-                  final name = (data['name'] ?? '').toString().toLowerCase();
-                  final username = (data['username'] ?? '')
-                      .toString()
-                      .toLowerCase();
-                  return name.contains(_searchQuery) ||
-                      username.contains(_searchQuery);
+                  return data['status'] != 'deleted' &&
+                      data['status'] != 'rejected' &&
+                      '${data['name']} ${data['username']}'
+                          .toLowerCase()
+                          .contains(_search);
                 }).toList();
-
                 if (docs.isEmpty) {
                   return const Center(
                     child: Text('Không tìm thấy tài khoản nào'),
                   );
                 }
-
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(16),
                   itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
+                  itemBuilder: (context, i) {
+                    final doc = docs[i];
                     final user = doc.data();
-                    return _buildUserCard(doc.id, user);
+                    final role = switch (user['role']) {
+                      'super_admin' => 'Admin tổng',
+                      'admin' => 'Admin phụ',
+                      'user' => 'User',
+                      _ => 'Tài khoản cũ chưa được cấp quyền',
+                    };
+                    final creatorId = user['createdBy']?.toString();
+                    final creatorLabel = user['role'] == 'user'
+                        ? '\nTạo bởi: ${creatorId == null ? 'Dữ liệu cũ/không xác định' : creatorNames[creatorId] ?? creatorId}'
+                        : '';
+                    return Card(
+                      child: ListTile(
+                        title: Text(user['name']?.toString() ?? ''),
+                        subtitle: Text(
+                          '${user['username']} • $role${user['status'] == 'active' ? '' : ' • Chờ xử lý'}$creatorLabel',
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_identity!.canEdit(doc.id, user))
+                              IconButton(
+                                tooltip: 'Sửa tài khoản',
+                                icon: const Icon(Icons.edit),
+                                onPressed: () =>
+                                    _showUserDialog(id: doc.id, user: user),
+                              ),
+                            if (_identity!.canDelete(doc.id, user))
+                              IconButton(
+                                tooltip: user['role'] == 'admin'
+                                    ? 'Xóa Admin phụ'
+                                    : 'Xóa User',
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () => _delete(doc.id, user),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
                   },
                 );
               },
@@ -218,75 +432,9 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: primaryColor,
         onPressed: () => _showUserDialog(),
-        child: const Icon(Icons.person_add, color: Colors.white),
-      ),
-    );
-  }
-
-  Widget _buildUserCard(String docId, Map<String, dynamic> user) {
-    final String role = user['role'] ?? 'Học viên';
-    Color roleColor = Colors.blue;
-    if (role == 'Admin') roleColor = Colors.red;
-    if (role == 'Giáo viên') roleColor = Colors.orange;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: roleColor.withValues(alpha: 0.1),
-          child: Icon(Icons.person, color: roleColor),
-        ),
-        title: Text(
-          user['name'] ?? 'Không có tên',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('TK: ${user['username'] ?? 'N/A'} | Vai trò: $role'),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
-              onPressed: () => _showUserDialog(docId: docId, userData: user),
-            ),
-            IconButton(
-              icon: const Icon(
-                Icons.delete_outline,
-                color: Colors.red,
-                size: 20,
-              ),
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (dialogContext) => AlertDialog(
-                    title: const Text('Xác nhận xóa'),
-                    content: Text(
-                      'Bạn có chắc muốn xóa tài khoản "${user['name']}"?',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext, false),
-                        child: const Text('Hủy'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext, true),
-                        child: const Text(
-                          'Xóa',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await _firestoreService.deleteUser(docId);
-                }
-              },
-            ),
-          ],
-        ),
+        tooltip: 'Thêm User',
+        child: const Icon(Icons.person_add),
       ),
     );
   }

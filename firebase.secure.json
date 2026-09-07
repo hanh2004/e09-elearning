@@ -1,0 +1,25 @@
+{
+  "functions": [{ "source": "functions", "codebase": "accounts", "runtime": "nodejs22" }],
+  "firestore": { "rules": "firestore.rules" },
+  "hosting": [
+    {
+      "site": "e09-elearning",
+      "public": "build/user_web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    },
+    {
+      "site": "e09-elearning-admin",
+      "public": "build/admin_web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    }
+  ],
+  "emulators": {
+    "auth": { "port": 9099 },
+    "functions": { "port": 5001 },
+    "firestore": { "port": 8080 },
+    "ui": { "enabled": true, "port": 4000 },
+    "singleProjectMode": true
+  }
+}

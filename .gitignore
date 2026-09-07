@@ -32,6 +32,19 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/.tmp/
+/.gradle-cache/
+/functions/node_modules/
+/functions/firebase-export-*/
+/firebase-export-*/
+/firebase.test.json
+/.firebase/
+**/.env
+**/.env.*
+**/*service-account*.json
+# Filled import files can contain account passwords. Keep them local.
+/users_import.xlsx
+/lib/assets/templates/users_import.xlsx
 
 # Symbolication related
 app.*.symbols

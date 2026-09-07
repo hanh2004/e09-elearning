@@ -5,6 +5,7 @@ import '../../services/firestore_service.dart';
 import 'admin_exam_screen.dart';
 import 'admin_home_screen.dart';
 import 'admin_settings_screen.dart';
+import 'admin_responsive_shell.dart';
 
 class AdminReportScreen extends StatefulWidget {
   const AdminReportScreen({super.key});
@@ -26,80 +27,92 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
       const AdminReportScreen(),
       const AdminSettingsScreen(),
     ];
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => pages[index]),
-    );
+    Navigator.pushReplacement(context, adminTabRoute(pages[index]));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        backgroundColor: _primaryColor,
-        foregroundColor: Colors.white,
-        title: const Text(
-          'Báo cáo tổng hợp',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    final isDesktop = AdminResponsiveShell.isDesktop(context);
+    return AdminResponsiveShell(
+      selectedIndex: _selectedIndex,
+      onSelected: _onItemTapped,
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          backgroundColor: _primaryColor,
+          foregroundColor: Colors.white,
+          title: const Text(
+            'Báo cáo tổng hợp',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
         ),
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _firestoreService.getExamsStream(),
-        builder: (context, examSnapshot) {
-          if (examSnapshot.hasError) {
-            return _buildError('Không tải được danh sách bài thi.');
-          }
-          if (!examSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _firestoreService.getExamAttemptsStream(),
-            builder: (context, attemptSnapshot) {
-              if (attemptSnapshot.hasError) {
-                return _buildError('Không tải được kết quả làm bài.');
-              }
-              if (!attemptSnapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: _firestoreService.getUsersStream(),
-                builder: (context, userSnapshot) {
-                  if (userSnapshot.hasError) {
-                    return _buildError('Không tải được tài khoản người dùng.');
-                  }
-                  if (!userSnapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  return _buildReport(
-                    examSnapshot.data!.docs,
-                    attemptSnapshot.data!.docs,
-                    userSnapshot.data!.docs,
-                  );
-                },
-              );
-            },
-          );
-        },
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: _primaryColor,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment),
-            label: 'Bài thi',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Báo cáo',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Cài đặt'),
-        ],
+        body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _firestoreService.getExamsStream(),
+          builder: (context, examSnapshot) {
+            if (examSnapshot.hasError) {
+              return _buildError('Không tải được danh sách bài thi.');
+            }
+            if (!examSnapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _firestoreService.getExamAttemptsStream(),
+              builder: (context, attemptSnapshot) {
+                if (attemptSnapshot.hasError) {
+                  return _buildError('Không tải được kết quả làm bài.');
+                }
+                if (!attemptSnapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _firestoreService.getUsersStream(),
+                  builder: (context, userSnapshot) {
+                    if (userSnapshot.hasError) {
+                      return _buildError(
+                        'Không tải được tài khoản người dùng.',
+                      );
+                    }
+                    if (!userSnapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    return _buildReport(
+                      examSnapshot.data!.docs,
+                      attemptSnapshot.data!.docs,
+                      userSnapshot.data!.docs,
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
+        bottomNavigationBar: isDesktop
+            ? null
+            : BottomNavigationBar(
+                currentIndex: _selectedIndex,
+                onTap: _onItemTapped,
+                type: BottomNavigationBarType.fixed,
+                selectedItemColor: _primaryColor,
+                unselectedItemColor: Colors.grey,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.home),
+                    label: 'Trang chủ',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.assignment),
+                    label: 'Bài thi',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.bar_chart),
+                    label: 'Báo cáo',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.settings),
+                    label: 'Cài đặt',
+                  ),
+                ],
+              ),
       ),
     );
   }

@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="e09_elearning"
+        android:label="e09-elearning"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

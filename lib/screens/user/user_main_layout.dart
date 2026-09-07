@@ -20,42 +20,81 @@ class _UserMainLayoutState extends State<UserMainLayout> {
   // Danh sách màn hình cho thanh Bottom Navigation
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          UserHomeScreen(args: widget.args),
-          UserProfileScreen(args: widget.args),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: primaryColor,
-        unselectedItemColor: Colors.grey,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
-        unselectedLabelStyle: const TextStyle(fontSize: 12),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Trang chủ',
+    final pages = [
+      UserHomeScreen(args: widget.args),
+      UserProfileScreen(args: widget.args),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 900;
+        return Scaffold(
+          body: Row(
+            children: [
+              if (isDesktop)
+                NavigationRail(
+                  extended: constraints.maxWidth >= 1180,
+                  backgroundColor: Colors.white,
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: (index) =>
+                      setState(() => _selectedIndex = index),
+                  leading: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Icon(
+                      Icons.school_rounded,
+                      size: 36,
+                      color: primaryColor,
+                    ),
+                  ),
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.home_outlined),
+                      selectedIcon: Icon(Icons.home),
+                      label: Text('Trang chủ'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.person_outline),
+                      selectedIcon: Icon(Icons.person),
+                      label: Text('Cá nhân'),
+                    ),
+                  ],
+                ),
+              Expanded(
+                child: IndexedStack(index: _selectedIndex, children: pages),
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Cá nhân',
-          ),
-        ],
-      ),
+          bottomNavigationBar: isDesktop
+              ? null
+              : BottomNavigationBar(
+                  currentIndex: _selectedIndex,
+                  onTap: (index) {
+                    setState(() {
+                      _selectedIndex = index;
+                    });
+                  },
+                  type: BottomNavigationBarType.fixed,
+                  selectedItemColor: primaryColor,
+                  unselectedItemColor: Colors.grey,
+                  selectedLabelStyle: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                  unselectedLabelStyle: const TextStyle(fontSize: 12),
+                  items: const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.home_outlined),
+                      activeIcon: Icon(Icons.home),
+                      label: 'Trang chủ',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.person_outline),
+                      activeIcon: Icon(Icons.person),
+                      label: 'Cá nhân',
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }

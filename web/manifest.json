@@ -1,11 +1,11 @@
 {
-    "name": "e09_elearning",
-    "short_name": "e09_elearning",
+    "name": "e09-elearning",
+    "short_name": "E09",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F6F7FB",
+    "theme_color": "#6B0000",
+    "description": "Nền tảng học tập và kiểm tra E09.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

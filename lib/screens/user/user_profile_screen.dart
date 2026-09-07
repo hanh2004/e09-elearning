@@ -4,6 +4,7 @@ import 'exam_history_screen.dart';
 import '../../models/user_arguments.dart';
 import '../../models/exam_history_arguments.dart';
 import '../login_screen.dart';
+import '../../services/account_auth.dart';
 
 class UserProfileScreen extends StatelessWidget {
   final UserArguments args;
@@ -98,7 +99,9 @@ class UserProfileScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: () {
+                onPressed: () async {
+                  await AccountAuth.signOut();
+                  if (!context.mounted) return;
                   Navigator.pushAndRemoveUntil(
                     context,
                     MaterialPageRoute(builder: (_) => const LoginScreen()),

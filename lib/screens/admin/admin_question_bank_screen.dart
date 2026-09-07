@@ -3,11 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../services/firestore_service.dart';
 import '../../models/question_bank_arguments.dart';
+import '../../models/account_identity.dart';
 
 class AdminQuestionBankScreen extends StatefulWidget {
   final QuestionBankArguments args;
 
-  const AdminQuestionBankScreen({super.key, required this.args});
+  const AdminQuestionBankScreen({super.key, required this.args, this.service});
+  final FirestoreService? service;
 
   @override
   State<AdminQuestionBankScreen> createState() =>
@@ -15,7 +17,8 @@ class AdminQuestionBankScreen extends StatefulWidget {
 }
 
 class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
-  final FirestoreService _firestoreService = FirestoreService();
+  late final FirestoreService _firestoreService =
+      widget.service ?? FirestoreService();
   final Color primaryColor = const Color(0xFF6B0000);
 
   void _showAddQuestionDialog() {
@@ -146,8 +149,12 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
 
           final docs = snapshot.data!.docs;
           if (docs.isEmpty) {
-            return const Center(
-              child: Text('Chưa có câu hỏi nào. Bấm nút + để thêm.'),
+            return Center(
+              child: Text(
+                AccountSession.current?.isRoot == true
+                    ? 'Chưa có câu hỏi nào. Bấm nút + để thêm.'
+                    : 'Chưa có câu hỏi nào.',
+              ),
             );
           }
 
@@ -181,17 +188,18 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
                               ),
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete,
-                              color: Colors.red,
-                              size: 20,
+                          if (AccountSession.current?.isRoot == true)
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete,
+                                color: Colors.red,
+                                size: 20,
+                              ),
+                              onPressed: () => _firestoreService.deleteQuestion(
+                                widget.args.examId,
+                                docs[index].id,
+                              ),
                             ),
-                            onPressed: () => _firestoreService.deleteQuestion(
-                              widget.args.examId,
-                              docs[index].id,
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -256,11 +264,13 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: primaryColor,
-        onPressed: _showAddQuestionDialog,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: AccountSession.current?.isRoot == true
+          ? FloatingActionButton(
+              backgroundColor: primaryColor,
+              onPressed: _showAddQuestionDialog,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
     );
   }
 }

@@ -1,5 +1,27 @@
 {
+    "version": "0.2.0",
     "configurations": [
-    
+        {
+            "name": "Admin Web (Local demo)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_admin.dart",
+            "deviceId": "chrome",
+            "args": ["--dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1", "--web-port", "8091"]
+        },
+        {
+            "name": "User App",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_user.dart"
+        },
+        {
+            "name": "Admin Web",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_admin.dart",
+            "deviceId": "chrome",
+            "args": ["--web-port", "8081"]
+        }
     ]
 }
