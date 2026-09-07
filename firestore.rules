@@ -28,6 +28,12 @@ service cloud.firestore {
       return exam.isOpen == true &&
         (!('closesAt' in exam) || exam.closesAt == null || request.time < exam.closesAt);
     }
+    function allowedDurationMinutes(exam) {
+      // Existing exams stored only a display string. Keep them usable while all
+      // newly created exams use the validated numeric durationMinutes field.
+      return ('durationMinutes' in exam && exam.durationMinutes is int &&
+        exam.durationMinutes > 0) ? exam.durationMinutes : 1440;
+    }
     function validStudentAttemptCreate() {
       let attempt = request.resource.data;
       let exam = examData(attempt.examId);
@@ -40,11 +46,10 @@ service cloud.firestore {
         ]) &&
         attempt.userId == request.auth.uid &&
         attempt.examId is string && examAvailable(attempt.examId) &&
-        exam.durationMinutes is int && exam.durationMinutes > 0 &&
         attempt.status == 'in_progress' && attempt.attemptCount == 0 &&
         attempt.startedAt == request.time && attempt.endsAt is timestamp &&
         attempt.endsAt > request.time &&
-        attempt.endsAt <= request.time + duration.value(exam.durationMinutes, 'm') &&
+        attempt.endsAt <= request.time + duration.value(allowedDurationMinutes(exam), 'm') &&
         (!('closesAt' in exam) || exam.closesAt == null || attempt.endsAt <= exam.closesAt);
     }
     function validCompletedAttempt(attempt, old) {
@@ -75,9 +80,9 @@ service cloud.firestore {
           request.time <= old.endsAt + duration.value(1, 'm') &&
           attempt.attemptCount == old.attemptCount) ||
          (old.status == 'completed' && attempt.status == 'in_progress' &&
-          examAvailable(old.examId) && exam.durationMinutes is int &&
+          examAvailable(old.examId) &&
           attempt.startedAt == request.time && attempt.endsAt > request.time &&
-          attempt.endsAt <= request.time + duration.value(exam.durationMinutes, 'm') &&
+          attempt.endsAt <= request.time + duration.value(allowedDurationMinutes(exam), 'm') &&
           (!('closesAt' in exam) || exam.closesAt == null || attempt.endsAt <= exam.closesAt) &&
           attempt.attemptCount == old.attemptCount &&
           (!('maxAttempts' in exam) || exam.maxAttempts == null ||

@@ -150,6 +150,7 @@ test('student attempts enforce ownership, deadline and no self deletion', async 
   await db.doc('exams/closed-exam').set({
     title: 'Closed', isOpen: false, durationMinutes: 30,
   });
+  await db.doc('exams/legacy-open').set({ title: 'Legacy', isOpen: true });
   const studentDb = env.authenticatedContext(uid).firestore();
   const attempt = doc(studentDb, 'exam_attempts', 'student-open');
   await assertSucceeds(setDoc(attempt, {
@@ -187,6 +188,16 @@ test('student attempts enforce ownership, deadline and no self deletion', async 
     examId: 'closed-exam',
     startedAt: serverTimestamp(),
     endsAt: new Date(Date.now() + 20 * 60 * 1000),
+    status: 'in_progress',
+    attemptCount: 0,
+    selectedAnswers: {},
+    currentQuestionIndex: 0,
+  }));
+  await assertSucceeds(setDoc(doc(studentDb, 'exam_attempts', 'student-legacy'), {
+    userId: uid,
+    examId: 'legacy-open',
+    startedAt: serverTimestamp(),
+    endsAt: new Date(Date.now() + 30 * 60 * 1000),
     status: 'in_progress',
     attemptCount: 0,
     selectedAnswers: {},
