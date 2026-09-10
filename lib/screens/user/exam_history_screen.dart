@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/exam_history_arguments.dart';
-import '../../models/exam_outcome.dart';
 import '../../services/firestore_service.dart';
 
 class ExamHistoryScreen extends StatefulWidget {
@@ -15,7 +14,7 @@ class ExamHistoryScreen extends StatefulWidget {
 }
 
 class _ExamHistoryScreenState extends State<ExamHistoryScreen> {
-  final Color primaryColor = const Color(0xFFB51F24);
+  final Color primaryColor = const Color(0xFF6B0000);
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final FirestoreService _firestoreService = FirestoreService();
@@ -160,7 +159,7 @@ class _ExamHistoryScreenState extends State<ExamHistoryScreen> {
                   itemBuilder: (context, index) {
                     final item = filteredItems[index];
                     final double diemSo = item['displayScore'] as double;
-                    final bool isPassed = ExamOutcome.passed(item);
+                    final bool isPassed = diemSo >= 5.0;
 
                     final Timestamp? nopBaiLuc =
                         (item['bestCompletedAt'] ?? item['completedAt'])

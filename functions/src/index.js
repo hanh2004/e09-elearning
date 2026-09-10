@@ -1,4 +1,3 @@
-import { examHandlers } from './exams.js';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -7,7 +6,7 @@ import { accountHandlers } from './accounts.js';
 import { PolicyError } from './policy.js';
 
 initializeApp();
-const handlers = { ...accountHandlers(getFirestore(), getAuth()), ...Object.fromEntries(Object.entries(examHandlers(getFirestore())).map(([name, fn]) => ['exam_' + name, fn])) };
+const handlers = accountHandlers(getFirestore(), getAuth());
 const callable = (name) => onCall({ region: 'asia-southeast1', timeoutSeconds: 540,
   maxInstances: 10 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Cần đăng nhập.');
@@ -25,13 +24,3 @@ export const accountDecideAdmin = callable('decideAdmin');
 export const accountDeleteUser = callable('deleteUser');
 export const accountUpdateUser = callable('updateUser');
 export const accountCheckUsernames = callable('checkUsernames');
-
-export const examList = callable('exam_list');
-export const examStart = callable('exam_start');
-export const examSave = callable('exam_save');
-export const examSubmit = callable('exam_submit');
-export const examHistory = callable('exam_history');
-
-export const accountSetStatus = callable('setStatus');
-export const accountSetUnit = callable('setUnit');
-export const examDelete = callable('exam_deleteExam');

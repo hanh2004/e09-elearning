@@ -23,16 +23,7 @@ class AccountProvisioningException implements Exception {
 class FirestoreService {
   FirestoreService({FirebaseFirestore? firestore, AccountApi? accounts})
     : _db = firestore ?? FirebaseFirestore.instance,
-      _accounts =
-          accounts ??
-          AccountApi(
-            useBackend:
-                firestore == null &&
-                const bool.fromEnvironment(
-                  'USE_SECURE_BACKEND',
-                  defaultValue: true,
-                ),
-          );
+      _accounts = accounts ?? AccountApi();
 
   final FirebaseFirestore _db;
   final AccountApi _accounts;
@@ -216,12 +207,6 @@ class FirestoreService {
     if (exam == null || exam['isOpen'] != true) {
       throw StateError('Bài thi hiện đang đóng.');
     }
-    durationMinutes =
-        (exam['durationMinutes'] as num?)?.toInt() ?? durationMinutes;
-    maxAttempts = (exam['maxAttempts'] as num?)?.toInt();
-    if (durationMinutes <= 0) {
-      throw StateError('Thời gian bài thi không hợp lệ.');
-    }
     final closesAt = exam['closesAt'];
     final closingTime = closesAt is Timestamp ? closesAt.toDate() : null;
     if (closingTime != null && !closingTime.isAfter(DateTime.now())) {
@@ -279,6 +264,7 @@ class FirestoreService {
     var attemptCount = 0;
     var bestScore = -1.0;
     QueryDocumentSnapshot<Map<String, dynamic>>? keeper;
+    Map<String, dynamic>? bestData;
     for (final doc in examAttempts) {
       final data = doc.data();
       final count =
@@ -292,6 +278,7 @@ class FirestoreService {
       if (keeper == null || score > bestScore) {
         keeper = doc;
         bestScore = score;
+        bestData = data;
       }
     }
 
@@ -320,11 +307,20 @@ class FirestoreService {
       final batch = _db.batch();
       batch.update(attemptRef, {
         'status': 'in_progress',
+        'attemptCount': attemptCount,
+        'bestScore': bestScore < 0 ? null : bestScore,
+        'diemSo': bestScore < 0 ? null : bestScore,
+        'answers': bestData?['bestAnswers'] ?? bestData?['answers'],
+        'bestCompletedAt':
+            bestData?['bestCompletedAt'] ?? bestData?['completedAt'],
         'startedAt': FieldValue.serverTimestamp(),
         'endsAt': Timestamp.fromDate(endsAt),
         'selectedAnswers': <String, int>{},
         'currentQuestionIndex': 0,
       });
+      for (final oldAttempt in examAttempts) {
+        if (oldAttempt.id != keeper.id) batch.delete(oldAttempt.reference);
+      }
       await batch.commit();
     }
     return ExamAttemptSession(
@@ -363,7 +359,6 @@ class FirestoreService {
       }
     } catch (e) {
       debugPrint('Lỗi lấy danh sách câu hỏi: $e');
-      rethrow;
     }
     return dsCauHoi;
   }
@@ -380,19 +375,6 @@ class FirestoreService {
     await _db.runTransaction((transaction) async {
       final snapshot = await transaction.get(ref);
       final data = snapshot.data() ?? <String, dynamic>{};
-      if (data['status'] == 'completed') return;
-      final runNumber = ((data['attemptCount'] as num?)?.toInt() ?? 0) + 1;
-      transaction.set(ref.collection('runs').doc(runNumber.toString()), {
-        'userId': data['userId'],
-        'examId': data['examId'],
-        'examTitle': examTitle,
-        'score': diemSo,
-        'correctAnswers': correctAnswers,
-        'totalQuestions': totalQuestions,
-        'answers': dsCauTraLoi.map((answer) => answer.toMap()).toList(),
-        'runNumber': runNumber,
-        'completedAt': FieldValue.serverTimestamp(),
-      });
       final oldBest =
           (data['bestScore'] as num?)?.toDouble() ??
           (data['diemSo'] as num?)?.toDouble() ??
@@ -435,12 +417,6 @@ class FirestoreService {
     int? maxAttempts,
     DateTime? closesAt,
   }) async {
-    if (title.trim().isEmpty ||
-        durationMinutes < 1 ||
-        durationMinutes > 1440 ||
-        (maxAttempts != null && maxAttempts < 1)) {
-      throw ArgumentError('Thông tin bài thi không hợp lệ.');
-    }
     await _db.collection('exams').add({
       'title': title,
       'duration': '$durationMinutes phút',
@@ -454,9 +430,6 @@ class FirestoreService {
     });
   }
 
-  Future<void> updateExamPolicy(String id, Map<String, dynamic> policy) =>
-      _db.collection('exams').doc(id).update(policy);
-
   Future<void> updateExamStatus(String docId, bool isOpen) async {
     await _db.collection('exams').doc(docId).update({
       'isOpen': isOpen,
@@ -464,26 +437,7 @@ class FirestoreService {
     });
   }
 
-  Future<void> _deleteAttemptRuns(
-    Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> attempts,
-  ) async {
-    for (final attempt in attempts) {
-      final runs = await attempt.reference.collection('runs').get();
-      for (var offset = 0; offset < runs.docs.length; offset += 400) {
-        final batch = _db.batch();
-        for (final run in runs.docs.skip(offset).take(400)) {
-          batch.delete(run.reference);
-        }
-        await batch.commit();
-      }
-    }
-  }
-
   Future<void> deleteExam(String docId) async {
-    if (_accounts.hasTransport) {
-      await _accounts.call('examDelete', {'examId': docId});
-      return;
-    }
     final questions = await _db
         .collection('exams')
         .doc(docId)
@@ -493,7 +447,6 @@ class FirestoreService {
         .collection('exam_attempts')
         .where('examId', isEqualTo: docId)
         .get();
-    await _deleteAttemptRuns(attempts.docs);
     final references = <DocumentReference<Map<String, dynamic>>>[
       ...questions.docs.map((question) => question.reference),
       ...attempts.docs.map((attempt) => attempt.reference),
@@ -529,34 +482,14 @@ class FirestoreService {
     required String questionText,
     required List<String> options,
     required int correctAnswerIndex,
-    String explanation = '',
-    String? questionId,
   }) async {
-    if (questionText.trim().isEmpty ||
-        options.length < 2 ||
-        options.any((value) => value.trim().isEmpty) ||
-        correctAnswerIndex < 0 ||
-        correctAnswerIndex >= options.length) {
-      throw ArgumentError('Câu hỏi hoặc đáp án không hợp lệ.');
-    }
-    final collection = _db
-        .collection('exams')
-        .doc(examId)
-        .collection('questions');
-    final value = <String, dynamic>{
+    await _db.collection('exams').doc(examId).collection('questions').add({
       'questionText': questionText,
       'options': options,
       'correctAnswerIndex': correctAnswerIndex,
-      'explanation': explanation.trim(),
-      if (questionId == null) 'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (questionId == null) {
-      await collection.add(value);
-      await _syncQuestionCount(examId);
-    } else {
-      await collection.doc(questionId).update(value);
-    }
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await _syncQuestionCount(examId);
   }
 
   Future<void> deleteQuestion(String examId, String questionId) async {
@@ -698,11 +631,9 @@ class FirestoreService {
     required String name,
     required String username,
     required String password,
-    String unit = 'E09',
   }) async {
     if (_accounts.hasTransport) {
       await _accounts.idempotent('accountProposeAdmin', {
-        'unit': unit,
         'account': {'name': name, 'username': username, 'password': password},
       });
       return;
@@ -733,10 +664,6 @@ class FirestoreService {
       'createdAt': FieldValue.serverTimestamp(),
     });
     await batch.commit();
-  }
-
-  Future<void> setAdminUnit(String uid, String unit) async {
-    await _accounts.call('accountSetUnit', {'userId': uid, 'unit': unit});
   }
 
   Future<void> decideAdmin(String requestId, bool approve) async {
@@ -785,13 +712,6 @@ class FirestoreService {
         .snapshots();
   }
 
-  Future<void> setUserBlocked(String uid, bool blocked) async {
-    await _accounts.call('accountSetStatus', {
-      'userId': uid,
-      'disabled': blocked,
-    });
-  }
-
   Future<void> updateUser({
     required String docId,
     required String name,
@@ -828,10 +748,7 @@ class FirestoreService {
           .collection('exam_attempts')
           .where('userId', isEqualTo: docId)
           .get();
-      await _deleteAttemptRuns(attempts.docs);
-      final learning = await userRef.collection('learning').get();
       final related = <DocumentReference<Map<String, dynamic>>>[
-        ...learning.docs.map((doc) => doc.reference),
         ...attempts.docs.map((doc) => doc.reference),
       ];
       if (AccountSession.current?.isRoot == true) {

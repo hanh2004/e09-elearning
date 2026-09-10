@@ -7,7 +7,7 @@ class UserResultScreen extends StatelessWidget {
 
   const UserResultScreen({super.key, required this.args});
 
-  final Color primaryColor = const Color(0xFFB51F24);
+  final Color primaryColor = const Color(0xFF6B0000);
 
   @override
   Widget build(BuildContext context) {

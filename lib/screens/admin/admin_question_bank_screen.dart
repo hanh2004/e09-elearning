@@ -19,35 +19,19 @@ class AdminQuestionBankScreen extends StatefulWidget {
 class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
   late final FirestoreService _firestoreService =
       widget.service ?? FirestoreService();
-  final Color primaryColor = const Color(0xFFB51F24);
+  final Color primaryColor = const Color(0xFF6B0000);
 
-  Future<void> _showAddQuestionDialog({
-    String? questionId,
-    Map<String, dynamic>? question,
-  }) async {
-    final questionController = TextEditingController(
-      text: question?['questionText'] ?? '',
-    );
-    final explanationController = TextEditingController(
-      text: question?['explanation'] ?? '',
-    );
-    final existing = List<String>.from(
-      question?['options'] ?? ['', '', '', ''],
-    );
-    final optionControllers = existing
-        .map((s) => TextEditingController(text: s))
-        .toList();
-    int selectedCorrectIndex = question?['correctAnswerIndex'] ?? 0;
-    bool busy = false;
+  void _showAddQuestionDialog() {
+    final questionController = TextEditingController();
+    final optionControllers = List.generate(4, (_) => TextEditingController());
+    int selectedCorrectIndex = 0;
 
-    final dialogRoute = DialogRoute<void>(
+    showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
           return AlertDialog(
-            title: Text(
-              questionId == null ? 'Thêm câu hỏi mới' : 'Chỉnh sửa câu hỏi',
-            ),
+            title: const Text('Thêm câu hỏi mới'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -59,15 +43,8 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
                     ),
                     maxLines: 2,
                   ),
-                  TextField(
-                    controller: explanationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Lời giải (tùy chọn)',
-                    ),
-                    maxLines: 3,
-                  ),
                   const SizedBox(height: 12),
-                  ...List.generate(optionControllers.length, (index) {
+                  ...List.generate(4, (index) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: Row(
@@ -110,36 +87,19 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
                 onPressed: () async {
-                  if (busy) return;
                   final options = optionControllers
                       .map((e) => e.text.trim())
                       .toList();
                   if (questionController.text.isNotEmpty &&
                       options.every((e) => e.isNotEmpty)) {
-                    setModalState(() => busy = true);
-                    try {
-                      await _firestoreService.addQuestion(
-                        widget.args.examId,
-                        questionText: questionController.text.trim(),
-                        options: options,
-                        correctAnswerIndex: selectedCorrectIndex,
-                        explanation: explanationController.text,
-                        questionId: questionId,
-                      );
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
-                    } catch (_) {
-                      if (context.mounted) {
-                        setModalState(() => busy = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Không lưu được câu hỏi. Vui lòng thử lại.',
-                            ),
-                          ),
-                        );
-                      }
-                    }
+                    await _firestoreService.addQuestion(
+                      widget.args.examId,
+                      questionText: questionController.text.trim(),
+                      options: options,
+                      correctAnswerIndex: selectedCorrectIndex,
+                    );
+                    if (!context.mounted) return;
+                    Navigator.pop(context);
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -157,13 +117,6 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
         },
       ),
     );
-    await Navigator.of(context).push(dialogRoute);
-    await dialogRoute.completed;
-    questionController.dispose();
-    explanationController.dispose();
-    for (final controller in optionControllers) {
-      controller.dispose();
-    }
   }
 
   @override
@@ -235,15 +188,6 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
                               ),
                             ),
                           ),
-                          if (AccountSession.current?.isRoot == true)
-                            IconButton(
-                              tooltip: 'Sửa câu hỏi',
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: () => _showAddQuestionDialog(
-                                questionId: docs[index].id,
-                                question: q,
-                              ),
-                            ),
                           if (AccountSession.current?.isRoot == true)
                             IconButton(
                               icon: const Icon(

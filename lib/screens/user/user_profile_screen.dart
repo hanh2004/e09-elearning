@@ -1,11 +1,3 @@
-import '../../widgets/profile_card.dart';
-import '../../services/learning_service.dart';
-import 'secure_exam_screen.dart';
-import '../../services/secure_exam_service.dart';
-import 'exam_runs_screen.dart';
-import 'user_schedule_screen.dart';
-import 'profile_edit_screen.dart';
-
 import 'package:flutter/material.dart';
 
 import 'exam_history_screen.dart';
@@ -17,10 +9,9 @@ import '../../services/account_auth.dart';
 class UserProfileScreen extends StatelessWidget {
   final UserArguments args;
 
-  const UserProfileScreen({super.key, required this.args, this.service});
-  final LearningService? service;
+  const UserProfileScreen({super.key, required this.args});
 
-  final Color primaryColor = const Color(0xFFB51F24);
+  final Color primaryColor = const Color(0xFF6B0000);
 
   @override
   Widget build(BuildContext context) {
@@ -38,50 +29,47 @@ class UserProfileScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            ProfileCard(
-              uid: args.userId,
-              fallbackName: args.userName,
-              email: args.email,
-              service: service,
+            // 1. Thẻ thông tin cá nhân
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 32,
+                      backgroundImage: NetworkImage(
+                        'https://i.pravatar.cc/150?img=60',
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            args.userName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            args.email,
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 20),
 
-            _buildSettingOption(
-              icon: Icons.manage_accounts,
-              title: 'Hồ sơ và bảo mật',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => ProfileEditScreen(uid: args.userId),
-                ),
-              ),
-            ),
-            _buildSettingOption(
-              icon: Icons.calendar_month,
-              title: 'Lịch học và lịch thi',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => UserScheduleScreen(uid: args.userId),
-                ),
-              ),
-            ),
-            _buildSettingOption(
-              icon: Icons.receipt_long,
-              title: 'Chi tiết từng lần thi',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      const bool.fromEnvironment(
-                        'USE_SECURE_BACKEND',
-                        defaultValue: true,
-                      )
-                      ? SecureExamHistoryScreen(service: SecureExamService())
-                      : ExamRunsScreen(uid: args.userId),
-                ),
-              ),
-            ),
             // 2. Chức năng Lịch sử bài kiểm tra
             _buildSettingOption(
               icon: Icons.history,

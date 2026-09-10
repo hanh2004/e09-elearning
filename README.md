@@ -1,9 +1,3 @@
-# Trạng thái hiện hành: Firebase Blaze
-
-Giao diện và rà soát mới nhất: [REDESIGN_AUDIT.md](REDESIGN_AUDIT.md). Giữ logo cũ, thêm trang chủ học tập, trạng thái đọc thông báo, tiếp tục học, sửa/trộn câu hỏi và sửa lỗi báo cáo/tài khoản. Chưa tạo APK.
-
-Xem [BLAZE_UPGRADE.md](BLAZE_UPGRADE.md) cho bản ngày 10/09/2026. App và web dùng Cloud Functions mặc định. Các mô tả Spark bên dưới là lịch sử; không dùng Rules Spark cho bản hiện hành. Chưa tạo APK mới theo yêu cầu.
-
 # E09 E-Learning — User App và Admin Web
 
 Hai ứng dụng được build riêng từ một Flutter repository. Model, service và
@@ -115,14 +109,3 @@ flutter test
 Test kiểm tra vai trò hợp lệ/không hợp lệ, chặn đăng nhập chéo cổng, sai mật khẩu,
 giữ cổng khi đăng xuất và đồ thị import không chứa màn hình bên còn lại.
 Các test không đăng nhập hoặc sửa dữ liệu Firebase thật.
-
-## Nâng cấp học tập 09/09/2026
-
-Đã thêm khóa học/bài học, tiến độ, yêu thích, phân lớp, hồ sơ/bảo mật,
-lịch học/thi, thông báo có lịch và lịch sử từng lượt thi mới.
-Xem [UPGRADE_STATUS.md](UPGRADE_STATUS.md) để biết chức năng đã hoàn thành,
-giới hạn hiện tại và các hạng mục còn thiếu so với yêu cầu mở rộng.
-
-## Rà soát chất lượng
-
-Xem [AUDIT_REPORT.md](AUDIT_REPORT.md) để biết lỗi đã sửa, các vấn đề bảo mật/lượt thi còn mở và phạm vi kiểm thử. Build thành công không đồng nghĩa đã đáp ứng yêu cầu chống gian lận cho kỳ thi chính thức.

@@ -4,7 +4,7 @@ enum AppPortal {
   user,
   admin;
 
-  String get title => this == user ? 'Học tập số E09' : 'Quản trị E09';
+  String get title => this == user ? 'E-Learning User' : 'E-Learning Admin';
   String get loginLabel => this == user
       ? 'Ứng dụng dành cho học viên'
       : 'Cổng quản trị dành cho Admin';

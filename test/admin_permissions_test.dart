@@ -9,32 +9,9 @@ import 'package:e09_elearning/services/account_auth.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:e09_elearning/screens/admin/admin_courses_screen.dart';
-import 'package:e09_elearning/services/learning_service.dart';
 
 void main() {
   tearDown(() => AccountSession.current = null);
-  testWidgets('limited admin can list courses without authoring controls', (
-    tester,
-  ) async {
-    final db = FakeFirebaseFirestore();
-    await db.doc('courses/c').set({
-      'title': 'Course',
-      'subject': 'Subject',
-      'published': true,
-    });
-    AccountSession.current = const AccountIdentity(id: 'a', role: 'admin');
-    await tester.pumpWidget(
-      MaterialApp(
-        home: AdminCoursesScreen(service: LearningService(db: db)),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Course'), findsOneWidget);
-    expect(find.text('Tạo khóa học'), findsNothing);
-    expect(find.byTooltip('Sửa khóa học'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
   test('limited admin deletes only Users they created', () {
     const admin = AccountIdentity(id: 'a1', role: 'admin');
     const root = AccountIdentity(id: 'r1', role: 'super_admin');
@@ -116,14 +93,7 @@ void main() {
         'examId': 'exam1',
       });
 
-      await db.doc('users/user1/learning/c_l').set({'completed': true});
-      await db.doc('exam_attempts/attempt1/runs/1').set({'score': 8});
       await FirestoreService(firestore: db).deleteUser(userId);
-      expect((await db.doc('users/user1/learning/c_l').get()).exists, isFalse);
-      expect(
-        (await db.doc('exam_attempts/attempt1/runs/1').get()).exists,
-        isFalse,
-      );
 
       expect((await db.collection('users').doc(userId).get()).exists, isFalse);
       expect(

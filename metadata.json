@@ -1,0 +1,8 @@
+{
+  "name": "E-Learning Exam & Quiz Platform",
+  "description": "Comprehensive E-Learning and Online Examination Platform featuring User and Admin Portals, Question Banks, Timed Exams, Real-time Grading, and Analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

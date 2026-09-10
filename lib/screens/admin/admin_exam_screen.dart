@@ -1,5 +1,3 @@
-import '../../widgets/learning_widgets.dart';
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -23,7 +21,7 @@ class AdminExamScreen extends StatefulWidget {
 class _AdminExamScreenState extends State<AdminExamScreen> {
   late final FirestoreService _firestoreService =
       widget.service ?? FirestoreService();
-  final Color primaryColor = const Color(0xFFB51F24);
+  final Color primaryColor = const Color(0xFF6B0000);
   String _searchQuery = '';
   final int _selectedIndex = 1;
 
@@ -59,7 +57,6 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
     final durationController = TextEditingController();
     final maxAttemptsController = TextEditingController(text: '1');
     bool isOpen = true;
-    bool busy = false;
     bool unlimitedAttempts = true;
     DateTime? closesAt;
 
@@ -153,7 +150,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                               context: context,
                               initialTime: TimeOfDay.fromDateTime(initial),
                             );
-                            if (time == null || !context.mounted) return;
+                            if (time == null) return;
                             setModalState(() {
                               closesAt = DateTime(
                                 date.year,
@@ -180,43 +177,28 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
                 onPressed: () async {
-                  if (busy) return;
                   final maxAttempts = unlimitedAttempts
                       ? null
                       : int.tryParse(maxAttemptsController.text.trim());
                   final durationMinutes = int.tryParse(
                     durationController.text.trim(),
                   );
-                  if (titleController.text.trim().isNotEmpty &&
+                  if (titleController.text.isNotEmpty &&
                       durationMinutes != null &&
                       durationMinutes > 0 &&
                       durationMinutes <= 1440 &&
                       (closesAt == null || closesAt!.isAfter(DateTime.now())) &&
                       (unlimitedAttempts ||
                           (maxAttempts != null && maxAttempts > 0))) {
-                    setModalState(() => busy = true);
-                    try {
-                      await _firestoreService.addExam(
-                        title: titleController.text.trim(),
-                        durationMinutes: durationMinutes,
-                        isOpen: isOpen,
-                        maxAttempts: maxAttempts,
-                        closesAt: closesAt,
-                      );
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
-                    } catch (_) {
-                      if (context.mounted) {
-                        setModalState(() => busy = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Không tạo được bài thi. Vui lòng thử lại.',
-                            ),
-                          ),
-                        );
-                      }
-                    }
+                    await _firestoreService.addExam(
+                      title: titleController.text.trim(),
+                      durationMinutes: durationMinutes,
+                      isOpen: isOpen,
+                      maxAttempts: maxAttempts,
+                      closesAt: closesAt,
+                    );
+                    if (!context.mounted) return;
+                    Navigator.pop(context);
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -386,64 +368,6 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
     );
   }
 
-  Future<void> _editPolicy(String id, Map<String, dynamic> exam) async {
-    String date(Object? value) =>
-        value is Timestamp ? value.toDate().toString().substring(0, 16) : '';
-    await editLearningRecord(
-      context,
-      title: 'Cài đặt bài thi',
-      fields: {
-        'Điểm đạt (0–10)': '${exam['passScore'] ?? 5}',
-        'Trộn câu hỏi (có/không)': exam['shuffleQuestions'] == true
-            ? 'có'
-            : 'không',
-        'Trộn đáp án (có/không)': exam['shuffleAnswers'] == true
-            ? 'có'
-            : 'không',
-        'Cho xem lời giải (có/không)': exam['showSolutions'] == true
-            ? 'có'
-            : 'không',
-        'Mở đề lúc (YYYY-MM-DD HH:mm)': date(exam['opensAt']),
-        'Đóng đề lúc (YYYY-MM-DD HH:mm)': date(exam['closesAt']),
-      },
-      optional: {
-        'Mở đề lúc (YYYY-MM-DD HH:mm)',
-        'Đóng đề lúc (YYYY-MM-DD HH:mm)',
-      },
-      save: (values) async {
-        final score = double.tryParse(values['Điểm đạt (0–10)']!);
-        final show = values['Cho xem lời giải (có/không)']!.toLowerCase();
-        final shuffleQuestions = values['Trộn câu hỏi (có/không)']!
-            .toLowerCase();
-        final shuffleAnswers = values['Trộn đáp án (có/không)']!.toLowerCase();
-        final startText = values['Mở đề lúc (YYYY-MM-DD HH:mm)']!;
-        final endText = values['Đóng đề lúc (YYYY-MM-DD HH:mm)']!;
-        final start = DateTime.tryParse(startText);
-        final end = DateTime.tryParse(endText);
-        if (score == null ||
-            !score.isFinite ||
-            score < 0 ||
-            score > 10 ||
-            !['có', 'không'].contains(show) ||
-            !['có', 'không'].contains(shuffleQuestions) ||
-            !['có', 'không'].contains(shuffleAnswers) ||
-            (startText.isNotEmpty && start == null) ||
-            (endText.isNotEmpty && end == null) ||
-            (start != null && end != null && !end.isAfter(start))) {
-          throw ArgumentError('Cài đặt chưa hợp lệ.');
-        }
-        await _firestoreService.updateExamPolicy(id, {
-          'passScore': score,
-          'showSolutions': show == 'có',
-          'shuffleQuestions': shuffleQuestions == 'có',
-          'shuffleAnswers': shuffleAnswers == 'có',
-          'opensAt': start == null ? null : Timestamp.fromDate(start),
-          'closesAt': end == null ? null : Timestamp.fromDate(end),
-        });
-      },
-    );
-  }
-
   Widget _buildExamCard(String docId, Map<String, dynamic> exam) {
     final bool isOpen = exam['isOpen'] ?? false;
     final canManageExam = AccountSession.current?.isRoot == true;
@@ -582,12 +506,6 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                     ),
                   ),
                 ),
-                if (canManageExam)
-                  IconButton(
-                    tooltip: 'Điểm đạt, lời giải và lịch mở đề',
-                    icon: const Icon(Icons.tune),
-                    onPressed: () => _editPolicy(docId, exam),
-                  ),
                 if (canManageExam)
                   IconButton(
                     icon: Icon(

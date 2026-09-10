@@ -10,10 +10,9 @@ typedef AccountCall = Future<Map<String, dynamic>> Function(
 );
 
 class AccountApi {
-  AccountApi({this.transport, this.useBackend = false});
-  final bool useBackend;
+  AccountApi({this.transport});
   final AccountCall? transport;
-  bool get hasTransport => transport != null || useBackend;
+  bool get hasTransport => transport != null;
   final Map<String, String> _operations = {};
 
   Future<Map<String, dynamic>> call(

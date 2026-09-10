@@ -28,7 +28,7 @@ class UserHomeScreen extends StatefulWidget {
 }
 
 class _UserHomeScreenState extends State<UserHomeScreen> {
-  final Color primaryColor = const Color(0xFFB51F24);
+  final Color primaryColor = const Color(0xFF6B0000);
   late final FirestoreService _firestoreService =
       widget.service ?? FirestoreService();
   Timer? _deadlineRefresh;
@@ -196,9 +196,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                 final canStart =
                                     !isChecking &&
                                     !questionSnapshot.hasError &&
-                                    actualQuestionCount > 0 &&
-                                    actualQuestionCount ==
-                                        questionSnapshot.data?.length;
+                                    actualQuestionCount > 0;
                                 final durationText =
                                     data['duration']?.toString() ?? '45 phút';
                                 final rawClosing = data['closesAt'];

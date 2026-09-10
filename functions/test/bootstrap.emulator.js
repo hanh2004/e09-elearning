@@ -25,7 +25,7 @@ test('bootstrap is repeat-safe and callable auth enforces both approvers', async
   const root1 = await login('admintong1'); const root2 = await login('admintong2');
   assert.equal(root1.ok, true); assert.equal(root2.ok, true);
   assert.equal((await login('admintong1', 'wrong-password')).ok, false);
-  const data = { unit: 'Đơn vị A', account: { name: 'Admin Test', username: 'callableadmin', password: '123456' }, operationId: 'c'.repeat(32) };
+  const data = { account: { name: 'Admin Test', username: 'callableadmin', password: '123456' }, operationId: 'c'.repeat(32) };
   assert.equal((await call('accountProposeAdmin', null, data)).ok, false);
   const proposal = await call('accountProposeAdmin', root1.body.idToken, data);
   assert.equal(proposal.ok, true, JSON.stringify(proposal.body));
