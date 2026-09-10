@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/brand_logo.dart';
+
 import '../services/firestore_service.dart';
 import '../app/app_portal.dart';
 import '../models/account_identity.dart';
@@ -17,7 +19,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final Color primaryColor = const Color(0xFF6B0000);
+  final Color primaryColor = const Color(0xFFB51F24);
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _usernameController = TextEditingController();
@@ -130,18 +132,28 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Container(
                               height: 580,
                               padding: const EdgeInsets.all(48),
-                              color: primaryColor,
-                              child: const Column(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    primaryColor,
+                                    const Color(0xFF78131D),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    Icons.school_rounded,
-                                    color: Colors.white,
-                                    size: 64,
+                                  BrandLogo(
+                                    admin:
+                                        PortalScope.of(context).portal ==
+                                        AppPortal.admin,
+                                    height: 100,
                                   ),
-                                  SizedBox(height: 28),
-                                  Text(
+                                  const SizedBox(height: 28),
+                                  const Text(
                                     'Học tập và kiểm tra\ntrên một nền tảng',
                                     style: TextStyle(
                                       color: Colors.white,
@@ -150,8 +162,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  SizedBox(height: 16),
-                                  Text(
+                                  const SizedBox(height: 16),
+                                  const Text(
                                     'Theo dõi tiến độ, tham gia bài thi và quản lý nội dung dễ dàng.',
                                     style: TextStyle(
                                       color: Colors.white70,
@@ -188,24 +200,32 @@ class _LoginScreenState extends State<LoginScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Image.asset(
-            'lib/assets/images/logo.png',
-            height: 100,
-            width: 100,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return Icon(Icons.school_outlined, size: 80, color: primaryColor);
-            },
-          ),
-          const SizedBox(height: 16),
-          Text(
-            PortalScope.of(context).portal.title.toUpperCase(),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: primaryColor,
-              letterSpacing: 1.2,
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                colors: [primaryColor, const Color(0xFF81131C)],
+              ),
+            ),
+            child: Column(
+              children: [
+                BrandLogo(
+                  admin: PortalScope.of(context).portal == AppPortal.admin,
+                  height: 100,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  PortalScope.of(context).portal.title.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
@@ -253,6 +273,30 @@ class _LoginScreenState extends State<LoginScreen> {
                 : null,
           ),
           const SizedBox(height: 24),
+
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _isLoading
+                  ? null
+                  : () => showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Quên mật khẩu?'),
+                        content: const Text(
+                          'Liên hệ quản trị viên của đơn vị và cung cấp tên đăng nhập để được đặt lại mật khẩu. Sau khi đăng nhập lại, bạn có thể đổi mật khẩu trong Hồ sơ và bảo mật.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Đã hiểu'),
+                          ),
+                        ],
+                      ),
+                    ),
+              child: const Text('Quên mật khẩu?'),
+            ),
+          ),
 
           // Nút Đăng nhập
           SizedBox(

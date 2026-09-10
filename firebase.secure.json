@@ -1,6 +1,7 @@
 {
   "functions": [{ "source": "functions", "codebase": "accounts", "runtime": "nodejs22" }],
-  "firestore": { "rules": "firestore.rules" },
+  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
+  "storage": { "rules": "storage.rules" },
   "hosting": [
     {
       "site": "e09-elearning",

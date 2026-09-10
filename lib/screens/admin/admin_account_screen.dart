@@ -9,6 +9,7 @@ import '../../services/firestore_service.dart';
 import '../login_screen.dart';
 import 'admin_user_import_dialog.dart';
 import 'admin_requests_screen.dart';
+import '../../widgets/learning_widgets.dart';
 
 class AdminAccountScreen extends StatefulWidget {
   const AdminAccountScreen({super.key, this.service});
@@ -59,6 +60,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
     final name = TextEditingController(text: user?['name'] ?? '');
     final username = TextEditingController(text: user?['username'] ?? '');
     final password = TextEditingController();
+    final unit = TextEditingController(text: user?['unit'] ?? '');
     final form = GlobalKey<FormState>();
     var busy = false;
     String? error;
@@ -87,6 +89,21 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                       if (propose)
                         const Text(
                           'Tài khoản chỉ hoạt động sau khi admin tổng còn lại đồng ý.',
+                        ),
+                      if (propose)
+                        TextFormField(
+                          controller: unit,
+                          decoration: const InputDecoration(
+                            labelText: 'Đơn vị admin phụ',
+                          ),
+                          validator: (v) =>
+                              v == null || v.trim().isEmpty || v.length > 200
+                              ? 'Nhập đơn vị, tối đa 200 ký tự.'
+                              : null,
+                        ),
+                      if (id == null && !propose)
+                        const Text(
+                          'Học viên tự động thuộc đơn vị của admin tạo tài khoản.',
                         ),
                       TextFormField(
                         controller: name,
@@ -165,6 +182,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                               name: name.text.trim(),
                               username: username.text,
                               password: password.text,
+                              unit: unit.text.trim(),
                             );
                           } else if (id != null) {
                             await _service.updateUser(
@@ -212,6 +230,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
     name.dispose();
     username.dispose();
     password.dispose();
+    unit.dispose();
   }
 
   Future<void> _import() async {
@@ -278,7 +297,7 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: const Color(0xFF6B0000),
+        backgroundColor: const Color(0xFFB51F24),
         foregroundColor: Colors.white,
         title: Text(root ? 'Quản lý Tài khoản' : 'User do tôi tạo'),
         actions: [
@@ -400,11 +419,61 @@ class _AdminAccountScreenState extends State<AdminAccountScreen> {
                       child: ListTile(
                         title: Text(user['name']?.toString() ?? ''),
                         subtitle: Text(
-                          '${user['username']} • $role${user['status'] == 'active' ? '' : ' • Chờ xử lý'}$creatorLabel',
+                          '${user['username']} • $role${user['status'] == 'active'
+                              ? ''
+                              : user['status'] == 'blocked'
+                              ? ' • Đã khóa'
+                              : ' • Chờ xử lý'}\nĐơn vị: ${user['role'] == 'super_admin' ? 'E09' : user['unit'] ?? 'Chưa phân đơn vị'}${(user['subUnit'] as String? ?? '').isEmpty ? '' : '\nTrực thuộc: ${user['subUnit']}'}$creatorLabel',
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (root && user['role'] == 'admin')
+                              IconButton(
+                                tooltip: 'Phân đơn vị',
+                                icon: const Icon(Icons.apartment),
+                                onPressed: () => editLearningRecord(
+                                  context,
+                                  title: 'Phân đơn vị admin và học viên do admin tạo',
+                                  fields: {'Đơn vị': user['unit'] ?? ''},
+                                  maxLengths: {'Đơn vị': 200},
+                                  save: (v) => _service.setAdminUnit(
+                                    doc.id,
+                                    v['Đơn vị']!,
+                                  ),
+                                ),
+                              ),
+                            if (root &&
+                                user['role'] != 'super_admin' &&
+                                ['active', 'blocked'].contains(user['status']))
+                              IconButton(
+                                tooltip: user['status'] == 'blocked'
+                                    ? 'Mở khóa'
+                                    : 'Khóa tài khoản',
+                                icon: Icon(
+                                  user['status'] == 'blocked'
+                                      ? Icons.lock_open
+                                      : Icons.lock_outline,
+                                ),
+                                onPressed: () async {
+                                  try {
+                                    await _service.setUserBlocked(
+                                      doc.id,
+                                      user['status'] != 'blocked',
+                                    );
+                                  } catch (error) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(_accountError(error)),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
                             if (_identity!.canEdit(doc.id, user))
                               IconButton(
                                 tooltip: 'Sửa tài khoản',

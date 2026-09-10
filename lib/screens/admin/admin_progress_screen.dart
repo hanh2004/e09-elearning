@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../models/exam_outcome.dart';
+
 import 'admin_exam_screen.dart';
 import 'admin_home_screen.dart';
 import 'admin_report_screen.dart';
@@ -16,7 +18,7 @@ class AdminProgressScreen extends StatefulWidget {
 }
 
 class _AdminProgressScreenState extends State<AdminProgressScreen> {
-  static const primaryColor = Color(0xFF6B0000);
+  static const primaryColor = Color(0xFFB51F24);
   final FirestoreService _firestoreService = FirestoreService();
 
   void _onNavigationTap(int index) {
@@ -430,6 +432,13 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
     List<QueryDocumentSnapshot<Map<String, dynamic>>> attempts,
   ) {
     final best = _bestScore(attempts);
+    final ordered = attempts.toList()
+      ..sort(
+        (a, b) =>
+            ExamOutcome.score(b.data()).compareTo(ExamOutcome.score(a.data())),
+      );
+    final passed =
+        ordered.isNotEmpty && ExamOutcome.passed(ordered.first.data());
     final attemptCount = attempts.fold(
       0,
       (total, attempt) => total + _attemptCount(attempt),
@@ -469,7 +478,7 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
             Text(
               best.toStringAsFixed(1),
               style: TextStyle(
-                color: best >= 5 ? Colors.green : Colors.red,
+                color: passed ? Colors.green : Colors.red,
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
               ),

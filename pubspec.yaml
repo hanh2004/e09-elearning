@@ -21,6 +21,7 @@ dependencies:
   web: ^1.1.1
   cloud_functions: ^6.4.0
   crypto: ^3.0.7
+  firebase_storage: ^13.5.0
 
 dev_dependencies:
   flutter_test:
@@ -33,4 +34,5 @@ flutter:
 
   assets:
     - lib/assets/images/logo.png
+    - lib/assets/images/wed_logo.png
     - lib/assets/templates/users_template.xlsx

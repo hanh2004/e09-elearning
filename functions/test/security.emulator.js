@@ -21,7 +21,7 @@ let serial = 0;
 const operationId = () => (++serial).toString(16).padStart(32, '0');
 before(async () => {
   env = await initializeTestEnvironment({ projectId,
-    firestore: { rules: readFileSync(new URL('../../firestore.rules', import.meta.url), 'utf8') } });
+    firestore: { rules: readFileSync(new URL('../../firestore.spark.rules', import.meta.url), 'utf8') } });
   await env.clearFirestore();
   app = initializeApp({ projectId }, 'integration'); db = getFirestore(app); auth = getAuth(app);
   handlers = accountHandlers(db, auth);
@@ -31,7 +31,7 @@ before(async () => {
 after(async () => { await env?.cleanup(); if (app) await deleteApp(app); });
 
 test('two-root approval and limited ownership end to end', async () => {
-  const input = { account: row('limited01'), operationId: operationId() };
+  const input = { unit: 'Đơn vị A', account: row('limited01'), operationId: operationId() };
   const request = await handlers.proposeAdmin(roots[0], input);
   assert.deepEqual(await handlers.proposeAdmin(roots[0], input), request);
   const requestDoc = (await db.doc(`admin_requests/${request.requestId}`).get()).data();
@@ -51,7 +51,7 @@ test('two-root approval and limited ownership end to end', async () => {
   assert.equal(own.length, 2);
   for (const user of own) { assert.equal(user.data().role, 'user'); assert.equal(user.data().password, undefined); }
   await handlers.updateUser(limited, { userId: own[0].id, name: 'Changed' });
-  await assert.rejects(handlers.proposeAdmin(limited, { account: row('badadmin'), operationId: operationId() }), { code: 'permission-denied' });
+  await assert.rejects(handlers.proposeAdmin(limited, { unit: 'Đơn vị A', account: row('badadmin'), operationId: operationId() }), { code: 'permission-denied' });
   await handlers.importUsers(roots[0], { rows: [row('notmine')], operationId: operationId() });
   const other = (await db.collection('users').where('username', '==', 'notmine').get()).docs[0];
   await assert.rejects(handlers.updateUser(limited, { userId: other.id, name: 'Forbidden' }), { code: 'permission-denied' });
@@ -105,7 +105,7 @@ test('two-root approval and limited ownership end to end', async () => {
 });
 
 test('reverse proposer and rejection leave Auth disabled', async () => {
-  const { requestId } = await handlers.proposeAdmin(roots[1], { account: row('rejected01'), operationId: operationId() });
+  const { requestId } = await handlers.proposeAdmin(roots[1], { unit: 'Đơn vị A', account: row('rejected01'), operationId: operationId() });
   await assert.rejects(handlers.decideAdmin(roots[1], { requestId, approve: false }), { code: 'permission-denied' });
   await handlers.decideAdmin(roots[0], { requestId, approve: false });
   const request = (await db.doc(`admin_requests/${requestId}`).get()).data();
@@ -203,4 +203,78 @@ test('student attempts enforce ownership, deadline and no self deletion', async 
     selectedAnswers: {},
     currentQuestionIndex: 0,
   }));
+});
+
+test('learning access respects class, publication, ownership and schedule', async () => {
+  await db.doc('users/learner_a').set({ role: 'user', status: 'active', classId: 'A', name: 'A' });
+  await db.doc('users/learner_b').set({ role: 'user', status: 'active', classId: 'B', name: 'B' });
+  const a = env.authenticatedContext('learner_a').firestore();
+  const b = env.authenticatedContext('learner_b').firestore();
+  await db.doc('courses/class_a').set({ title: 'A', published: true, audience: 'class:A' });
+  await db.doc('courses/draft_a').set({ title: 'Draft', published: false, audience: 'class:A' });
+  await db.doc('courses/class_a/lessons/one').set({ title: 'One', order: 1, type: 'text' });
+  await assertSucceeds(getDoc(doc(a, 'courses/class_a')));
+  await assertFails(getDoc(doc(b, 'courses/class_a')));
+  await assertFails(getDoc(doc(a, 'courses/draft_a')));
+  await assertSucceeds(getDocs(query(collection(a, 'courses'), where('published', '==', true), where('audience', 'in', ['all', 'class:A']))));
+  await assertFails(getDocs(collection(a, 'courses')));
+  await assertFails(getDoc(doc(b, 'courses/class_a/lessons/one')));
+  const progress = { courseId: 'class_a', lessonId: 'one', completed: true, favorite: true, updatedAt: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(a, 'users/learner_a/learning/class_a_one'), progress));
+  await assertFails(setDoc(doc(a, 'users/learner_b/learning/class_a_one'), progress));
+  await assertFails(setDoc(doc(b, 'users/learner_b/learning/class_a_one'), progress));
+  await assertFails(setDoc(doc(a, 'users/learner_a/learning/missing'), { ...progress, lessonId: 'missing' }));
+  await assertSucceeds(updateDoc(doc(a, 'users/learner_a'), { name: 'Updated', unit: 'Unit' }));
+  await assertFails(updateDoc(doc(a, 'users/learner_a'), { classId: 'B' }));
+  await assertFails(updateDoc(doc(a, 'users/learner_a'), { role: 'admin' }));
+  await db.doc('learning_notifications/due').set({ audience: 'class:A', sendAt: new Date(Date.now() - 60000), title: 'Due', body: 'Text' });
+  await db.doc('learning_notifications/later').set({ audience: 'class:A', sendAt: new Date(Date.now() + 600000), title: 'Later', body: 'Text' });
+  await assertSucceeds(getDoc(doc(a, 'learning_notifications/due')));
+  await assertFails(getDoc(doc(b, 'learning_notifications/due')));
+  await assertFails(getDoc(doc(a, 'learning_notifications/later')));
+  await assertSucceeds(getDocs(query(collection(a, 'learning_notifications'), where('audience', 'in', ['all', 'class:A', 'user:learner_a']), where('sendAt', '<=', new Date(Date.now() - 1000)))));
+  await assertFails(setDoc(doc(a, 'learning_audit/spoof'), { actorId: roots[0], path: 'courses/class_a', action: 'save', at: serverTimestamp() }));
+});
+
+test('exam run history is atomic, immutable and private', async () => {
+  await db.doc('users/run_student').set({ role: 'user', status: 'active', name: 'Run' });
+  await db.doc('exams/run_exam').set({ isOpen: true, durationMinutes: 30 });
+  await db.doc('exam_attempts/run_attempt').set({ userId: 'run_student', examId: 'run_exam', status: 'in_progress', attemptCount: 0, endsAt: new Date(Date.now() + 60000) });
+  const client = env.authenticatedContext('run_student').firestore();
+  const run = { userId: 'run_student', examId: 'run_exam', examTitle: 'Run', score: 7, correctAnswers: 7, totalQuestions: 10, answers: [], runNumber: 1, completedAt: serverTimestamp() };
+  await assertFails(setDoc(doc(client, 'exam_attempts/run_attempt/runs/1'), run));
+  const batch = writeBatch(client);
+  batch.update(doc(client, 'exam_attempts/run_attempt'), { status: 'completed', attemptCount: 1, bestScore: 7, diemSo: 7, correctAnswers: 7, totalQuestions: 10 });
+  batch.set(doc(client, 'exam_attempts/run_attempt/runs/1'), run);
+  await assertSucceeds(batch.commit());
+  await assertSucceeds(getDoc(doc(client, 'exam_attempts/run_attempt/runs/1')));
+  await assertFails(updateDoc(doc(client, 'exam_attempts/run_attempt/runs/1'), { score: 10 }));
+  await assertFails(getDoc(doc(env.authenticatedContext('learner_b').firestore(), 'exam_attempts/run_attempt/runs/1')));
+});
+
+test('attempt progress cannot extend deadlines or replace best score', async () => {
+  await db.doc('users/audit_student').set({ role: 'user', status: 'active', name: 'Audit' });
+  await db.doc('exams/audit_exam').set({ isOpen: true, durationMinutes: 5, maxAttempts: 3 });
+  const original = { userId:'audit_student', examId:'audit_exam', status:'in_progress', attemptCount:1, bestScore:7, diemSo:7,
+    startedAt: new Date(Date.now()-10000), endsAt:new Date(Date.now()+60000) };
+  await db.doc('exam_attempts/audit_attempt').set(original);
+  const client = env.authenticatedContext('audit_student').firestore();
+  const ref = doc(client, 'exam_attempts/audit_attempt');
+  await assertSucceeds(updateDoc(ref, { selectedAnswers:{'0':1}, lastSavedAt:serverTimestamp() }));
+  await assertFails(updateDoc(ref, { endsAt:new Date(Date.now()+3600000) }));
+  await assertFails(updateDoc(ref, { bestScore:10 }));
+  await db.doc('exam_attempts/audit_attempt').update({status:'completed'});
+  await assertFails(updateDoc(ref, {status:'in_progress', bestScore:10, startedAt:serverTimestamp(), endsAt:new Date(Date.now()+240000)}));
+  await assertSucceeds(updateDoc(ref, {status:'in_progress', selectedAnswers:{}, currentQuestionIndex:0, startedAt:serverTimestamp(), endsAt:new Date(Date.now()+240000)}));
+});
+
+test('backend account deletion removes learning and run subcollections', async () => {
+  await handlers.importUsers(roots[0], {rows:[row('audit_cleanup')], operationId:operationId()});
+  const user = (await db.collection('users').where('username','==','audit_cleanup').get()).docs[0];
+  await user.ref.collection('learning').doc('c_l').set({completed:true});
+  await db.doc('exam_attempts/cleanup').set({userId:user.id, examId:'e'});
+  await db.doc('exam_attempts/cleanup/runs/1').set({score:8});
+  await handlers.deleteUser(roots[0], {userId:user.id});
+  assert.equal((await user.ref.collection('learning').get()).empty, true);
+  assert.equal((await db.collection('exam_attempts/cleanup/runs').get()).empty, true);
 });

@@ -20,9 +20,12 @@ class CauHoiModel {
     final validOptionCount = dsLuaChon
         .where((option) => option.noiDung.trim().isNotEmpty)
         .length;
-    return content.isNotEmpty &&
+    return loaiCauHoi == 'SINGLE_CHOICE' &&
+        dsLuaChon.where((option) => option.dapAnDung).length == 1 &&
+        content.isNotEmpty &&
         content != 'Câu hỏi chưa có nội dung' &&
-        validOptionCount >= 2;
+        validOptionCount >= 2 &&
+        validOptionCount == dsLuaChon.length;
   }
 
   factory CauHoiModel.fromFirestore(DocumentSnapshot doc) {

@@ -21,12 +21,12 @@ class UserExamScreen extends StatefulWidget {
 }
 
 class ExamColors {
-  static const Color primary = Color(0xFF6B0000);
+  static const Color primary = Color(0xFFB51F24);
   static const Color scaffoldBackground = Color(0xFFF5F5F5);
 
   // Nút số thứ tự câu hỏi
   static Color numberBtnDefault = Colors.grey[300]!;
-  static const Color numberBtnActive = Color(0xFF6B0000);
+  static const Color numberBtnActive = Color(0xFFB51F24);
   static const Color numberBtnAnswered = Colors.green;
 
   // Trạng thái đồng hồ
@@ -129,6 +129,12 @@ class _UserExamScreenState extends State<UserExamScreen>
   }
 
   void _selectAnswer(int optionIndex) {
+    if (_isLoading ||
+        _isSubmitting ||
+        _maLuot == null ||
+        _remainingSeconds <= 0) {
+      return;
+    }
     setState(() {
       _selectedAnswers[_currentQuestionIndex] = optionIndex;
     });
@@ -152,18 +158,16 @@ class _UserExamScreenState extends State<UserExamScreen>
           .where((question) => question.isValidForExam)
           .toList();
 
-      if (loadedQuestions.isNotEmpty && questions.isEmpty) {
+      if (questions.length != loadedQuestions.length) {
         throw StateError(
-          'Đã tìm thấy ${loadedQuestions.length} document câu hỏi nhưng '
-          'không đọc được nội dung/đáp án. Mỗi câu phải có questionText '
-          'và options là một mảng có ít nhất 2 đáp án.',
+          'Đề có câu hỏi chưa hợp lệ hoặc chưa hỗ trợ. Vui lòng liên hệ giáo viên để kiểm tra đề.',
         );
       }
 
       if (!mounted) return;
       setState(() {
         _dsCauHoi = questions;
-        _isLoading = false;
+        _isLoading = questions.isNotEmpty;
       });
 
       if (questions.isEmpty) return;
@@ -205,14 +209,20 @@ class _UserExamScreenState extends State<UserExamScreen>
           _currentQuestionIndex = session.currentQuestionIndex;
         }
         if (mounted) {
-          setState(() => _loadError = null);
+          setState(() {
+            _loadError = null;
+            _isLoading = false;
+          });
           await _saveProgress();
           _startTimer();
         }
       } catch (error) {
         if (!mounted) return;
         final errorText = _readableError(error);
-        setState(() => _loadError = errorText);
+        setState(() {
+          _loadError = errorText;
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(errorText)));
       }
@@ -238,7 +248,10 @@ class _UserExamScreenState extends State<UserExamScreen>
   }
 
   void _retryPrepareAttempt() {
-    setState(() => _loadError = null);
+    setState(() {
+      _loadError = null;
+      _isLoading = false;
+    });
     unawaited(_initExamData());
   }
 

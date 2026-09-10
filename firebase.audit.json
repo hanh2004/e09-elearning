@@ -1,0 +1,14 @@
+{
+  "functions": [{ "source": "functions", "codebase": "accounts", "runtime": "nodejs22" }],
+  "firestore": { "rules": "firestore.rules" },
+  "emulators": {
+    "auth": { "host": "127.0.0.1", "port": 9399 },
+    "functions": { "host": "127.0.0.1", "port": 5101 },
+    "firestore": { "host": "127.0.0.1", "port": 8380 },
+    "hub": { "host": "127.0.0.1", "port": 4800 },
+    "logging": { "host": "127.0.0.1", "port": 4850 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}
+

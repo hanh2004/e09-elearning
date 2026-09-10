@@ -20,7 +20,7 @@ class AdminSettingsScreen extends StatefulWidget {
 
 class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   final int _selectedIndex = 3;
-  final Color primaryColor = const Color(0xFF6B0000);
+  final Color primaryColor = const Color(0xFFB51F24);
   late final FirestoreService _service;
   bool _updatingMaintenance = false;
 

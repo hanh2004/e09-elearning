@@ -3,174 +3,101 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
-    function rootEmail() {
-      return signedIn() && request.auth.token.email in [
-        '6cee932f6a2e32baf138fd77429565df5ac34fdefddd6f3dbb0804a23c94fdfe@accounts.invalid',
-        '563b7df548c46e765b517d4db8ef94f17570d00a38206931ec11085e52e620cc@accounts.invalid'
-      ];
-    }
     function active() { return signedIn() && profile().status == 'active'; }
-    function root() {
-      return active() && profile().role == 'super_admin' && rootEmail();
-    }
-    function admin() {
-      return root() || (active() && profile().role == 'admin' &&
-        profile().createdBy != profile().approvedBy &&
-        get(/databases/$(database)/documents/users/$(profile().createdBy)).data.role == 'super_admin' &&
-        get(/databases/$(database)/documents/users/$(profile().approvedBy)).data.role == 'super_admin');
-    }
+    function root() { return active() && profile().role == 'super_admin' && request.auth.uid in get(/databases/$(database)/documents/system/access).data.rootUids; }
+    function admin() { return root() || (active() && profile().role == 'admin' && profile().createdBy != profile().approvedBy &&
+      profile().createdBy in get(/databases/$(database)/documents/system/access).data.rootUids &&
+      profile().approvedBy in get(/databases/$(database)/documents/system/access).data.rootUids); }
     function student() { return active() && profile().role == 'user'; }
-    function examData(examId) {
-      return get(/databases/$(database)/documents/exams/$(examId)).data;
-    }
-    function examAvailable(examId) {
-      let exam = examData(examId);
-      return exam.isOpen == true &&
-        (!('closesAt' in exam) || exam.closesAt == null || request.time < exam.closesAt);
-    }
-    function allowedDurationMinutes(exam) {
-      // Existing exams stored only a display string. Keep them usable while all
-      // newly created exams use the validated numeric durationMinutes field.
-      return ('durationMinutes' in exam && exam.durationMinutes is int &&
-        exam.durationMinutes > 0) ? exam.durationMinutes : 1440;
-    }
-    function validStudentAttemptCreate() {
-      let attempt = request.resource.data;
-      let exam = examData(attempt.examId);
-      return attempt.keys().hasOnly([
-          'userId', 'examId', 'startedAt', 'endsAt', 'status', 'attemptCount',
-          'selectedAnswers', 'currentQuestionIndex'
-        ]) &&
-        attempt.keys().hasAll([
-          'userId', 'examId', 'startedAt', 'endsAt', 'status', 'attemptCount'
-        ]) &&
-        attempt.userId == request.auth.uid &&
-        attempt.examId is string && examAvailable(attempt.examId) &&
-        attempt.status == 'in_progress' && attempt.attemptCount == 0 &&
-        attempt.startedAt == request.time && attempt.endsAt is timestamp &&
-        attempt.endsAt > request.time &&
-        attempt.endsAt <= request.time + duration.value(allowedDurationMinutes(exam), 'm') &&
-        (!('closesAt' in exam) || exam.closesAt == null || attempt.endsAt <= exam.closesAt);
-    }
-    function validCompletedAttempt(attempt, old) {
-      return attempt.keys().hasAll([
-          'bestScore', 'diemSo', 'correctAnswers', 'totalQuestions',
-          'attemptCount', 'status'
-        ]) && attempt.status == 'completed' &&
-        attempt.attemptCount == old.attemptCount + 1 &&
-        attempt.diemSo is number && attempt.diemSo >= 0 && attempt.diemSo <= 10 &&
-        attempt.bestScore is number && attempt.bestScore >= 0 && attempt.bestScore <= 10 &&
-        attempt.correctAnswers is int && attempt.totalQuestions is int &&
-        attempt.correctAnswers >= 0 && attempt.totalQuestions > 0 &&
-        attempt.correctAnswers <= attempt.totalQuestions;
-    }
-    function validStudentAttemptUpdate() {
-      let attempt = request.resource.data;
-      let old = resource.data;
-      let exam = examData(old.examId);
-      return old.userId == request.auth.uid &&
-        attempt.userId == old.userId && attempt.examId == old.examId &&
-        attempt.diff(old).affectedKeys().hasOnly([
-          'status', 'attemptCount', 'bestScore', 'diemSo', 'bestCorrectAnswers',
-          'correctAnswers', 'totalQuestions', 'bestCompletedAt', 'completedAt',
-          'lastAttemptAt', 'bestAnswers', 'answers', 'selectedAnswers',
-          'currentQuestionIndex', 'lastSavedAt', 'startedAt', 'endsAt', 'examTitle'
-        ]) &&
-        (((old.status == 'in_progress' && attempt.status == 'in_progress' &&
-          request.time <= old.endsAt + duration.value(1, 'm') &&
-          attempt.attemptCount == old.attemptCount) ||
-         (old.status == 'completed' && attempt.status == 'in_progress' &&
-          examAvailable(old.examId) &&
-          attempt.startedAt == request.time && attempt.endsAt > request.time &&
-          attempt.endsAt <= request.time + duration.value(allowedDurationMinutes(exam), 'm') &&
-          (!('closesAt' in exam) || exam.closesAt == null || attempt.endsAt <= exam.closesAt) &&
-          attempt.attemptCount == old.attemptCount &&
-          (!('maxAttempts' in exam) || exam.maxAttempts == null ||
-            attempt.attemptCount < exam.maxAttempts))) ||
-         (old.status == 'in_progress' &&
-          request.time <= old.endsAt + duration.value(1, 'm') &&
-          validCompletedAttempt(attempt, old)));
-    }
-
-    match /users/{id} {
-      allow get: if (signedIn() && request.auth.uid == id &&
-        resource.data.status == 'active') || admin();
+    function canManageUser(uid) { let user = get(/databases/$(database)/documents/users/$(uid)).data;
+      return admin() && (root() || (user.role == 'user' && user.createdBy == request.auth.uid)); }
+    function courseReadable(courseId) { let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
+      return active() && course.published == true; }
+    match /users/{uid} {
+      allow get: if admin() || (active() && request.auth.uid == uid);
       allow list: if admin();
-      allow create: if admin() && request.resource.data.createdBy == request.auth.uid &&
-        ((request.resource.data.role == 'user' && request.resource.data.status == 'active') ||
-         (root() && request.resource.data.role == 'admin' && request.resource.data.status == 'pending'));
-      allow create: if signedIn() && id == request.auth.uid && rootEmail() &&
-        request.resource.data.role == 'super_admin' && request.resource.data.status == 'active';
-      allow update: if admin() && resource.data.role != 'super_admin' &&
-        request.resource.data.role == resource.data.role &&
-        request.resource.data.createdBy == resource.data.createdBy &&
-        (root() || (resource.data.role == 'user' && resource.data.createdBy == request.auth.uid));
-      allow delete: if admin() && resource.data.role != 'super_admin' &&
-        (root() || (resource.data.role == 'user' &&
-          resource.data.createdBy == request.auth.uid));
-    }
-    match /admin_requests/{id} {
-      allow read: if root();
-      allow create: if root() && request.resource.data.createdBy == request.auth.uid &&
-        request.resource.data.status == 'pending';
-      allow update: if root() && resource.data.createdBy != request.auth.uid &&
-        resource.data.status == 'pending' &&
-        request.resource.data.createdBy == resource.data.createdBy &&
-        request.resource.data.targetUid == resource.data.targetUid;
-      allow delete: if root();
-    }
-    match /system/access { allow read, write: if false; }
-    match /system/app_status {
-      allow read: if true;
-      allow create, update: if root() &&
-        request.resource.data.keys().hasOnly(['maintenance', 'updatedAt', 'updatedBy']) &&
-        request.resource.data.maintenance is bool &&
-        request.resource.data.updatedBy == request.auth.uid;
-      allow delete: if false;
-    }
-    match /system/{id} { allow read, write: if false; }
-    match /usernames/{id} {
-      allow read: if admin();
-      allow create: if admin();
-      allow update: if false;
-      allow delete: if admin() &&
-        get(/databases/$(database)/documents/users/$(resource.data.uid)).data.role != 'super_admin' &&
-        (root() ||
-          (get(/databases/$(database)/documents/users/$(resource.data.uid)).data.role == 'user' &&
-           get(/databases/$(database)/documents/users/$(resource.data.uid)).data.createdBy == request.auth.uid));
-    }
-    match /account_operations/{id} { allow read, write: if false; }
-    match /admin_request_secrets/{id} { allow read, write: if false; }
-    match /exams/{id} {
-      allow read: if admin() || student();
-      allow create: if root();
-      allow update, delete: if root();
-      match /questions/{questionId} {
-        allow read: if admin() || (student() && examAvailable(id));
-        allow create: if root();
-        allow update, delete: if root();
+      allow update: if active() && request.auth.uid == uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','avatarUrl','subUnit']) &&
+        request.resource.data.get('subUnit','') is string && request.resource.data.get('subUnit','').size() <= 200 &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100 &&
+        request.resource.data.get('unit','') is string && request.resource.data.get('unit','').size() <= 200 &&
+        request.resource.data.get('avatarUrl','') is string && request.resource.data.get('avatarUrl','').size() <= 2000;
+      allow update: if canManageUser(uid) && resource.data.role != 'super_admin' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classId','updatedBy','updatedAt']) &&
+        request.resource.data.get('classId','') is string && request.resource.data.get('classId','').size() <= 100 &&
+        request.resource.data.get('unit','') is string && request.resource.data.get('unit','').size() <= 200 &&
+        request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+      match /notification_reads/{id} {
+        allow read: if active() && request.auth.uid == uid;
+        allow create, update: if active() && request.auth.uid == uid &&
+          request.resource.data.keys().hasOnly(['readAt']) && request.resource.data.readAt == request.time &&
+          get(/databases/$(database)/documents/learning_notifications/$(id)).data.sendAt <= request.time &&
+          get(/databases/$(database)/documents/learning_notifications/$(id)).data.audience in
+            ['all','class:' + profile().get('classId',''),'user:' + request.auth.uid];
+      }
+      match /learning/{id} {
+        allow read: if admin() || (active() && request.auth.uid == uid);
+        allow create, update: if active() && request.auth.uid == uid &&
+          request.resource.data.keys().hasOnly(['courseId','lessonId','completed','favorite','updatedAt']) &&
+          id == request.resource.data.courseId + '_' + request.resource.data.lessonId &&
+          request.resource.data.completed is bool && request.resource.data.favorite is bool && request.resource.data.updatedAt == request.time &&
+          courseReadable(request.resource.data.courseId) && exists(/databases/$(database)/documents/courses/$(request.resource.data.courseId)/lessons/$(request.resource.data.lessonId));
       }
     }
-    match /questions/{id} {
-      allow read: if admin() || student();
-      allow create: if root();
-      allow update, delete: if root();
+    match /system/app_status {
+      allow read: if true;
+      allow create, update: if root() && request.resource.data.keys().hasOnly(['maintenance','updatedAt','updatedBy']) &&
+        request.resource.data.maintenance is bool && request.resource.data.updatedBy == request.auth.uid;
     }
-    match /CAU_HOI/{id} {
-      allow read: if admin() || student();
-      allow create: if root();
-      allow update, delete: if root();
+    match /usernames/{id} { allow read: if admin(); }
+    match /admin_requests/{id} { allow read: if root(); }
+    // Answer keys and grading snapshots never leave the trusted backend.
+    match /exams/{id} {
+      allow read: if admin();
+      allow create, update, delete: if root();
+      match /questions/{qid} { allow read: if admin(); allow write: if root(); }
     }
+    match /questions/{id} { allow read: if admin(); allow write: if root(); }
+    match /CAU_HOI/{id} { allow read: if admin(); allow write: if root(); }
     match /exam_attempts/{id} {
       allow read: if admin() || (student() && resource.data.userId == request.auth.uid);
-      // Spark can enforce ownership, time, shape and score bounds. Correct grading
-      // still needs a trusted backend because answer keys are used by the client.
-      allow create: if root() || (student() && validStudentAttemptCreate());
-      allow update: if root() || (student() && validStudentAttemptUpdate());
-      allow delete: if root() ||
-        (active() && profile().role == 'admin' &&
-          get(/databases/$(database)/documents/users/$(resource.data.userId)).data.role == 'user' &&
-          get(/databases/$(database)/documents/users/$(resource.data.userId)).data.createdBy == request.auth.uid);
+      allow delete: if root();
+      match /runs/{rid} {
+        allow read: if admin() || (student() && get(/databases/$(database)/documents/exam_attempts/$(id)).data.userId == request.auth.uid);
+        allow delete: if root();
+      }
+    }
+    match /exam_sessions/{id} {
+      allow read: if admin() || (student() && resource.data.userId == request.auth.uid);
+      match /runs/{rid} { allow read: if admin() || (student() && resource.data.userId == request.auth.uid); }
+    }
+    match /courses/{id} {
+      allow read: if admin() || (active() && resource.data.published == true);
+      allow create, update: if root() && request.resource.data.title is string && request.resource.data.title.size() > 0 &&
+        request.resource.data.published is bool && request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
+      match /lessons/{lid} {
+        allow read: if admin() || courseReadable(id);
+        allow create, update: if root() && request.resource.data.title is string && request.resource.data.title.size() > 0 &&
+          request.resource.data.order is int && request.resource.data.order >= 0 &&
+          request.resource.data.type in ['text','pdf','image','video'] && request.resource.data.updatedBy == request.auth.uid;
+      }
+    }
+    match /learning_notifications/{id} {
+      allow read: if admin() || (active() && resource.data.sendAt <= request.time && resource.data.audience in ['all','class:' + profile().get('classId',''),'user:' + request.auth.uid]);
+      allow create, update: if root() && request.resource.data.title is string && request.resource.data.body is string &&
+        request.resource.data.sendAt is timestamp && request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
+    }
+    match /learning_events/{id} {
+      allow read: if admin() || (active() && resource.data.audience in ['all','class:' + profile().get('classId','')]);
+      allow create, update: if root() && request.resource.data.title is string && request.resource.data.audience is string &&
+        request.resource.data.startsAt is timestamp && request.resource.data.endsAt is timestamp && request.resource.data.endsAt > request.resource.data.startsAt &&
+        request.resource.data.type in ['lesson','exam'];
+    }
+    match /account_audit/{id} { allow read: if admin(); }
+    match /learning_audit/{id} {
+      allow read: if admin();
+      allow create: if root() && request.resource.data.keys().hasOnly(['actorId','path','action','at']) &&
+        request.resource.data.actorId == request.auth.uid && request.resource.data.at == request.time;
     }
     match /{document=**} { allow read, write: if false; }
   }

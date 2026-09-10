@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../models/admin_report.dart';
+import '../../app/app_theme.dart';
+
 import '../../services/firestore_service.dart';
 import 'admin_exam_screen.dart';
 import 'admin_home_screen.dart';
@@ -8,15 +11,31 @@ import 'admin_settings_screen.dart';
 import 'admin_responsive_shell.dart';
 
 class AdminReportScreen extends StatefulWidget {
-  const AdminReportScreen({super.key});
+  const AdminReportScreen({super.key, this.service});
+  final FirestoreService? service;
 
   @override
   State<AdminReportScreen> createState() => _AdminReportScreenState();
 }
 
 class _AdminReportScreenState extends State<AdminReportScreen> {
-  static const _primaryColor = Color(0xFF6B0000);
-  final FirestoreService _firestoreService = FirestoreService();
+  static const _primaryColor = Color(0xFFB51F24);
+  late final FirestoreService _firestoreService =
+      widget.service ?? FirestoreService();
+  late final examStream = _firestoreService.getExamsStream();
+  late final attemptStream = _firestoreService.getExamAttemptsStream();
+  late final userStream = _firestoreService.getUsersStream();
+  final searchController = TextEditingController();
+  String? classFilter;
+  String? examFilter;
+  String? unitFilter;
+  int visibleRows = 50;
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
   final int _selectedIndex = 2;
 
   void _onItemTapped(int index) {
@@ -47,7 +66,7 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
           ),
         ),
         body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _firestoreService.getExamsStream(),
+          stream: examStream,
           builder: (context, examSnapshot) {
             if (examSnapshot.hasError) {
               return _buildError('Không tải được danh sách bài thi.');
@@ -56,7 +75,7 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _firestoreService.getExamAttemptsStream(),
+              stream: attemptStream,
               builder: (context, attemptSnapshot) {
                 if (attemptSnapshot.hasError) {
                   return _buildError('Không tải được kết quả làm bài.');
@@ -65,7 +84,7 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _firestoreService.getUsersStream(),
+                  stream: userStream,
                   builder: (context, userSnapshot) {
                     if (userSnapshot.hasError) {
                       return _buildError(
@@ -122,182 +141,590 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
     List<QueryDocumentSnapshot<Map<String, dynamic>>> attempts,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> users,
   ) {
-    final completed = attempts
-        .where((doc) => _attemptCount(doc.data()) > 0)
-        .toList();
-    final totalAttempts = completed.fold<int>(
-      0,
-      (total, doc) => total + _attemptCount(doc.data()),
+    DateTime? date(Object? value) => value is Timestamp ? value.toDate() : null;
+    final userMap = {for (final doc in users) doc.id: doc.data()};
+    final examMap = {for (final doc in exams) doc.id: doc.data()};
+    const String? selectedClass = null;
+    final selectedExam = examMap.containsKey(examFilter) ? examFilter : null;
+    final units =
+        users
+            .map(
+              (u) => u.data()['role'] == 'super_admin'
+                  ? 'E09'
+                  : (u.data()['unit'] ?? '').toString(),
+            )
+            .toSet()
+            .toList()
+          ..sort();
+    final selectedUnit = units.contains(unitFilter) ? unitFilter : null;
+    final report = AdminReport.build(
+      users: userMap,
+      exams: examMap,
+      attempts: attempts
+          .map(
+            (d) => {
+              ...d.data(),
+              'reportLastAt': date(
+                d.data()['lastAttemptAt'] ?? d.data()['completedAt'],
+              ),
+              'reportBestAt': date(
+                d.data()['bestCompletedAt'] ?? d.data()['completedAt'],
+              ),
+            },
+          )
+          .toList(),
+      classId: selectedClass,
+      examId: selectedExam,
+      unit: selectedUnit,
+      search: searchController.text,
     );
-    final passedRecords = completed
-        .where((doc) => _bestScore(doc.data()) >= 5)
-        .length;
-    final passRate = completed.isEmpty
-        ? 0.0
-        : passedRecords * 100 / completed.length;
-
-    final names = <String, String>{
-      for (final user in users)
-        user.id:
-            (user.data()['name'] ?? user.data()['username'] ?? 'Người dùng')
-                .toString(),
-    };
-    final bestByUser = <String, double>{};
-    for (final attempt in completed) {
-      final data = attempt.data();
-      final userId = data['userId']?.toString();
-      if (userId == null || userId.isEmpty) continue;
-      final score = _bestScore(data);
-      if (score > (bestByUser[userId] ?? -1)) {
-        bestByUser[userId] = score;
-      }
-    }
-    final ranking = bestByUser.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
+    final rank = report.ranking;
+    final distribution = report.distribution;
+    final scored = distribution.fold(0, (total, v) => total + v);
+    final sortedExams = exams.toList()
+      ..sort(
+        (a, b) => '${a.data()['title']}'.compareTo('${b.data()['title']}'),
+      );
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricCard(
-                title: 'Bài thi',
-                value: '${exams.length}',
-                icon: Icons.quiz_outlined,
-                color: Colors.blue,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildMetricCard(
-                title: 'Lượt đã nộp',
-                value: '$totalAttempts',
-                icon: Icons.assignment_turned_in_outlined,
-                color: Colors.orange,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildMetricCard(
-                title: 'Tỷ lệ đạt',
-                value: '${passRate.toStringAsFixed(1)}%',
-                icon: Icons.check_circle_outline,
-                color: Colors.green,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
         const Text(
-          'Người dùng có điểm cao nhất',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          'Tổng quan kết quả học tập',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            color: AppTheme.navy,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Theo dõi kết quả theo đơn vị, học viên và bài thi.',
+          style: TextStyle(color: Colors.blueGrey),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth >= 700
+                    ? (constraints.maxWidth - 24) / 3
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: DropdownButtonFormField<String>(
+                        key: ValueKey('unit:$selectedUnit'),
+                        initialValue: selectedUnit,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Đơn vị',
+                          prefixIcon: Icon(Icons.apartment),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text('Tất cả đơn vị'),
+                          ),
+                          for (final unit in units)
+                            DropdownMenuItem(
+                              value: unit,
+                              child: Text(
+                                unit.isEmpty ? 'Chưa phân đơn vị' : unit,
+                              ),
+                            ),
+                        ],
+                        onChanged: (v) => setState(() {
+                          unitFilter = v;
+                          visibleRows = 50;
+                        }),
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: TextField(
+                        controller: searchController,
+                        decoration: const InputDecoration(
+                          labelText: 'Tìm học viên hoặc đơn vị',
+                          prefixIcon: Icon(Icons.search),
+                        ),
+                        onChanged: (_) => setState(() => visibleRows = 50),
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: DropdownButtonFormField<String>(
+                        key: ValueKey('exam:$selectedExam'),
+                        initialValue: selectedExam,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Bài thi',
+                          prefixIcon: Icon(Icons.assignment_outlined),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text('Tất cả bài thi'),
+                          ),
+                          for (final doc in sortedExams)
+                            DropdownMenuItem(
+                              value: doc.id,
+                              child: Text(
+                                doc.data()['title'] ?? doc.id,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (v) => setState(() {
+                          examFilter = v;
+                          visibleRows = 50;
+                        }),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => setState(() {
+                        searchController.clear();
+                        classFilter = null;
+                        examFilter = null;
+                        unitFilter = null;
+                        visibleRows = 50;
+                      }),
+                      icon: const Icon(Icons.filter_alt_off_outlined),
+                      label: const Text('Xóa bộ lọc'),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 1050
+                ? 6
+                : constraints.maxWidth >= 650
+                ? 3
+                : 2;
+            final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _metric(
+                  width,
+                  'Bài thi',
+                  '${report.examCount}',
+                  Icons.quiz_outlined,
+                  Colors.blue,
+                ),
+                _metric(
+                  width,
+                  'Học viên đã thi',
+                  '${report.participants}',
+                  Icons.people_outline,
+                  AppTheme.navy,
+                ),
+                _metric(
+                  width,
+                  'Lượt đã nộp',
+                  '${report.attempts}',
+                  Icons.assignment_turned_in_outlined,
+                  Colors.orange,
+                ),
+                _metric(
+                  width,
+                  'Điểm TB tốt nhất',
+                  report.average?.toStringAsFixed(2) ?? '—',
+                  Icons.trending_up,
+                  AppTheme.red,
+                ),
+                _metric(
+                  width,
+                  'Tỷ lệ đạt',
+                  report.passRate == null
+                      ? '—'
+                      : '${report.passRate!.toStringAsFixed(1)}%',
+                  Icons.check_circle_outline,
+                  Colors.green,
+                ),
+                _metric(
+                  width,
+                  'Kết quả chưa đạt',
+                  '${report.failed}',
+                  Icons.pending_actions_outlined,
+                  Colors.deepOrange,
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 12),
-        if (ranking.isEmpty)
+        Text(
+          '${report.studentCount} học viên trong phạm vi lọc • ${report.rows.length} kết quả học viên–bài thi.',
+          style: const TextStyle(color: Colors.blueGrey),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Mỗi học viên được tính một kết quả tốt nhất cho mỗi đề. Tỷ lệ đạt và điểm trung bình tính trên các kết quả này; số lượt đã nộp vẫn tính tất cả lượt.',
+          style: TextStyle(fontSize: 12, color: Colors.blueGrey, height: 1.5),
+        ),
+        if (report.ungraded > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              '${report.ungraded} kết quả thiếu điểm hợp lệ, chưa tính vào điểm trung bình và tỷ lệ đạt.',
+            ),
+          ),
+        const SizedBox(height: 22),
+        _heading('Tiến độ theo đơn vị'),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            'Đã làm = học viên có ít nhất một lượt đã nộp trong bài thi đang lọc; mỗi người chỉ tính một lần.',
+            style: TextStyle(color: Colors.blueGrey, fontSize: 12),
+          ),
+        ),
+        for (final unit in units.where(
+          (u) => selectedUnit == null || u == selectedUnit,
+        ))
+          Builder(
+            builder: (context) {
+              final members = users
+                  .where(
+                    (u) =>
+                        u.data()['role'] == 'user' &&
+                        (u.data()['unit'] ?? '') == unit &&
+                        (selectedClass == null ||
+                            (u.data()['classId'] ?? '') == selectedClass) &&
+                        '${u.id} ${u.data()['name'] ?? ''} ${u.data()['username'] ?? ''} ${u.data()['unit'] ?? ''} ${u.data()['subUnit'] ?? ''} ${u.data()['subUnit'] ?? ''}-${u.data()['unit'] ?? ''}'
+                            .toLowerCase()
+                            .contains(
+                              searchController.text.trim().toLowerCase(),
+                            ),
+                  )
+                  .map((u) => u.id)
+                  .toSet();
+              final done = report.rows
+                  .where((r) => members.contains(r.userId))
+                  .map((r) => r.userId)
+                  .toSet()
+                  .length;
+              final adminCount = users
+                  .where(
+                    (u) =>
+                        ['admin', 'super_admin'].contains(u.data()['role']) &&
+                        (u.data()['role'] == 'super_admin'
+                                ? 'E09'
+                                : u.data()['unit'] ?? '') ==
+                            unit,
+                  )
+                  .length;
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.apartment, color: AppTheme.red),
+                  title: Text(
+                    unit.isEmpty ? 'Chưa phân đơn vị' : unit,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    '$adminCount quản trị viên • ${members.length} học viên\nĐã làm: $done • Chưa làm: ${members.length - done}',
+                  ),
+                  isThreeLine: true,
+                  trailing: Text(
+                    members.isEmpty
+                        ? '—'
+                        : '${(done * 100 / members.length).round()}%',
+                  ),
+                ),
+              );
+            },
+          ),
+        const SizedBox(height: 20),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _heading('Phân bố điểm tốt nhất'),
+                const SizedBox(height: 16),
+                for (var i = 0; i < 5; i++)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 65,
+                          child: Text(
+                            i == 4 ? '8–10' : '${i * 2}–<${i * 2 + 2}',
+                          ),
+                        ),
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: LinearProgressIndicator(
+                              minHeight: 10,
+                              value: scored == 0 ? 0 : distribution[i] / scored,
+                              color: AppTheme.red,
+                              backgroundColor: const Color(0xFFF2E6E7),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 46,
+                          child: Text(
+                            '${distribution[i]}',
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const Text(
+                  'Số kết quả trong từng khoảng điểm, thang điểm 10.',
+                  style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _heading('Kết quả chi tiết (${report.rows.length})'),
+        const SizedBox(height: 8),
+        if (report.rows.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(28),
+              child: Text('Chưa có kết quả phù hợp với bộ lọc.'),
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final rows = report.rows.take(visibleRows).toList();
+              if (constraints.maxWidth < 750) {
+                return Column(
+                  children: [
+                    for (final row in rows)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                row.name,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '${row.subUnit.isEmpty ? '' : '${row.subUnit}-'}${row.unit}',
+                                style: const TextStyle(color: Colors.blueGrey),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(row.examTitle),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text('${row.attempts} lượt'),
+                                  Text(
+                                    'Điểm: ${row.score?.toStringAsFixed(2) ?? '—'}',
+                                  ),
+                                  _status(row),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Nộp gần nhất: ${_date(row.submittedAt)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blueGrey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              }
+              return Card(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Học viên')),
+                      DataColumn(label: Text('Đơn vị')),
+                      DataColumn(label: Text('Bài thi')),
+                      DataColumn(label: Text('Lượt nộp'), numeric: true),
+                      DataColumn(label: Text('Điểm tốt nhất'), numeric: true),
+                      DataColumn(label: Text('Kết quả')),
+                      DataColumn(label: Text('Nộp gần nhất')),
+                    ],
+                    rows: [
+                      for (final row in rows)
+                        DataRow(
+                          cells: [
+                            DataCell(
+                              SizedBox(width: 150, child: Text(row.name)),
+                            ),
+                            DataCell(
+                              SizedBox(
+                                width: 130,
+                                child: Text(
+                                  '${row.subUnit.isEmpty ? '' : '${row.subUnit}-'}${row.unit}',
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              SizedBox(width: 200, child: Text(row.examTitle)),
+                            ),
+                            DataCell(Text('${row.attempts}')),
+                            DataCell(
+                              Text(row.score?.toStringAsFixed(2) ?? '—'),
+                            ),
+                            DataCell(_status(row)),
+                            DataCell(Text(_date(row.submittedAt))),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        if (report.rows.length > visibleRows)
+          TextButton(
+            onPressed: () => setState(() => visibleRows += 50),
+            child: const Text('Xem thêm kết quả'),
+          ),
+        const SizedBox(height: 20),
+        _heading('Người dùng có điểm cao nhất'),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            '10 học viên có điểm tốt nhất trong phạm vi lọc.',
+            style: TextStyle(color: Colors.blueGrey, fontSize: 12),
+          ),
+        ),
+        if (rank.isEmpty)
           const Card(
             child: Padding(
               padding: EdgeInsets.all(24),
-              child: Center(child: Text('Chưa có kết quả đã nộp.')),
+              child: Text('Chưa có kết quả đã nộp.'),
             ),
           )
         else
           Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.grey[200]!),
-            ),
             child: Column(
               children: [
-                for (
-                  var index = 0;
-                  index < ranking.length && index < 10;
-                  index++
-                ) ...[
+                for (var i = 0; i < rank.length && i < 10; i++)
                   ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: _primaryColor.withValues(alpha: 0.1),
+                      backgroundColor: const Color(0xFFF9E8E8),
                       child: Text(
-                        '#${index + 1}',
-                        style: const TextStyle(
-                          color: _primaryColor,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        '#${i + 1}',
+                        style: const TextStyle(color: AppTheme.red),
                       ),
                     ),
                     title: Text(
-                      names[ranking[index].key] ?? ranking[index].key,
+                      rank[i].name,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: const Text('Điểm tốt nhất'),
+                    subtitle: Text(rank[i].examTitle),
                     trailing: Text(
-                      ranking[index].value.toStringAsFixed(1),
+                      rank[i].score!.toStringAsFixed(2),
                       style: const TextStyle(
-                        color: _primaryColor,
-                        fontSize: 16,
                         fontWeight: FontWeight.bold,
+                        color: AppTheme.red,
                       ),
                     ),
                   ),
-                  if (index < ranking.length - 1 && index < 9)
-                    Divider(height: 1, color: Colors.grey[200]),
-                ],
               ],
             ),
           ),
+        const SizedBox(height: 24),
       ],
     );
   }
 
-  int _attemptCount(Map<String, dynamic> data) {
-    return (data['attemptCount'] as num?)?.toInt() ??
-        (data['status'] == 'completed' ? 1 : 0);
-  }
-
-  double _bestScore(Map<String, dynamic> data) {
-    return (data['bestScore'] as num?)?.toDouble() ??
-        (data['diemSo'] as num?)?.toDouble() ??
-        0;
-  }
-
-  Widget _buildMetricCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
+  Widget _heading(String value) => Text(
+    value,
+    style: const TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.w800,
+      color: AppTheme.navy,
+    ),
+  );
+  String _date(DateTime? value) => value == null
+      ? 'Chưa có thời gian'
+      : '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+  Widget _status(AdminReportRow row) {
+    final color = row.passed == null
+        ? Colors.blueGrey
+        : row.passed!
+        ? Colors.green
+        : Colors.deepOrange;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey[200]!),
+        color: color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
-        children: [
-          Icon(icon, color: color),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 10, color: Colors.grey),
-          ),
-        ],
+      child: Text(
+        row.passed == null
+            ? 'Thiếu điểm'
+            : row.passed!
+            ? 'Đạt'
+            : 'Chưa đạt',
+        style: TextStyle(color: color, fontWeight: FontWeight.w600),
       ),
     );
   }
 
-  Widget _buildError(String message) {
-    return Center(
+  Widget _metric(
+    double width,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) => SizedBox(
+    width: width,
+    child: Card(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(message, textAlign: TextAlign.center),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+            ),
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  );
+  Widget _buildError(String message) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(message, textAlign: TextAlign.center),
+    ),
+  );
 }

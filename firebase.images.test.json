@@ -1,0 +1,1 @@
+{"firestore":{"rules":"firestore.rules"},"storage":{"rules":"storage.rules"},"emulators":{"firestore":{"host":"127.0.0.1","port":9380},"storage":{"host":"127.0.0.1","port":9399},"auth":{"host":"127.0.0.1","port":10399},"hub":{"host":"127.0.0.1","port":5902},"logging":{"host":"127.0.0.1","port":5952},"ui":{"enabled":false},"singleProjectMode":true}}

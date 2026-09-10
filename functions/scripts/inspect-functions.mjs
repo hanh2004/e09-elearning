@@ -1,0 +1,11 @@
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);
+const {getGlobalDefaultAccount}=require('../node_modules/firebase-tools/lib/auth.js');
+const {requireAuth}=require('../node_modules/firebase-tools/lib/requireAuth.js');
+const {Client}=require('../node_modules/firebase-tools/lib/apiv2.js');
+await requireAuth({project:'e09-elearning',...getGlobalDefaultAccount()});
+const client=new Client({urlPrefix:'https://cloudfunctions.googleapis.com',apiVersion:'v2',auth:true});
+const result=await client.get('/projects/e09-elearning/locations/asia-southeast1/functions');
+for(const fn of result.body.functions??[])console.log(JSON.stringify({name:fn.name,state:fn.state,uri:fn.serviceConfig?.uri,url:fn.url}));
+const response=await fetch('https://asia-southeast1-e09-elearning.cloudfunctions.net/examList',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"data":{}}'});
+console.log(JSON.stringify({anonymousStatus:response.status,body:(await response.text()).slice(0,300)}));

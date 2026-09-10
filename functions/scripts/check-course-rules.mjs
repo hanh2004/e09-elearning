@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);
+const {getGlobalDefaultAccount}=require('../node_modules/firebase-tools/lib/auth.js');
+const {requireAuth}=require('../node_modules/firebase-tools/lib/requireAuth.js');
+const {Client}=require('../node_modules/firebase-tools/lib/apiv2.js');
+await requireAuth({project:'e09-elearning',...getGlobalDefaultAccount()});
+const client=new Client({urlPrefix:'https://firebaserules.googleapis.com',apiVersion:'v1',auth:true});
+const release=(await client.get('/projects/e09-elearning/releases/cloud.firestore')).body;
+const rules=(await client.get('/'+release.rulesetName)).body.source.files[0].content;
+const expected=rules.replace("course.published == true && course.audience in ['all', 'class:' + profile().get('classId','')]","course.published == true").replace("resource.data.published == true && resource.data.audience in ['all','class:' + profile().get('classId','')]","resource.data.published == true");
+const local=fs.readFileSync('firestore.rules','utf8');
+if(expected.replaceAll('\r\n','\n')!==local.replaceAll('\r\n','\n'))throw new Error('Unexpected rules differences from production');
+console.log('Verified against LIVE Firestore release: ONLY two course class restrictions removed; published, authentication, profiles, units, exams, notifications and all other rules unchanged.');
