@@ -1,9 +1,13 @@
+// DỮ LIỆU: Một dòng Excel và kết quả xem trước danh sách tài khoản nhập.
+// Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
+
 class UserImportRow {
   const UserImportRow({
     required this.rowNumber,
     required this.name,
     required this.username,
     required this.password,
+    this.userCodeSuffix,
     this.errors = const [],
   });
 
@@ -11,14 +15,16 @@ class UserImportRow {
   final String name;
   final String username;
   final String password;
+  final String? userCodeSuffix;
   final List<String> errors;
 
-  UserImportRow withError(String message) => UserImportRow(
+  UserImportRow withError(String thongDiep) => UserImportRow(
     rowNumber: rowNumber,
     name: name,
     username: username,
     password: password,
-    errors: [...errors, message],
+    userCodeSuffix: userCodeSuffix,
+    errors: [...errors, thongDiep],
   );
 }
 
@@ -31,17 +37,17 @@ class UserImportPreview {
   bool get canImport =>
       rows.isNotEmpty &&
       errors.isEmpty &&
-      rows.every((row) => row.errors.isEmpty);
+      rows.every((dong) => dong.errors.isEmpty);
 
   UserImportPreview checkExisting(Iterable<String> usernames) {
-    final existing = usernames.map((name) => name.trim().toLowerCase()).toSet();
+    final existing = usernames.map((ten) => ten.trim().toLowerCase()).toSet();
     return UserImportPreview(
       errors: errors,
       rows: rows
           .map(
-            (row) => existing.contains(row.username.toLowerCase())
-                ? row.withError('Tên đăng nhập đã tồn tại.')
-                : row,
+            (dong) => existing.contains(dong.username.toLowerCase())
+                ? dong.withError('Tên đăng nhập đã tồn tại.')
+                : dong,
           )
           .toList(),
     );

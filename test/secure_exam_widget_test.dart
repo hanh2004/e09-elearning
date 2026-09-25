@@ -1,5 +1,5 @@
 import 'package:e09_elearning/screens/user/secure_exam_screen.dart';
-import 'package:e09_elearning/services/secure_exam_service.dart';
+import 'package:e09_elearning/services/ket_noi_api/secure_exam_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

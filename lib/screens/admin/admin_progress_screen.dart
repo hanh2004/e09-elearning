@@ -1,84 +1,79 @@
+// WEB ADMIN: Theo dõi các lượt làm bài, điểm số và học viên đã thi.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/app_theme.dart';
 import '../../models/exam_outcome.dart';
+import '../../widgets/admin_ui.dart';
+import '../../widgets/default_user_avatar.dart';
 
-import 'admin_exam_screen.dart';
-import 'admin_home_screen.dart';
-import 'admin_report_screen.dart';
-import 'admin_settings_screen.dart';
-import '../../services/firestore_service.dart';
+import '../../services/du_lieu/firestore_service.dart';
 import 'admin_responsive_shell.dart';
 
+/// Theo dõi các lượt làm bài, điểm số và học viên đã thi.
 class AdminProgressScreen extends StatefulWidget {
   const AdminProgressScreen({super.key});
 
   @override
-  State<AdminProgressScreen> createState() => _AdminProgressScreenState();
+  State<AdminProgressScreen> createState() => _TrangThaiTienDoQuanTri();
 }
 
-class _AdminProgressScreenState extends State<AdminProgressScreen> {
+class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
   static const primaryColor = Color(0xFFB51F24);
-  final FirestoreService _firestoreService = FirestoreService();
+  final FirestoreService _dichVuFirestore = FirestoreService();
 
-  void _onNavigationTap(int index) {
-    final pages = <Widget>[
-      const AdminHomeScreen(),
-      const AdminExamScreen(),
-      const AdminReportScreen(),
-      const AdminSettingsScreen(),
-    ];
-    Navigator.pushReplacement(context, adminTabRoute(pages[index]));
+  void _chonDieuHuong(int viTri) {
+    pushAdminPrimary(context, viTri);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = AdminResponsiveShell.isDesktop(context);
+    final laMayTinh = AdminResponsiveShell.isDesktop(context);
     return AdminResponsiveShell(
       selectedIndex: 2,
-      onSelected: _onNavigationTap,
+      onSelected: _chonDieuHuong,
+      activeExtra: 'Theo dõi tiến độ',
       child: Scaffold(
-        backgroundColor: Colors.grey[100],
-        appBar: AppBar(
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-          title: const Text(
-            'Theo dõi bài thi',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-        ),
+        backgroundColor: AdminUi.page,
+        appBar: AdminUi.appBar('Theo dõi tiến độ'),
         body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _firestoreService.getExamsStream(),
+          stream: _dichVuFirestore.getExamsStream(),
           builder: (context, examSnapshot) {
             if (examSnapshot.hasError) {
-              return _buildError('Không tải được bài thi', examSnapshot.error);
+              return _dungThongBaoLoi(
+                'Không tải được bài thi',
+                examSnapshot.error,
+              );
             }
             if (!examSnapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const AdminLoading();
             }
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _firestoreService.getExamAttemptsStream(),
+              stream: _dichVuFirestore.getExamAttemptsStream(),
               builder: (context, attemptSnapshot) {
                 if (attemptSnapshot.hasError) {
-                  return _buildError(
+                  return _dungThongBaoLoi(
                     'Không tải được lượt làm bài',
                     attemptSnapshot.error,
                   );
                 }
                 if (!attemptSnapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const AdminLoading();
                 }
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _firestoreService.getUsersStream(),
+                  stream: _dichVuFirestore.getUsersStream(),
                   builder: (context, userSnapshot) {
                     final userNames = <String, String>{};
-                    for (final user in userSnapshot.data?.docs ?? const []) {
-                      final data = user.data();
-                      userNames[user.id] =
-                          (data['name'] ?? data['username'] ?? user.id)
+                    for (final nguoiDung
+                        in userSnapshot.data?.docs ?? const []) {
+                      final duLieu = nguoiDung.data();
+                      userNames[nguoiDung.id] =
+                          (duLieu['name'] ?? duLieu['username'] ?? nguoiDung.id)
                               .toString();
                     }
-                    return _buildContent(
+                    return _dungNoiDung(
                       examSnapshot.data!.docs,
                       attemptSnapshot.data!.docs,
                       userNames,
@@ -89,11 +84,11 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
             );
           },
         ),
-        bottomNavigationBar: isDesktop
+        bottomNavigationBar: laMayTinh
             ? null
             : BottomNavigationBar(
                 currentIndex: 2,
-                onTap: _onNavigationTap,
+                onTap: _chonDieuHuong,
                 type: BottomNavigationBarType.fixed,
                 selectedItemColor: primaryColor,
                 unselectedItemColor: Colors.grey,
@@ -104,7 +99,7 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.assignment),
-                    label: 'Bài thi',
+                    label: 'Quản lý khóa học',
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.bar_chart),
@@ -120,143 +115,121 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
     );
   }
 
-  Widget _buildContent(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> exams,
+  Widget _dungNoiDung(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacBaiThi,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> allAttempts,
     Map<String, String> userNames,
   ) {
     final resultRecords = allAttempts
-        .where((attempt) => _attemptCount(attempt) > 0)
+        .where((luotThi) => _soLuotThi(luotThi) > 0)
         .toList();
     final inProgressCount = allAttempts
-        .where((attempt) => attempt.data()['status'] == 'in_progress')
+        .where((luotThi) => luotThi.data()['status'] == 'in_progress')
         .length;
     final completedUsers = resultRecords
-        .map((attempt) => attempt.data()['userId']?.toString())
+        .map((luotThi) => luotThi.data()['userId']?.toString())
         .whereType<String>()
         .toSet();
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.zero,
       children: [
-        _buildOverview(
-          examCount: exams.length,
-          completedUserCount: completedUsers.length,
-          attemptCount: resultRecords.fold(
-            0,
-            (total, attempt) => total + _attemptCount(attempt),
+        const AdminPageHeading(
+          title: 'Theo dõi tiến độ',
+          subtitle: 'Theo dõi tình trạng thực hiện và kết quả từng bài thi.',
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: _dungTongQuan(
+            examCount: cacBaiThi.length,
+            completedUserCount: completedUsers.length,
+            attemptCount: resultRecords.fold(
+              0,
+              (tongSo, luotThi) => tongSo + _soLuotThi(luotThi),
+            ),
+            inProgressCount: inProgressCount,
           ),
-          inProgressCount: inProgressCount,
         ),
         const SizedBox(height: 24),
-        const Text(
-          'Kết quả theo bài thi',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 28),
+          child: Text(
+            'Kết quả theo bài thi',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          ),
         ),
         const SizedBox(height: 12),
-        if (exams.isEmpty)
+        if (cacBaiThi.isEmpty)
           const Padding(
             padding: EdgeInsets.all(24),
             child: Center(child: Text('Chưa có bài thi nào.')),
           )
         else
-          ...exams.map((exam) {
-            final attempts = resultRecords
-                .where((attempt) => attempt.data()['examId'] == exam.id)
+          ...cacBaiThi.map((baiThi) {
+            final cacLuotThi = resultRecords
+                .where((luotThi) => luotThi.data()['examId'] == baiThi.id)
                 .toList();
-            return _buildExamCard(exam, attempts, userNames);
+            return _dungTheBaiThi(baiThi, cacLuotThi, userNames);
           }),
       ],
     );
   }
 
-  Widget _buildOverview({
+  Widget _dungTongQuan({
     required int examCount,
     required int completedUserCount,
     required int attemptCount,
     required int inProgressCount,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final cards = [
+      ('Bài thi', examCount, Icons.quiz_outlined, Colors.blue),
+      ('Người đã làm', completedUserCount, Icons.people_outline, AppTheme.navy),
+      ('Lượt đã nộp', attemptCount, Icons.task_alt, Colors.green),
+      ('Đang làm', inProgressCount, Icons.timer_outlined, Colors.orange),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) => Wrap(
+        spacing: 12,
+        runSpacing: 12,
         children: [
-          const Text(
-            'Tổng quan',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildSummaryItem('Bài thi', examCount, Icons.quiz_outlined),
-              _buildSummaryItem(
-                'Người đã làm',
-                completedUserCount,
-                Icons.people_outline,
+          for (final card in cards)
+            SizedBox(
+              width: constraints.maxWidth >= 900
+                  ? (constraints.maxWidth - 36) / 4
+                  : constraints.maxWidth >= 560
+                  ? (constraints.maxWidth - 12) / 2
+                  : constraints.maxWidth,
+              child: AdminMetricCard(
+                value: '${card.$2}',
+                label: card.$1,
+                icon: card.$3,
+                color: card.$4,
               ),
-              _buildSummaryItem('Lượt đã nộp', attemptCount, Icons.task_alt),
-              _buildSummaryItem(
-                'Đang làm',
-                inProgressCount,
-                Icons.timer_outlined,
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryItem(String label, int value, IconData icon) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: primaryColor),
-          const SizedBox(height: 6),
-          Text(
-            '$value',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 10, color: Colors.grey),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExamCard(
-    QueryDocumentSnapshot<Map<String, dynamic>> exam,
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> attempts,
+  Widget _dungTheBaiThi(
+    QueryDocumentSnapshot<Map<String, dynamic>> baiThi,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
     Map<String, String> userNames,
   ) {
-    final examData = exam.data();
-    final users = attempts
-        .map((attempt) => attempt.data()['userId']?.toString())
+    final examData = baiThi.data();
+    final cacNguoiDung = cacLuotThi
+        .map((luotThi) => luotThi.data()['userId']?.toString())
         .whereType<String>()
         .toSet();
-    final bestScores = _groupAttemptsByUser(attempts).values
-        .map(_bestScore)
+    final bestScores = _nhomLuotThiTheoHocVien(cacLuotThi).values
+        .map(_diemCaoNhat)
         .toList();
     final average = bestScores.isEmpty
         ? 0.0
         : bestScores.reduce((a, b) => a + b) / bestScores.length;
-    final totalAttemptCount = attempts.fold(
+    final totalAttemptCount = cacLuotThi.fold(
       0,
-      (total, attempt) => total + _attemptCount(attempt),
+      (tongSo, luotThi) => tongSo + _soLuotThi(luotThi),
     );
 
     return Card(
@@ -268,7 +241,7 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => _showExamDetails(exam, attempts, userNames),
+        onTap: () => _hienChiTietBaiThi(baiThi, cacLuotThi, userNames),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -297,9 +270,9 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildExamMetric('Người đã làm', '${users.length}'),
-                  _buildExamMetric('Tổng lượt làm', '$totalAttemptCount'),
-                  _buildExamMetric('Điểm tốt TB', average.toStringAsFixed(1)),
+                  _dungChiSoBaiThi('Người đã làm', '${cacNguoiDung.length}'),
+                  _dungChiSoBaiThi('Tổng lượt làm', '$totalAttemptCount'),
+                  _dungChiSoBaiThi('Điểm tốt TB', average.toStringAsFixed(1)),
                 ],
               ),
             ],
@@ -309,64 +282,64 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
     );
   }
 
-  Widget _buildExamMetric(String label, String value) {
+  Widget _dungChiSoBaiThi(String nhan, String giaTri) {
     return Column(
       children: [
         Text(
-          value,
+          giaTri,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+        Text(nhan, style: const TextStyle(color: Colors.grey, fontSize: 11)),
       ],
     );
   }
 
   Map<String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>
-  _groupAttemptsByUser(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> attempts,
+  _nhomLuotThiTheoHocVien(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
   ) {
     final grouped =
         <String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>{};
-    for (final attempt in attempts) {
-      final userId = attempt.data()['userId']?.toString() ?? 'unknown';
-      grouped.putIfAbsent(userId, () => []).add(attempt);
+    for (final luotThi in cacLuotThi) {
+      final userId = luotThi.data()['userId']?.toString() ?? 'unknown';
+      grouped.putIfAbsent(userId, () => []).add(luotThi);
     }
     return grouped;
   }
 
-  double _bestScore(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> attempts,
+  double _diemCaoNhat(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
   ) {
-    var best = 0.0;
-    for (final attempt in attempts) {
-      final data = attempt.data();
-      final score =
-          (data['bestScore'] as num?)?.toDouble() ??
-          (data['diemSo'] as num?)?.toDouble() ??
+    var totNhat = 0.0;
+    for (final luotThi in cacLuotThi) {
+      final duLieu = luotThi.data();
+      final diem =
+          (duLieu['bestScore'] as num?)?.toDouble() ??
+          (duLieu['diemSo'] as num?)?.toDouble() ??
           0;
-      if (score > best) best = score;
+      if (diem > totNhat) totNhat = diem;
     }
-    return best;
+    return totNhat;
   }
 
-  int _attemptCount(QueryDocumentSnapshot<Map<String, dynamic>> attempt) {
-    final data = attempt.data();
-    return (data['attemptCount'] as num?)?.toInt() ??
-        (data['status'] == 'completed' ? 1 : 0);
+  int _soLuotThi(QueryDocumentSnapshot<Map<String, dynamic>> luotThi) {
+    final duLieu = luotThi.data();
+    return (duLieu['attemptCount'] as num?)?.toInt() ??
+        (duLieu['status'] == 'completed' ? 1 : 0);
   }
 
-  void _showExamDetails(
-    QueryDocumentSnapshot<Map<String, dynamic>> exam,
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> attempts,
+  void _hienChiTietBaiThi(
+    QueryDocumentSnapshot<Map<String, dynamic>> baiThi,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
     Map<String, String> userNames,
   ) {
-    final grouped = _groupAttemptsByUser(attempts);
-    final totalAttemptCount = attempts.fold(
+    final grouped = _nhomLuotThiTheoHocVien(cacLuotThi);
+    final totalAttemptCount = cacLuotThi.fold(
       0,
-      (total, attempt) => total + _attemptCount(attempt),
+      (tongSo, luotThi) => tongSo + _soLuotThi(luotThi),
     );
-    final entries = grouped.entries.toList()
-      ..sort((a, b) => _bestScore(b.value).compareTo(_bestScore(a.value)));
+    final cacCapDuLieu = grouped.entries.toList()
+      ..sort((a, b) => _diemCaoNhat(b.value).compareTo(_diemCaoNhat(a.value)));
 
     showModalBottomSheet<void>(
       context: context,
@@ -377,7 +350,7 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
         initialChildSize: 0.8,
         minChildSize: 0.5,
         maxChildSize: 0.95,
-        builder: (context, controller) => Column(
+        builder: (context, boDieuKhien) => Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -388,14 +361,14 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          (exam.data()['title'] ?? 'Bài kiểm tra').toString(),
+                          (baiThi.data()['title'] ?? 'Bài kiểm tra').toString(),
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
-                          '${entries.length} người • $totalAttemptCount lượt làm',
+                          '${cacCapDuLieu.length} người • $totalAttemptCount lượt làm',
                           style: const TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -406,17 +379,17 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
             ),
             const Divider(height: 1),
             Expanded(
-              child: entries.isEmpty
+              child: cacCapDuLieu.isEmpty
                   ? const Center(child: Text('Chưa có học viên nộp bài.'))
                   : ListView.builder(
-                      controller: controller,
+                      controller: boDieuKhien,
                       padding: const EdgeInsets.all(12),
-                      itemCount: entries.length,
-                      itemBuilder: (context, index) {
-                        final entry = entries[index];
-                        return _buildStudentResult(
-                          userNames[entry.key] ?? entry.key,
-                          entry.value,
+                      itemCount: cacCapDuLieu.length,
+                      itemBuilder: (context, viTri) {
+                        final capDuLieu = cacCapDuLieu[viTri];
+                        return _dungKetQuaHocVien(
+                          userNames[capDuLieu.key] ?? capDuLieu.key,
+                          capDuLieu.value,
                         );
                       },
                     ),
@@ -427,58 +400,49 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
     );
   }
 
-  Widget _buildStudentResult(
+  Widget _dungKetQuaHocVien(
     String userName,
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> attempts,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
   ) {
-    final best = _bestScore(attempts);
-    final ordered = attempts.toList()
+    final totNhat = _diemCaoNhat(cacLuotThi);
+    final ordered = cacLuotThi.toList()
       ..sort(
         (a, b) =>
             ExamOutcome.score(b.data()).compareTo(ExamOutcome.score(a.data())),
       );
-    final passed =
+    final daDat =
         ordered.isNotEmpty && ExamOutcome.passed(ordered.first.data());
-    final attemptCount = attempts.fold(
+    final attemptCount = cacLuotThi.fold(
       0,
-      (total, attempt) => total + _attemptCount(attempt),
+      (tongSo, luotThi) => tongSo + _soLuotThi(luotThi),
     );
     DateTime? bestDate;
-    for (final attempt in attempts) {
-      final data = attempt.data();
-      final date =
-          (data['bestCompletedAt'] ?? data['completedAt']) as Timestamp?;
-      if (date != null &&
-          (bestDate == null || date.toDate().isAfter(bestDate))) {
-        bestDate = date.toDate();
+    for (final luotThi in cacLuotThi) {
+      final duLieu = luotThi.data();
+      final ngay =
+          (duLieu['bestCompletedAt'] ?? duLieu['completedAt']) as Timestamp?;
+      if (ngay != null &&
+          (bestDate == null || ngay.toDate().isAfter(bestDate))) {
+        bestDate = ngay.toDate();
       }
     }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: primaryColor.withValues(alpha: 0.1),
-          child: Text(
-            userName.isEmpty ? '?' : userName[0].toUpperCase(),
-            style: const TextStyle(
-              color: primaryColor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        leading: const DefaultUserAvatar(radius: 20),
         title: Text(
           userName,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text('Đã làm $attemptCount lần • ${_formatDate(bestDate)}'),
+        subtitle: Text('Đã làm $attemptCount lần • ${_dinhDangNgay(bestDate)}'),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              best.toStringAsFixed(1),
+              totNhat.toStringAsFixed(1),
               style: TextStyle(
-                color: passed ? Colors.green : Colors.red,
+                color: daDat ? Colors.green : Colors.red,
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
               ),
@@ -490,17 +454,17 @@ class _AdminProgressScreenState extends State<AdminProgressScreen> {
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Chưa có thời gian nộp';
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${two(date.hour)}:${two(date.minute)} ${two(date.day)}/${two(date.month)}/${date.year}';
+  String _dinhDangNgay(DateTime? ngay) {
+    if (ngay == null) return 'Chưa có thời gian nộp';
+    String two(int giaTri) => giaTri.toString().padLeft(2, '0');
+    return '${two(ngay.hour)}:${two(ngay.minute)} ${two(ngay.day)}/${two(ngay.month)}/${ngay.year}';
   }
 
-  Widget _buildError(String message, Object? error) {
+  Widget _dungThongBaoLoi(String thongDiep, Object? loi) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text('$message\n$error', textAlign: TextAlign.center),
+        child: Text('$thongDiep\n$loi', textAlign: TextAlign.center),
       ),
     );
   }

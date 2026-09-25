@@ -1,3 +1,6 @@
+// GIAO DIỆN DÙNG CHUNG: Nút bấm dùng chung; sửa kiểu hiển thị tại đây.
+// Các màn hình import tệp này sẽ dùng chung thay đổi.
+
 import 'package:flutter/material.dart';
 
 class CustomButton extends StatelessWidget {

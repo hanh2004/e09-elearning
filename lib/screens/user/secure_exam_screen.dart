@@ -1,54 +1,66 @@
+// APP HỌC VIÊN: Danh sách bài thi an toàn, chỉ nhận dữ liệu câu hỏi từ máy chủ tin cậy.
+// Gồm danh sách đề, làm bài, kết quả và lịch sử; API: ../../services/ket_noi_api/secure_exam_service.dart.
+
+import '../../widgets/learner_header.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../services/secure_exam_service.dart';
+import '../../services/ket_noi_api/secure_exam_service.dart';
 import '../../app/app_theme.dart';
+import '../../widgets/learner_card.dart';
 
+part 'secure_exam_result_history.dart';
+
+/// Danh sách bài thi an toàn, chỉ nhận dữ liệu câu hỏi từ máy chủ tin cậy.
 class SecureExamHomeScreen extends StatefulWidget {
   const SecureExamHomeScreen({super.key, this.service});
   final SecureExamService? service;
   @override
-  State<SecureExamHomeScreen> createState() => _SecureExamHomeScreenState();
+  State<SecureExamHomeScreen> createState() => _TrangThaiTrangChuThiBaoMat();
 }
 
-class _SecureExamHomeScreenState extends State<SecureExamHomeScreen> {
+class _TrangThaiTrangChuThiBaoMat extends State<SecureExamHomeScreen> {
   late final service = widget.service ?? SecureExamService();
   late Future<Map<String, dynamic>> catalog = service.call('examList');
   String? starting;
   String search = '';
   bool openOnly = false;
-  bool available(Map exam) {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    return exam['active'] == true ||
-        (exam['isOpen'] == true &&
-            (exam['opensAt'] == null || (exam['opensAt'] as num) <= now) &&
-            (exam['closesAt'] == null || (exam['closesAt'] as num) > now) &&
-            (exam['maxAttempts'] == null ||
-                (exam['usedAttempts'] as num? ?? 0) <
-                    (exam['maxAttempts'] as num)));
+  bool available(Map baiThi) {
+    if (baiThi['studyCompleted'] != true) return false;
+    final hienTai = DateTime.now().millisecondsSinceEpoch;
+    return baiThi['active'] == true ||
+        (baiThi['isOpen'] == true &&
+            (baiThi['opensAt'] == null ||
+                (baiThi['opensAt'] as num) <= hienTai) &&
+            (baiThi['closesAt'] == null ||
+                (baiThi['closesAt'] as num) > hienTai) &&
+            (baiThi['maxAttempts'] == null ||
+                (baiThi['usedAttempts'] as num? ?? 0) <
+                    (baiThi['maxAttempts'] as num)));
   }
 
-  Future<void> start(String id) async {
+  Future<void> start(String ma) async {
     if (starting != null) return;
-    setState(() => starting = id);
+    setState(() => starting = ma);
     try {
-      final run = await service.call('examStart', {'examId': id});
+      final lanThi = await service.call('examStart', {'examId': ma});
       if (!mounted) return;
       await Navigator.push(
         context,
         MaterialPageRoute<void>(
-          builder: (_) => run['status'] == 'completed'
-              ? SecureExamResultScreen(result: run)
-              : SecureExamScreen(run: run, service: service),
+          builder: (_) => lanThi['status'] == 'completed'
+              ? SecureExamResultScreen(result: lanThi)
+              : SecureExamScreen(run: lanThi, service: service),
         ),
       );
       if (mounted) setState(() => catalog = service.call('examList'));
-    } catch (error) {
+    } catch (loi) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(SecureExamService.error(error))));
+        ).showSnackBar(SnackBar(content: Text(SecureExamService.error(loi))));
       }
     } finally {
       if (mounted) setState(() => starting = null);
@@ -57,7 +69,7 @@ class _SecureExamHomeScreenState extends State<SecureExamHomeScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
+    appBar: LearnerHeader(
       title: const Text('Bài kiểm tra'),
       actions: [
         IconButton(
@@ -79,20 +91,20 @@ class _SecureExamHomeScreenState extends State<SecureExamHomeScreen> {
     ),
     body: FutureBuilder<Map<String, dynamic>>(
       future: catalog,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
+      builder: (context, duLieuNhan) {
+        if (duLieuNhan.hasError) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(SecureExamService.error(snapshot.error!)),
+              child: Text(SecureExamService.error(duLieuNhan.error!)),
             ),
           );
         }
-        if (!snapshot.hasData) {
+        if (!duLieuNhan.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final allExams = (snapshot.data!['exams'] as List).cast<Map>();
-        final exams = allExams
+        final allExams = (duLieuNhan.data!['exams'] as List).cast<Map>();
+        final cacBaiThi = allExams
             .where(
               (e) =>
                   e['title'].toString().toLowerCase().contains(search) &&
@@ -128,12 +140,12 @@ class _SecureExamHomeScreenState extends State<SecureExamHomeScreen> {
                 ),
               ],
             ),
-            if (exams.isEmpty)
+            if (cacBaiThi.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(24),
                 child: Text('Không có đề phù hợp.'),
               ),
-            for (final e in exams)
+            for (final e in cacBaiThi)
               Card(
                 child: ListTile(
                   title: Text(e['title']),
@@ -147,6 +159,8 @@ class _SecureExamHomeScreenState extends State<SecureExamHomeScreen> {
                     child: Text(
                       starting == e['id']
                           ? 'Đang tải…'
+                          : e['studyCompleted'] != true
+                          ? 'Học trước khi kiểm tra'
                           : e['active'] == true
                           ? 'Tiếp tục'
                           : !available(e)
@@ -163,15 +177,16 @@ class _SecureExamHomeScreenState extends State<SecureExamHomeScreen> {
   );
 }
 
+/// Phiên làm bài an toàn với giới hạn thời gian và nộp bài qua backend.
 class SecureExamScreen extends StatefulWidget {
   const SecureExamScreen({super.key, required this.run, required this.service});
   final Map<String, dynamic> run;
   final SecureExamService service;
   @override
-  State<SecureExamScreen> createState() => _SecureExamScreenState();
+  State<SecureExamScreen> createState() => _TrangThaiLamBaiThiBaoMat();
 }
 
-class _SecureExamScreenState extends State<SecureExamScreen> {
+class _TrangThaiLamBaiThiBaoMat extends State<SecureExamScreen> {
   late Map<String, dynamic> run = widget.run;
   late Map<String, dynamic> answers = Map<String, dynamic>.from(
     run['selectedAnswers'] as Map,
@@ -216,21 +231,23 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
       error = null;
     });
     try {
-      final updated = await widget.service.call('examStart', {
+      final daCapNhat = await widget.service.call('examStart', {
         'examId': run['examId'],
+        'courseId': run['courseId'],
+        'lessonId': run['lessonId'],
       });
       if (!mounted) return;
-      if (updated['status'] == 'completed') {
-        showResult(updated);
+      if (daCapNhat['status'] == 'completed') {
+        showResult(daCapNhat);
         return;
       }
       setState(() {
-        run = updated;
+        run = daCapNhat;
         clockOffset =
-            (updated['serverNow'] as num).toInt() -
+            (daCapNhat['serverNow'] as num).toInt() -
             DateTime.now().millisecondsSinceEpoch;
-        answers = Map<String, dynamic>.from(updated['selectedAnswers']);
-        revision = (updated['revision'] as num).toInt();
+        answers = Map<String, dynamic>.from(daCapNhat['selectedAnswers']);
+        revision = (daCapNhat['revision'] as num).toInt();
       });
     } catch (e) {
       if (mounted) setState(() => error = SecureExamService.error(e));
@@ -239,13 +256,13 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
     }
   }
 
-  void showResult(Map<String, dynamic> result) {
+  void showResult(Map<String, dynamic> ketQua) {
     finishing = true;
     timer?.cancel();
     Navigator.pushReplacement(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => SecureExamResultScreen(result: result),
+        builder: (_) => SecureExamResultScreen(result: ketQua),
       ),
     );
   }
@@ -257,7 +274,7 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
       error = null;
     });
     try {
-      final result = await widget.service.call(
+      final ketQua = await widget.service.call(
         submit ? 'examSubmit' : 'examSave',
         {
           'runId': run['runId'],
@@ -266,11 +283,11 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
         },
       );
       if (!mounted) return;
-      if (result['status'] == 'completed') {
-        showResult(result);
+      if (ketQua['status'] == 'completed') {
+        showResult(ketQua);
         return;
       }
-      setState(() => revision = (result['revision'] as num).toInt());
+      setState(() => revision = (ketQua['revision'] as num).toInt());
     } catch (e) {
       if (mounted) setState(() => error = SecureExamService.error(e));
     } finally {
@@ -280,18 +297,18 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final remaining = seconds.clamp(0, 86400);
-    final questions = (run['questions'] as List).cast<Map>();
+    final conLai = seconds.clamp(0, 86400);
+    final cacCauHoi = (run['questions'] as List).cast<Map>();
     return PopScope(
       canPop: !busy,
       child: Scaffold(
-        appBar: AppBar(
+        appBar: LearnerHeader(
           title: Text(run['title']),
           actions: [
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                '${remaining ~/ 60}:${(remaining % 60).toString().padLeft(2, '0')}',
+                '${conLai ~/ 60}:${(conLai % 60).toString().padLeft(2, '0')}',
               ),
             ),
           ],
@@ -321,7 +338,7 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Đã trả lời ${answers.length}/${questions.length} câu',
+                          'Đã trả lời ${answers.length}/${cacCauHoi.length} câu',
                         ),
                       ),
                       TextButton.icon(
@@ -337,9 +354,9 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
                     ],
                   ),
                   LinearProgressIndicator(
-                    value: questions.isEmpty
+                    value: cacCauHoi.isEmpty
                         ? 0
-                        : answers.length / questions.length,
+                        : answers.length / cacCauHoi.length,
                   ),
                 ],
               ),
@@ -348,7 +365,7 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  for (var i = 0; i < questions.length; i++)
+                  for (var i = 0; i < cacCauHoi.length; i++)
                     if (showAll || i == currentQuestion)
                       Card(
                         child: Padding(
@@ -357,30 +374,30 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${i + 1}. ${questions[i]['title']}',
+                                '${i + 1}. ${cacCauHoi[i]['title']}',
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               for (
                                 var j = 0;
-                                j < (questions[i]['options'] as List).length;
+                                j < (cacCauHoi[i]['options'] as List).length;
                                 j++
                               )
                                 CheckboxListTile(
                                   contentPadding: EdgeInsets.zero,
-                                  title: Text(questions[i]['options'][j]),
-                                  value: answers[questions[i]['id']] == j,
+                                  title: Text(cacCauHoi[i]['options'][j]),
+                                  value: answers[cacCauHoi[i]['id']] == j,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  selected: answers[questions[i]['id']] == j,
+                                  selected: answers[cacCauHoi[i]['id']] == j,
                                   selectedTileColor: const Color(0xFFFFEEEE),
                                   onChanged:
-                                      busy || remaining == 0 || error != null
+                                      busy || conLai == 0 || error != null
                                       ? null
                                       : (_) {
                                           setState(
                                             () =>
-                                                answers[questions[i]['id']] = j,
+                                                answers[cacCauHoi[i]['id']] = j,
                                           );
                                           unawaited(save());
                                         },
@@ -412,9 +429,9 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
                             icon: const Icon(Icons.arrow_back),
                             label: const Text('Câu trước'),
                           ),
-                          Text('${currentQuestion + 1}/${questions.length}'),
+                          Text('${currentQuestion + 1}/${cacCauHoi.length}'),
                           TextButton.icon(
-                            onPressed: currentQuestion >= questions.length - 1
+                            onPressed: currentQuestion >= cacCauHoi.length - 1
                                 ? null
                                 : () => setState(() => currentQuestion++),
                             icon: const Icon(Icons.arrow_forward),
@@ -433,7 +450,7 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
                                   builder: (context) => AlertDialog(
                                     title: const Text('Nộp bài?'),
                                     content: Text(
-                                      'Đã trả lời ${answers.length}/${questions.length} câu.',
+                                      'Đã trả lời ${answers.length}/${cacCauHoi.length} câu.',
                                     ),
                                     actions: [
                                       TextButton(
@@ -466,139 +483,4 @@ class _SecureExamScreenState extends State<SecureExamScreen> {
       ),
     );
   }
-}
-
-class SecureExamResultScreen extends StatelessWidget {
-  const SecureExamResultScreen({super.key, required this.result});
-  final Map<String, dynamic> result;
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: AppTheme.navy,
-    appBar: AppBar(title: const Text('Kết quả bài thi')),
-    body: ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              children: [
-                Text(
-                  result['passed'] == true
-                      ? 'Chúc mừng bạn!'
-                      : 'Tiếp tục cố gắng!',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(result['title'] ?? 'Bài thi', textAlign: TextAlign.center),
-                const SizedBox(height: 28),
-                SizedBox(
-                  width: 150,
-                  height: 150,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox.expand(
-                        child: CircularProgressIndicator(
-                          value: ((result['score'] as num) / 10).clamp(0, 1),
-                          strokeWidth: 9,
-                          backgroundColor: const Color(0xFFE7F0E7),
-                          color: result['passed'] == true
-                              ? Colors.green
-                              : AppTheme.red,
-                        ),
-                      ),
-                      Text(
-                        '${result['score']}/10',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  '${result['correctAnswers']}/${result['totalQuestions']} câu đúng • ${result['passed'] == true ? 'Đạt' : 'Chưa đạt'}',
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (result['expired'] == true)
-          const Text(
-            'Đã hết giờ. Kết quả tính từ các đáp án được máy chủ lưu trước hạn.',
-            style: TextStyle(color: Colors.white),
-          ),
-        for (final q in (result['review'] as List? ?? const []))
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(q['title']),
-                  Text('Đáp án đúng: ${q['options'][q['correctIndex']]}'),
-                  Text(q['explanation'] ?? ''),
-                ],
-              ),
-            ),
-          ),
-      ],
-    ),
-  );
-}
-
-class SecureExamHistoryScreen extends StatefulWidget {
-  const SecureExamHistoryScreen({super.key, required this.service});
-  final SecureExamService service;
-  @override
-  State<SecureExamHistoryScreen> createState() =>
-      _SecureExamHistoryScreenState();
-}
-
-class _SecureExamHistoryScreenState extends State<SecureExamHistoryScreen> {
-  late final history = widget.service.call('examHistory');
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Lịch sử thi trên máy chủ')),
-    body: FutureBuilder<Map<String, dynamic>>(
-      future: history,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text(SecureExamService.error(snapshot.error!)));
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final runs = snapshot.data!['runs'] as List;
-        if (runs.isEmpty) {
-          return const Center(child: Text('Chưa có lượt thi hoàn thành.'));
-        }
-        return ListView(
-          children: [
-            for (final raw in runs)
-              ListTile(
-                title: Text(raw['title']),
-                subtitle: Text(
-                  '${raw['score']}/10 • ${DateTime.fromMillisecondsSinceEpoch((raw['completedAt'] as num).toInt())}',
-                ),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => SecureExamResultScreen(
-                      result: Map<String, dynamic>.from(raw),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    ),
-  );
 }

@@ -1,9 +1,12 @@
+// WEB ADMIN: Quản lý đề kiểm tra, chính sách làm bài và thời gian mở/đóng đề.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
 import '../../widgets/learning_widgets.dart';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../services/firestore_service.dart';
+import '../../services/du_lieu/firestore_service.dart';
 import 'admin_question_bank_screen.dart';
 import 'admin_home_screen.dart';
 import 'admin_report_screen.dart';
@@ -11,26 +14,28 @@ import 'admin_settings_screen.dart';
 import 'admin_responsive_shell.dart';
 import '../../models/question_bank_arguments.dart';
 import '../../models/account_identity.dart';
+import '../../widgets/admin_ui.dart';
 
+/// Quản lý đề kiểm tra, chính sách làm bài và thời gian mở/đóng đề.
 class AdminExamScreen extends StatefulWidget {
   const AdminExamScreen({super.key, this.service});
   final FirestoreService? service;
 
   @override
-  State<AdminExamScreen> createState() => _AdminExamScreenState();
+  State<AdminExamScreen> createState() => _TrangThaiBaiThiQuanTri();
 }
 
-class _AdminExamScreenState extends State<AdminExamScreen> {
-  late final FirestoreService _firestoreService =
+class _TrangThaiBaiThiQuanTri extends State<AdminExamScreen> {
+  late final FirestoreService _dichVuFirestore =
       widget.service ?? FirestoreService();
   final Color primaryColor = const Color(0xFFB51F24);
-  String _searchQuery = '';
-  final int _selectedIndex = 1;
+  String _tuKhoaTimKiem = '';
+  final int _viTriDaChon = 1;
 
-  void _onItemTapped(int index) {
-    if (index == _selectedIndex) return;
+  void _chonMuc(int viTri) {
+    if (viTri == _viTriDaChon) return;
 
-    switch (index) {
+    switch (viTri) {
       case 0:
         Navigator.pushReplacement(
           context,
@@ -54,7 +59,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
     }
   }
 
-  void _showAddExamDialog() {
+  void _moHopThoaiThemBaiThi() {
     final titleController = TextEditingController();
     final durationController = TextEditingController();
     final maxAttemptsController = TextEditingController(text: '1');
@@ -90,8 +95,8 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                     title: const Text('Không giới hạn lượt làm'),
                     value: unlimitedAttempts,
                     activeThumbColor: primaryColor,
-                    onChanged: (value) =>
-                        setModalState(() => unlimitedAttempts = value),
+                    onChanged: (giaTri) =>
+                        setModalState(() => unlimitedAttempts = giaTri),
                   ),
                   if (!unlimitedAttempts)
                     TextField(
@@ -139,16 +144,17 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                         IconButton(
                           tooltip: 'Chọn ngày giờ đóng',
                           onPressed: () async {
-                            final now = DateTime.now();
+                            final hienTai = DateTime.now();
                             final initial =
-                                closesAt ?? now.add(const Duration(days: 1));
-                            final date = await showDatePicker(
+                                closesAt ??
+                                hienTai.add(const Duration(days: 1));
+                            final ngay = await showDatePicker(
                               context: context,
                               initialDate: initial,
-                              firstDate: now,
-                              lastDate: now.add(const Duration(days: 3650)),
+                              firstDate: hienTai,
+                              lastDate: hienTai.add(const Duration(days: 3650)),
                             );
-                            if (date == null || !context.mounted) return;
+                            if (ngay == null || !context.mounted) return;
                             final time = await showTimePicker(
                               context: context,
                               initialTime: TimeOfDay.fromDateTime(initial),
@@ -156,9 +162,9 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                             if (time == null || !context.mounted) return;
                             setModalState(() {
                               closesAt = DateTime(
-                                date.year,
-                                date.month,
-                                date.day,
+                                ngay.year,
+                                ngay.month,
+                                ngay.day,
                                 time.hour,
                                 time.minute,
                               );
@@ -196,7 +202,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                           (maxAttempts != null && maxAttempts > 0))) {
                     setModalState(() => busy = true);
                     try {
-                      await _firestoreService.addExam(
+                      await _dichVuFirestore.addExam(
                         title: titleController.text.trim(),
                         durationMinutes: durationMinutes,
                         isOpen: isOpen,
@@ -236,28 +242,13 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = AdminResponsiveShell.isDesktop(context);
+    final laMayTinh = AdminResponsiveShell.isDesktop(context);
     return AdminResponsiveShell(
-      selectedIndex: _selectedIndex,
-      onSelected: _onItemTapped,
+      selectedIndex: _viTriDaChon,
+      onSelected: _chonMuc,
       child: Scaffold(
-        backgroundColor: Colors.grey[100],
-        appBar: AppBar(
-          backgroundColor: primaryColor,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: const Text(
-            'Quản lý Kiểm tra',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        backgroundColor: AdminUi.page,
+        appBar: AdminUi.appBar('Quản lý Kiểm tra'),
         body: Column(
           children: [
             Padding(
@@ -276,7 +267,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                     Expanded(
                       child: TextField(
                         onChanged: (val) =>
-                            setState(() => _searchQuery = val.toLowerCase()),
+                            setState(() => _tuKhoaTimKiem = val.toLowerCase()),
                         decoration: const InputDecoration(
                           hintText: 'Tìm kiếm tên bài thi...',
                           border: InputBorder.none,
@@ -293,32 +284,32 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
             ),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: _firestoreService.getExamsStream(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
+                stream: _dichVuFirestore.getExamsStream(),
+                builder: (context, duLieuNhan) {
+                  if (duLieuNhan.hasError) {
                     return const Center(child: Text('Lỗi tải dữ liệu'));
                   }
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                  if (duLieuNhan.connectionState == ConnectionState.waiting) {
+                    return const AdminLoading();
                   }
 
-                  final docs = snapshot.data!.docs.where((doc) {
-                    final title =
-                        doc.data()['title']?.toString().toLowerCase() ?? '';
-                    return title.contains(_searchQuery);
+                  final cacBanGhi = duLieuNhan.data!.docs.where((banGhi) {
+                    final tieuDe =
+                        banGhi.data()['title']?.toString().toLowerCase() ?? '';
+                    return tieuDe.contains(_tuKhoaTimKiem);
                   }).toList();
 
-                  if (docs.isEmpty) {
+                  if (cacBanGhi.isEmpty) {
                     return const Center(child: Text('Chưa có bài thi nào'));
                   }
 
                   return ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: docs.length,
-                    itemBuilder: (context, index) {
-                      final doc = docs[index];
-                      final exam = doc.data();
-                      return _buildExamCard(doc.id, exam);
+                    itemCount: cacBanGhi.length,
+                    itemBuilder: (context, viTri) {
+                      final banGhi = cacBanGhi[viTri];
+                      final baiThi = banGhi.data();
+                      return _dungTheBaiThi(banGhi.id, baiThi);
                     },
                   );
                 },
@@ -331,7 +322,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                 height: 48,
                 child: ElevatedButton.icon(
                   onPressed: AccountSession.current?.isRoot == true
-                      ? _showAddExamDialog
+                      ? _moHopThoaiThemBaiThi
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
@@ -343,7 +334,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                   label: Text(
                     AccountSession.current?.isRoot == true
                         ? 'Tạo bài thi mới'
-                        : 'Chỉ Admin tổng được tạo bài thi',
+                        : 'Chỉ quản lý tổng được tạo bài thi',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -355,11 +346,11 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
             ),
           ],
         ),
-        bottomNavigationBar: isDesktop
+        bottomNavigationBar: laMayTinh
             ? null
             : BottomNavigationBar(
-                currentIndex: _selectedIndex,
-                onTap: _onItemTapped,
+                currentIndex: _viTriDaChon,
+                onTap: _chonMuc,
                 type: BottomNavigationBarType.fixed,
                 selectedItemColor: primaryColor,
                 unselectedItemColor: Colors.grey,
@@ -386,68 +377,83 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
     );
   }
 
-  Future<void> _editPolicy(String id, Map<String, dynamic> exam) async {
-    String date(Object? value) =>
-        value is Timestamp ? value.toDate().toString().substring(0, 16) : '';
+  Future<void> _suaQuyTac(String ma, Map<String, dynamic> baiThi) async {
+    String date(Object? giaTri) =>
+        giaTri is Timestamp ? giaTri.toDate().toString().substring(0, 16) : '';
     await editLearningRecord(
       context,
       title: 'Cài đặt bài thi',
       fields: {
-        'Điểm đạt (0–10)': '${exam['passScore'] ?? 5}',
-        'Trộn câu hỏi (có/không)': exam['shuffleQuestions'] == true
+        'Điểm đạt (0–10)': '${baiThi['passScore'] ?? 5}',
+        'Trộn câu hỏi (có/không)': baiThi['shuffleQuestions'] == true
             ? 'có'
             : 'không',
-        'Trộn đáp án (có/không)': exam['shuffleAnswers'] == true
+        'Trộn đáp án (có/không)': baiThi['shuffleAnswers'] == true
             ? 'có'
             : 'không',
-        'Cho xem lời giải (có/không)': exam['showSolutions'] == true
+        'Cho xem lời giải (có/không)': baiThi['showSolutions'] == true
             ? 'có'
             : 'không',
-        'Mở đề lúc (YYYY-MM-DD HH:mm)': date(exam['opensAt']),
-        'Đóng đề lúc (YYYY-MM-DD HH:mm)': date(exam['closesAt']),
+        'Mở đề lúc (YYYY-MM-DD HH:mm)': date(baiThi['opensAt']),
+        'Đóng đề lúc (YYYY-MM-DD HH:mm)': date(baiThi['closesAt']),
       },
       optional: {
         'Mở đề lúc (YYYY-MM-DD HH:mm)',
         'Đóng đề lúc (YYYY-MM-DD HH:mm)',
       },
-      save: (values) async {
-        final score = double.tryParse(values['Điểm đạt (0–10)']!);
-        final show = values['Cho xem lời giải (có/không)']!.toLowerCase();
-        final shuffleQuestions = values['Trộn câu hỏi (có/không)']!
+      labels: {
+        'Trộn câu hỏi (có/không)': 'Trộn câu hỏi',
+        'Trộn đáp án (có/không)': 'Trộn đáp án',
+        'Cho xem lời giải (có/không)': 'Cho xem lời giải',
+      },
+      selectFields: {
+        'Trộn câu hỏi (có/không)': ['có', 'không'],
+        'Trộn đáp án (có/không)': ['có', 'không'],
+        'Cho xem lời giải (có/không)': ['có', 'không'],
+      },
+      dateTimeFields: {
+        'Mở đề lúc (YYYY-MM-DD HH:mm)',
+        'Đóng đề lúc (YYYY-MM-DD HH:mm)',
+      },
+      save: (cacGiaTri) async {
+        final diem = double.tryParse(cacGiaTri['Điểm đạt (0–10)']!);
+        final show = cacGiaTri['Cho xem lời giải (có/không)']!.toLowerCase();
+        final shuffleQuestions = cacGiaTri['Trộn câu hỏi (có/không)']!
             .toLowerCase();
-        final shuffleAnswers = values['Trộn đáp án (có/không)']!.toLowerCase();
-        final startText = values['Mở đề lúc (YYYY-MM-DD HH:mm)']!;
-        final endText = values['Đóng đề lúc (YYYY-MM-DD HH:mm)']!;
-        final start = DateTime.tryParse(startText);
-        final end = DateTime.tryParse(endText);
-        if (score == null ||
-            !score.isFinite ||
-            score < 0 ||
-            score > 10 ||
+        final shuffleAnswers = cacGiaTri['Trộn đáp án (có/không)']!
+            .toLowerCase();
+        final startText = cacGiaTri['Mở đề lúc (YYYY-MM-DD HH:mm)']!;
+        final endText = cacGiaTri['Đóng đề lúc (YYYY-MM-DD HH:mm)']!;
+        final batDau = DateTime.tryParse(startText);
+        final ketThuc = DateTime.tryParse(endText);
+        if (diem == null ||
+            !diem.isFinite ||
+            diem < 0 ||
+            diem > 10 ||
             !['có', 'không'].contains(show) ||
             !['có', 'không'].contains(shuffleQuestions) ||
             !['có', 'không'].contains(shuffleAnswers) ||
-            (startText.isNotEmpty && start == null) ||
-            (endText.isNotEmpty && end == null) ||
-            (start != null && end != null && !end.isAfter(start))) {
+            (startText.isNotEmpty && batDau == null) ||
+            (endText.isNotEmpty && ketThuc == null) ||
+            (batDau != null && ketThuc != null && !ketThuc.isAfter(batDau))) {
           throw ArgumentError('Cài đặt chưa hợp lệ.');
         }
-        await _firestoreService.updateExamPolicy(id, {
-          'passScore': score,
+        await _dichVuFirestore.updateExamPolicy(ma, {
+          'passScore': diem,
           'showSolutions': show == 'có',
           'shuffleQuestions': shuffleQuestions == 'có',
           'shuffleAnswers': shuffleAnswers == 'có',
-          'opensAt': start == null ? null : Timestamp.fromDate(start),
-          'closesAt': end == null ? null : Timestamp.fromDate(end),
+          'opensAt': batDau == null ? null : Timestamp.fromDate(batDau),
+          'closesAt': ketThuc == null ? null : Timestamp.fromDate(ketThuc),
         });
       },
     );
   }
 
-  Widget _buildExamCard(String docId, Map<String, dynamic> exam) {
-    final bool isOpen = exam['isOpen'] ?? false;
+  Widget _dungTheBaiThi(String docId, Map<String, dynamic> baiThi) {
+    final bool isOpen = baiThi['isOpen'] ?? false;
     final canManageExam = AccountSession.current?.isRoot == true;
-    final rawClosing = exam['closesAt'];
+    final rawClosing = baiThi['closesAt'];
     final closing = rawClosing is Timestamp ? rawClosing.toDate() : null;
     final hasExpired = closing != null && !closing.isAfter(DateTime.now());
 
@@ -471,7 +477,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        exam['title'] ?? 'Chưa có tên',
+                        baiThi['title'] ?? 'Chưa có tên',
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -480,7 +486,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                     ),
                     GestureDetector(
                       onTap: canManageExam
-                          ? () => _firestoreService.updateExamStatus(
+                          ? () => _dichVuFirestore.updateExamStatus(
                               docId,
                               !isOpen,
                             )
@@ -517,24 +523,24 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                   spacing: 16,
                   runSpacing: 8,
                   children: [
-                    _buildInfoChip(
+                    _dungNhanThongTin(
                       Icons.access_time,
-                      exam['duration'] ?? 'N/A',
+                      baiThi['duration'] ?? 'N/A',
                     ),
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: _firestoreService.getQuestionsStream(docId),
-                      builder: (context, snapshot) => _buildInfoChip(
+                      stream: _dichVuFirestore.getQuestionsStream(docId),
+                      builder: (context, duLieuNhan) => _dungNhanThongTin(
                         Icons.format_list_bulleted,
-                        '${snapshot.data?.docs.length ?? 0} câu thực tế',
+                        '${duLieuNhan.data?.docs.length ?? 0} câu thực tế',
                       ),
                     ),
-                    _buildInfoChip(
+                    _dungNhanThongTin(
                       Icons.replay,
-                      exam['maxAttempts'] == null
+                      baiThi['maxAttempts'] == null
                           ? 'Không giới hạn'
-                          : '${exam['maxAttempts']} lượt',
+                          : '${baiThi['maxAttempts']} lượt',
                     ),
-                    _buildInfoChip(
+                    _dungNhanThongTin(
                       Icons.event_outlined,
                       closing == null
                           ? 'Không có ngày đóng'
@@ -563,7 +569,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                         builder: (context) => AdminQuestionBankScreen(
                           args: QuestionBankArguments(
                             examId: docId,
-                            examTitle: exam['title'] ?? 'Bài thi',
+                            examTitle: baiThi['title'] ?? 'Bài thi',
                           ),
                         ),
                       ),
@@ -586,7 +592,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                   IconButton(
                     tooltip: 'Điểm đạt, lời giải và lịch mở đề',
                     icon: const Icon(Icons.tune),
-                    onPressed: () => _editPolicy(docId, exam),
+                    onPressed: () => _suaQuyTac(docId, baiThi),
                   ),
                 if (canManageExam)
                   IconButton(
@@ -621,7 +627,7 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                       );
                       if (confirm == true) {
                         try {
-                          await _firestoreService.deleteExam(docId);
+                          await _dichVuFirestore.deleteExam(docId);
                           if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -630,11 +636,11 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
                               ),
                             ),
                           );
-                        } catch (error) {
+                        } catch (loi) {
                           if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Không thể xóa bài thi: $error'),
+                              content: Text('Không thể xóa bài thi: $loi'),
                               backgroundColor: Colors.red,
                             ),
                           );
@@ -650,12 +656,12 @@ class _AdminExamScreenState extends State<AdminExamScreen> {
     );
   }
 
-  Widget _buildInfoChip(IconData icon, String label) {
+  Widget _dungNhanThongTin(IconData bieuTuong, String nhan) {
     return Row(
       children: [
-        Icon(icon, size: 14, color: Colors.grey[500]),
+        Icon(bieuTuong, size: 14, color: Colors.grey[500]),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        Text(nhan, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
   }

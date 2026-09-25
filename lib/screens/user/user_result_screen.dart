@@ -1,7 +1,13 @@
+// APP HỌC VIÊN: Hiển thị điểm, đáp án và lời giải sau khi nộp bài.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
+import '../../widgets/learner_header.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../models/exam_result_arguments.dart';
 
+/// Hiển thị điểm, đáp án và lời giải sau khi nộp bài.
 class UserResultScreen extends StatelessWidget {
   final ExamResultArguments args;
 
@@ -15,8 +21,8 @@ class UserResultScreen extends StatelessWidget {
     final bool isPassed = args.diemSo >= 5.0;
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
+      backgroundColor: Colors.transparent,
+      appBar: LearnerHeader(
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         title: const Text(
@@ -93,7 +99,7 @@ class UserResultScreen extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _buildStatCard(
+                  child: _dungTheThongKe(
                     title: 'Câu đúng',
                     value: '${args.soCauDung}/${args.tongSoCau}',
                     icon: Icons.check_circle_outline,
@@ -102,7 +108,7 @@ class UserResultScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildStatCard(
+                  child: _dungTheThongKe(
                     title: 'Câu sai',
                     value: '$wrongAnswers/${args.tongSoCau}',
                     icon: Icons.highlight_off,
@@ -111,7 +117,7 @@ class UserResultScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildStatCard(
+                  child: _dungTheThongKe(
                     title: 'Thời gian',
                     value: args.thoiGianLamBai,
                     icon: Icons.timer_outlined,
@@ -149,7 +155,7 @@ class UserResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard({
+  Widget _dungTheThongKe({
     required String title,
     required String value,
     required IconData icon,

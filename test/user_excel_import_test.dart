@@ -2,9 +2,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:e09_elearning/models/user_import.dart';
-import 'package:e09_elearning/services/firestore_service.dart';
-import 'package:e09_elearning/services/account_api.dart';
-import 'package:e09_elearning/services/user_excel_import.dart';
+import 'package:e09_elearning/services/du_lieu/firestore_service.dart';
+import 'package:e09_elearning/services/ket_noi_api/account_api.dart';
+import 'package:e09_elearning/services/tep/user_excel_import.dart';
 import 'package:excel/excel.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,12 +12,14 @@ import 'package:flutter_test/flutter_test.dart';
 List<CellValue?> cells(List<String> values) =>
     values.map(TextCellValue.new).toList();
 final header = cells(UserExcelImport.headers);
-UserImportRow account(String username) => UserImportRow(
-  rowNumber: 2,
-  name: 'Nguyễn Văn An',
-  username: username,
-  password: 'Password01!',
-);
+UserImportRow account(String username, {String? userCodeSuffix}) =>
+    UserImportRow(
+      rowNumber: 2,
+      name: 'Nguyễn Văn An',
+      username: username,
+      password: 'Password01!',
+      userCodeSuffix: userCodeSuffix,
+    );
 
 void main() {
   final parser = UserExcelImport();
@@ -33,7 +35,7 @@ void main() {
     );
     final result = parser.parse(bytes);
     expect(result.rows, isEmpty);
-    expect(result.errors.single, contains('Chưa có User'));
+    expect(result.errors.single, contains('Chưa có học viên'));
     expect(workbook.tables.keys, containsAll(['Users', 'HuongDan']));
     expect(
       workbook.tables['Users']!.rows.first.map(
@@ -47,6 +49,7 @@ void main() {
     final examplePreview = parser.parseRows([header, example]);
     expect(examplePreview.canImport, isTrue);
     expect(examplePreview.rows.single.username, 'hv001234');
+    expect(examplePreview.rows.single.userCodeSuffix, '001234');
   });
 
   test(
@@ -86,13 +89,34 @@ void main() {
       parser
           .parseRows([
             header,
-            cells(['An', 'user01', 'secret01', 'admin']),
+            cells(['An', 'user01', 'secret01', '001', 'admin']),
           ])
           .rows
           .single
           .errors,
-      contains('Có dữ liệu ngoài 3 cột cho phép.'),
+      contains('Có dữ liệu ngoài 4 cột cho phép.'),
     );
+  });
+
+  test('optional user code suffix is text and retains leading zeros', () {
+    final result = parser.parseRows([
+      header,
+      cells(['Nguyễn Văn An', 'hv001234', 'Password01!', '001234']),
+    ]);
+    expect(result.canImport, isTrue);
+    expect(result.rows.single.userCodeSuffix, '001234');
+
+    final invalid = parser.parseRows([
+      header,
+      [
+        TextCellValue('An'),
+        TextCellValue('user01'),
+        TextCellValue('Password01!'),
+        IntCellValue(1234),
+      ],
+    ]);
+    expect(invalid.canImport, isFalse);
+    expect(invalid.rows.single.errors.single, 'Mã người dùng phải là Text.');
   });
 
   test('rejects corrupt, empty and oversized files', () {
@@ -222,6 +246,25 @@ void main() {
         expect((await db.collection('users').get()).docs, isEmpty);
       },
     );
+    test('optional code suffix is forwarded without its unit prefix', () async {
+      final db = FakeFirebaseFirestore();
+      final service = FirestoreService(
+        firestore: db,
+        accounts: AccountApi(
+          transport: (method, data) async {
+            expect(method, 'accountImportUsers');
+            final row = (data['rows'] as List).single as Map;
+            expect(row['code'], '001234');
+            expect(row.containsKey('role'), isFalse);
+            return {'count': 1};
+          },
+        ),
+      );
+      await service.importUsers([
+        account('hv001234', userCodeSuffix: '001234'),
+      ]);
+      expect((await db.collection('users').get()).docs, isEmpty);
+    });
     test(
       'invalid input and direct admin creation never reach backend',
       () async {

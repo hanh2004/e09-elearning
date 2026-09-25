@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:e09_elearning/services/firestore_service.dart';
-import 'package:e09_elearning/services/learning_service.dart';
+import 'package:e09_elearning/services/du_lieu/firestore_service.dart';
+import 'package:e09_elearning/services/nghiep_vu/learning_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -134,11 +134,13 @@ void main() {
     () async {
       final db = FakeFirebaseFirestore();
       final service = LearningService(db: db);
-      await service.markLesson('u', 'c', 'l', completed: true, favorite: false);
-      await service.markLesson('u', 'c', 'l', completed: true, favorite: true);
+      await service.startLesson('u', 'c', 'l');
+      await service.completeLesson('u', 'c', 'l');
+      expect(await service.startLesson('u', 'c', 'l'), true);
       final result = await service.progress('u', 'c').first;
       expect(result.docs.length, 1);
-      expect(result.docs.single.data()['favorite'], true);
+      expect(result.docs.single.data()['completed'], true);
+      expect(result.docs.single.data().containsKey('favorite'), false);
       await service.saveContent('admin', db.collection('courses').doc('c'), {
         'title': 'Course',
       });

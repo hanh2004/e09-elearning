@@ -4,13 +4,13 @@ import 'package:e09_elearning/screens/admin/admin_requests_screen.dart';
 import 'package:e09_elearning/screens/admin/admin_exam_screen.dart';
 import 'package:e09_elearning/screens/admin/admin_question_bank_screen.dart';
 import 'package:e09_elearning/models/question_bank_arguments.dart';
-import 'package:e09_elearning/services/firestore_service.dart';
-import 'package:e09_elearning/services/account_auth.dart';
+import 'package:e09_elearning/services/du_lieu/firestore_service.dart';
+import 'package:e09_elearning/services/tai_khoan/account_auth.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:e09_elearning/screens/admin/admin_courses_screen.dart';
-import 'package:e09_elearning/services/learning_service.dart';
+import 'package:e09_elearning/services/nghiep_vu/learning_service.dart';
 
 void main() {
   tearDown(() => AccountSession.current = null);
@@ -171,13 +171,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Own User'), findsOneWidget);
       expect(find.text('Other User'), findsOneWidget);
-      expect(find.textContaining('Tạo bởi: limited'), findsOneWidget);
-      expect(find.textContaining('Tạo bởi: someoneElse'), findsOneWidget);
-      expect(find.text('Đề xuất Admin phụ'), findsNothing);
-      expect(find.text('Duyệt Admin phụ'), findsNothing);
+      expect(find.textContaining('Quản lý: limited'), findsOneWidget);
+      expect(find.textContaining('Quản lý: someoneElse'), findsOneWidget);
+      expect(find.text('Đề xuất Quản lý'), findsNothing);
+      expect(find.text('Duyệt Quản lý'), findsNothing);
       expect(find.byIcon(Icons.edit), findsOneWidget);
       expect(find.byIcon(Icons.delete_outline), findsOneWidget);
-      expect(find.text('Nhập User từ Excel'), findsOneWidget);
+      expect(find.text('Nhập học viên từ Excel'), findsOneWidget);
     },
   );
 
@@ -205,7 +205,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     final createExam = tester.widget<ElevatedButton>(
-      find.widgetWithText(ElevatedButton, 'Chỉ Admin tổng được tạo bài thi'),
+      find.widgetWithText(ElevatedButton, 'Chỉ quản lý tổng được tạo bài thi'),
     );
     expect(createExam.onPressed, isNull);
     expect(find.text('Quản lý Kiểm tra'), findsOneWidget);

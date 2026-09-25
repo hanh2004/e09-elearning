@@ -1,9 +1,3 @@
-# Trạng thái hiện hành: Firebase Blaze
-
-Giao diện và rà soát mới nhất: [REDESIGN_AUDIT.md](REDESIGN_AUDIT.md). Giữ logo cũ, thêm trang chủ học tập, trạng thái đọc thông báo, tiếp tục học, sửa/trộn câu hỏi và sửa lỗi báo cáo/tài khoản. Chưa tạo APK.
-
-Xem [BLAZE_UPGRADE.md](BLAZE_UPGRADE.md) cho bản ngày 10/09/2026. App và web dùng Cloud Functions mặc định. Các mô tả Spark bên dưới là lịch sử; không dùng Rules Spark cho bản hiện hành. Chưa tạo APK mới theo yêu cầu.
-
 # E09 E-Learning — User App và Admin Web
 
 Hai ứng dụng được build riêng từ một Flutter repository. Model, service và
@@ -33,14 +27,46 @@ và **Admin Web**. Hai điểm chạy cố định vai trò, không có nút chu
 
 ## Build và phát hành riêng
 
+Mục tiêu phát hành: app học viên lên Google Play và Apple App Store;
+web Admin triển khai riêng lên Firebase Hosting. Giữ thư mục `android/`,
+`ios/`, cấu hình Firebase, icon và tài nguyên được khai báo trong `pubspec.yaml`.
+
+Các lệnh sau chỉ dùng sau khi đã hoàn thiện cấu hình ký phát hành:
+
 ```powershell
-flutter build apk -t lib/main_user.dart
-flutter build web -t lib/main_admin.dart --output build/admin_web
+# Google Play: Android App Bundle
+flutter build appbundle --release -t lib/main_user.dart
+
+# App Store: chạy trên macOS có Xcode và cấu hình ký của Apple Developer
+flutter build ipa --release -t lib/main_user.dart
+
+# Web Admin
+flutter build web --release -t lib/main_admin.dart --output build/admin_web
 ```
 
-APK User: `build/app/outputs/flutter-apk/app-release.apk`.
+Google Play: tệp `.aab` trong `build/app/outputs/bundle/release/`.
+App Store: tệp `.ipa` trong `build/ios/ipa/`, archive trong `build/ios/archive/`.
+Máy Windows hiện tại không build/ký iOS trực tiếp; cần Mac hoặc CI chạy macOS.
+APK chỉ dùng khi cần cài Android trực tiếp để thử nghiệm.
 Web Admin: `build/admin_web/`. Chỉ triển khai thư mục này cho cổng Admin.
 Không dùng bản `build/web` cũ vì nó có thể là ứng dụng gộp trước khi tách.
+
+### Cấu hình phát hành còn cần hoàn thiện
+
+- Android release đã bỏ fallback sang debug key; task kiểm tra sẽ dừng nếu chưa có
+  upload keystore chính thức trong `android/key.properties`. Cần cấu hình khóa này
+  trước khi tạo AAB để tải lên Google Play.
+- Application ID Android hiện là `com.example.e09_elearning`; Bundle ID iOS
+  hiện là `com.example.e09Elearning`. Chốt mã định danh với chủ dự án và đồng bộ
+  Firebase trước lần phát hành đầu tiên. Không tự đổi mã của app đã phát hành.
+- iOS chưa cấu hình `DEVELOPMENT_TEAM`. Cần tài khoản Apple Developer,
+  chọn Team và hoàn thiện signing trong Xcode.
+- Quản lý phiên bản tại `pubspec.yaml`, ví dụ `1.0.0+1`; tăng build number
+  cho lần tải bản mới. Cấu hình ký xong vẫn cần kiểm thử trên thiết bị và
+  hoàn thiện thông tin ứng dụng trên từng cửa hàng.
+
+Hướng dẫn chính thức: [Android](https://docs.flutter.dev/deployment/android),
+[iOS](https://docs.flutter.dev/deployment/ios).
 
 Có thể build User Web để kiểm tra bằng:
 `flutter build web -t lib/main_user.dart --output build/user_web`.
@@ -51,6 +77,21 @@ hai. Khi đổi schema/backend cần tương thích ngược với app đã phá
 Không có bước deploy tự động trong thay đổi này.
 
 ## Vai trò và bảo mật — trạng thái hiện tại
+
+### Tin tức và hai mục học của học viên
+
+- Admin → **Tin tức** → **Thêm tin tức**: nhập tiêu đề, tóm tắt, nội dung và ảnh tùy chọn;
+  chọn **Bản nháp** hoặc **Đăng tin**. Tin đã đăng hiển thị ở trang chủ học viên.
+- Admin → **Quản lý khóa học** → bài học → **Loại bài học**:
+  **Chỉ học** hiển thị trong mục **Học tập**, hoàn thành sau thời gian học;
+  **Học xong kiểm tra ngay** hiển thị trong mục **Kiểm tra**, học nội dung trước rồi kéo tới cuối bài và bấm hoàn thành để mở đề riêng đi kèm.
+- Tạo đề và câu hỏi trong **Bài thi**, sau đó chọn đề ở bài học loại kiểm tra.
+  Đề chưa gắn nội dung học không có lối vào thi trực tiếp trong ứng dụng học viên.
+- Trong web admin, danh sách bài học được tách thành **Học để biết** và **Học để làm bài kiểm tra**.
+- API bắt đầu, tiếp tục và nộp bài kiểm tra xác thực bài học, đề đi kèm và tiến độ của
+  chính học viên. Chưa học xong thì không cấp câu hỏi; không tin cờ hoàn thành do client gửi.
+- Bài học cũ chưa có `learningMode` được xem là **Chỉ học**.
+  Cần cập nhật ứng dụng học viên, web admin, Functions và Rules cùng đợt phát hành để dùng luồng mới.
 
 - User chỉ nhận vai trò User; web Admin nhận `super_admin` hoặc `admin`.
 - Đúng hai admin tổng: `admintong1`, `admintong2`, nhận diện bằng UID do script khởi tạo.
@@ -69,6 +110,9 @@ Không có bước deploy tự động trong thay đổi này.
   bảo mật và khả năng khôi phục thao tác kém hơn backend trả phí.
 - Đăng nhập dùng Firebase Auth, không đọc mật khẩu từ Firestore. Không có 2FA.
 - Đăng nhập sai cổng vẫn báo cùng thông báo sai tài khoản/mật khẩu. Đăng xuất xóa phiên Auth.
+- Học viên bấm **Quên mật khẩu?** ở màn hình đăng nhập để gửi yêu cầu. Một quản lý tổng
+  duyệt lần đầu, quản lý tổng còn lại duyệt lần hai; sau đó quản lý phụ trách mới được
+  nhập mật khẩu mới trong mục **Cấp lại mật khẩu**. Mật khẩu không lưu trong Firestore.
 - Firestore Rules chặn User tự xóa lượt làm, ghi cho người khác, nộp sau hạn
   và ghi điểm ngoài miền hợp lệ. Chấm điểm tuyệt đối chống can thiệp vẫn cần
   backend tin cậy; bản Spark hiện tại chỉ phù hợp dữ liệu thử nghiệm.
@@ -116,13 +160,35 @@ Test kiểm tra vai trò hợp lệ/không hợp lệ, chặn đăng nhập ché
 giữ cổng khi đăng xuất và đồ thị import không chứa màn hình bên còn lại.
 Các test không đăng nhập hoặc sửa dữ liệu Firebase thật.
 
-## Nâng cấp học tập 09/09/2026
+Chạy thêm backend từ thư mục `functions` (Node.js 22 theo cấu hình dự án):
 
-Đã thêm khóa học/bài học, tiến độ, yêu thích, phân lớp, hồ sơ/bảo mật,
-lịch học/thi, thông báo có lịch và lịch sử từng lượt thi mới.
-Xem [UPGRADE_STATUS.md](UPGRADE_STATUS.md) để biết chức năng đã hoàn thành,
-giới hạn hiện tại và các hạng mục còn thiếu so với yêu cầu mở rộng.
+```powershell
+cd functions
+npm test
+npm run test:all-emulators
+```
 
-## Rà soát chất lượng
+`test:all-emulators` dùng `firebase.full.test.json` tại gốc dự án và project giả
+`demo-e09`. Bộ chạy tự tìm các tệp test, chạy từng tệp riêng và xóa dữ liệu
+Firestore/Auth **trong emulator cục bộ** trước mỗi tệp để tránh lẫn dữ liệu test.
+Không dùng các cổng của cấu hình này cho phiên emulator khác đang cần giữ dữ liệu.
+Nếu báo cổng đang bận, xác định và dừng đúng emulator của lượt test trước;
+không dừng toàn bộ Java hay các ứng dụng khác.
 
-Xem [AUDIT_REPORT.md](AUDIT_REPORT.md) để biết lỗi đã sửa, các vấn đề bảo mật/lượt thi còn mở và phạm vi kiểm thử. Build thành công không đồng nghĩa đã đáp ứng yêu cầu chống gian lận cho kỳ thi chính thức.
+Test bộ chọn Excel trên trình duyệt phải chạy riêng từ gốc dự án:
+
+```powershell
+flutter test --platform chrome test/workbook_picker_web_test.dart
+```
+
+Nếu test dừng ở `loading` và Chrome báo 404 `/canvaskit/chromium/`, đó là lỗi
+phục vụ tài nguyên của môi trường test, chưa phải kết quả kiểm tra chức năng.
+Lượt kiểm tra trên Windows đã chạy được bằng bản sao tạm `canvaskit.js` và
+`canvaskit.wasm` từ `flutter/bin/cache/flutter_web_sdk/canvaskit/chromium/`
+sang `test/canvaskit/chromium/`; xóa đúng hai bản sao và thư mục tạm sau khi test.
+Không sửa SDK hoặc đưa các bản sao tài nguyên này vào Git.
+
+Test đạt và build thành công không thay thế kiểm thử OTP thật, thiết bị thật,
+kiểm thử tải nhiều người dùng, hoặc xác minh bản đã triển khai lên Firebase.
+
+Hướng dẫn cấu trúc và cách sửa cho người mới: [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md).

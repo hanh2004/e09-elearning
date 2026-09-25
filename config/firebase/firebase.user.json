@@ -1,0 +1,14 @@
+{
+  "hosting": {
+    "site": "e09-elearning",
+    "public": "build/user_web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [{"key": "Cache-Control", "value": "no-cache"}]
+      }
+    ],
+    "rewrites": [{"source": "**", "destination": "/index.html"}]
+  }
+}

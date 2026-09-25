@@ -1,3 +1,6 @@
+// DỮ LIỆU: Dữ liệu một lựa chọn trả lời trong câu hỏi.
+// Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
+
 class LuaChonDapAnModel {
   final String maLuaChon;
   final String noiDung;
@@ -9,23 +12,23 @@ class LuaChonDapAnModel {
     required this.dapAnDung,
   });
 
-  factory LuaChonDapAnModel.fromMap(Map<String, dynamic> map) {
+  factory LuaChonDapAnModel.fromMap(Map<String, dynamic> bangAnhXa) {
     return LuaChonDapAnModel(
-      maLuaChon: (map['ma_lua_chon'] ?? map['id'] ?? '').toString(),
+      maLuaChon: (bangAnhXa['ma_lua_chon'] ?? bangAnhXa['id'] ?? '').toString(),
       noiDung:
-          (map['noi_dung'] ??
-                  map['noiDung'] ??
-                  map['text'] ??
-                  map['content'] ??
-                  map['answer'] ??
-                  map['label'] ??
-                  map['value'] ??
+          (bangAnhXa['noi_dung'] ??
+                  bangAnhXa['noiDung'] ??
+                  bangAnhXa['text'] ??
+                  bangAnhXa['content'] ??
+                  bangAnhXa['answer'] ??
+                  bangAnhXa['label'] ??
+                  bangAnhXa['value'] ??
                   '')
               .toString(),
       dapAnDung:
-          map['dap_an_dung'] == true ||
-          map['dapAnDung'] == true ||
-          map['isCorrect'] == true,
+          bangAnhXa['dap_an_dung'] == true ||
+          bangAnhXa['dapAnDung'] == true ||
+          bangAnhXa['isCorrect'] == true,
     );
   }
 

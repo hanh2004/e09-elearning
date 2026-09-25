@@ -1,7 +1,9 @@
 import 'package:e09_elearning/models/admin_report.dart';
+import 'package:e09_elearning/services/admin_report_attempts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e09_elearning/models/account_identity.dart';
 import 'package:e09_elearning/screens/admin/admin_report_screen.dart';
-import 'package:e09_elearning/services/firestore_service.dart';
+import 'package:e09_elearning/services/du_lieu/firestore_service.dart';
 import 'package:e09_elearning/app/app_theme.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -77,6 +79,67 @@ void main() {
     expect(report.average, isNull);
     expect(report.passRate, isNull);
   });
+  test(
+    'Excel date range counts only runs submitted inside that range',
+    () async {
+      final db = FakeFirebaseFirestore();
+      await db.doc('exam_attempts/legacy').set({
+        'userId': 'u',
+        'examId': 'e',
+        'attemptCount': 2,
+        'bestScore': 9,
+        'lastAttemptAt': Timestamp.fromDate(DateTime(2026, 9, 20)),
+      });
+      await db.doc('exam_attempts/legacy/runs/1').set({
+        'score': 9,
+        'completedAt': Timestamp.fromDate(DateTime(2026, 8, 20)),
+      });
+      await db.doc('exam_attempts/legacy/runs/2').set({
+        'score': 5,
+        'completedAt': Timestamp.fromDate(DateTime(2026, 9, 20)),
+      });
+      await db.doc('exam_attempts/secure_session').set({
+        'userId': 'v',
+        'examId': 'e',
+        'attemptCount': 2,
+        'bestScore': 10,
+      });
+      await db.doc('exam_sessions/session/runs/a').set({
+        'score': 10,
+        'status': 'completed',
+        'completedAt': Timestamp.fromDate(DateTime(2026, 8, 21)),
+      });
+      await db.doc('exam_sessions/session/runs/b').set({
+        'score': 6,
+        'status': 'completed',
+        'completedAt': Timestamp.fromDate(DateTime(2026, 9, 21)),
+      });
+      final summaries = (await db.collection('exam_attempts').get()).docs;
+      final selected = await AdminReportAttempts.trongKhoang(
+        db: db,
+        summaries: summaries,
+        userIds: {'u', 'v'},
+        from: DateTime(2026, 9),
+        until: DateTime(2026, 10),
+      );
+      final report = AdminReport.build(
+        users: users,
+        exams: exams,
+        attempts: selected,
+      );
+      expect(report.attempts, 2);
+      expect(report.rows.singleWhere((row) => row.userId == 'u').score, 5);
+      expect(report.rows.singleWhere((row) => row.userId == 'v').score, 6);
+      final onlyUnit = await AdminReportAttempts.trongKhoang(
+        db: db,
+        summaries: summaries,
+        userIds: {'u'},
+        from: DateTime(2026, 9),
+        until: DateTime(2026, 10),
+      );
+      expect(onlyUnit.length, 1);
+    },
+  );
   for (final width in [390.0, 1440.0]) {
     testWidgets('unit report filters and fits $width', (tester) async {
       tester.view.physicalSize = Size(width, 1000);
@@ -119,12 +182,12 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       await tester.scrollUntilVisible(
-        find.text('0 quản trị viên • 2 học viên\nĐã làm: 1 • Chưa làm: 1'),
+        find.text('0 quản lý • 2 học viên\nĐã làm: 1 • Chưa làm: 1'),
         150,
         scrollable: find.byType(Scrollable).first,
       );
       expect(
-        find.text('0 quản trị viên • 2 học viên\nĐã làm: 1 • Chưa làm: 1'),
+        find.text('0 quản lý • 2 học viên\nĐã làm: 1 • Chưa làm: 1'),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);

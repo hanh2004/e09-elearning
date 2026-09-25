@@ -1,423 +1,137 @@
+// APP HỌC VIÊN: Thư viện khóa học, chuyên đề, chương và bài học dành cho học viên.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../../services/learning_service.dart';
+import '../../app/app_theme.dart';
+import '../../services/nghiep_vu/learning_service.dart';
+import '../../widgets/course_cover.dart';
+import '../../models/course_form.dart';
+import '../../models/lesson_form.dart';
+import '../../widgets/learner_header.dart';
 import '../../widgets/learning_widgets.dart';
+import '../../widgets/learner_navigation.dart';
+import 'lesson_reader_screen.dart';
 
+part 'user_course_chapters.dart';
+
+typedef LessonDoc = QueryDocumentSnapshot<Map<String, dynamic>>;
+
+/// Thư viện khóa học, chuyên đề, chương và bài học dành cho học viên.
 class UserCoursesScreen extends StatefulWidget {
   const UserCoursesScreen({super.key, required this.uid, this.service});
   final LearningService? service;
   final String uid;
   @override
-  State<UserCoursesScreen> createState() => _UserCoursesScreenState();
+  State<UserCoursesScreen> createState() => _TrangThaiKhoaHocHocVien();
 }
 
-class _UserCoursesScreenState extends State<UserCoursesScreen> {
+class _TrangThaiKhoaHocHocVien extends State<UserCoursesScreen> {
   late final service = widget.service ?? LearningService();
-  late final profile = service.db
+  late final courses = service.courses(classId: '');
+  late final progress = service.db
       .collection('users')
       .doc(widget.uid)
+      .collection('learning')
       .snapshots();
   String search = '';
   String? subject;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Thư viện học tập')),
-    body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: profile,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const Center(child: Text('Không tải được hồ sơ học viên.'));
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final classId = snapshot.data!.data()?['classId'] as String? ?? '';
-        return LearningList(
-          stream: service.courses(classId: classId),
-          builder: (docs) {
-            final subjects =
-                docs
-                    .map((d) => d.data()['subject'] as String? ?? '')
-                    .toSet()
-                    .toList()
-                  ..sort();
-            final filtered = docs
-                .where(
-                  (d) =>
-                      (subject == null || d.data()['subject'] == subject) &&
-                      '${d.data()['title']} ${d.data()['subject']}'
-                          .toLowerCase()
-                          .contains(search),
-                )
-                .toList();
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      TextField(
-                        decoration: const InputDecoration(
-                          labelText: 'Tìm kiếm khóa học',
-                          prefixIcon: Icon(Icons.search),
-                        ),
-                        onChanged: (v) =>
-                            setState(() => search = v.toLowerCase()),
-                      ),
-                      DropdownButton<String>(
-                        isExpanded: true,
-                        value: subjects.contains(subject) ? subject : null,
-                        hint: const Text('Tất cả môn học'),
-                        items: [
-                          const DropdownMenuItem<String>(
-                            value: null,
-                            child: Text('Tất cả môn học'),
-                          ),
-                          for (final s in subjects)
-                            DropdownMenuItem(value: s, child: Text(s)),
-                        ],
-                        onChanged: (v) => setState(() => subject = v),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: filtered.isEmpty
-                      ? const Center(child: Text('Chưa có khóa học phù hợp.'))
-                      : ListView(
-                          children: [
-                            for (final doc in filtered)
-                              Card(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 6,
-                                ),
-                                child: ListTile(
-                                  leading: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF9E9E5),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.auto_stories_outlined,
-                                      color: Color(0xFFB51F24),
-                                    ),
-                                  ),
-                                  title: Text(doc.data()['title'] ?? ''),
-                                  subtitle: Text(
-                                    '${doc.data()['subject']}\n${doc.data()['description'] ?? ''}',
-                                  ),
-                                  isThreeLine: true,
-                                  trailing: const Icon(Icons.chevron_right),
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => UserLessonsScreen(
-                                        uid: widget.uid,
-                                        course: doc,
-                                        service: service,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    ),
-  );
-}
-
-class UserLessonsScreen extends StatefulWidget {
-  const UserLessonsScreen({
-    super.key,
-    required this.uid,
-    required this.course,
-    this.service,
-  });
-  final LearningService? service;
-  final String uid;
-  final QueryDocumentSnapshot<Map<String, dynamic>> course;
-  @override
-  State<UserLessonsScreen> createState() => _UserLessonsScreenState();
-}
-
-class _UserLessonsScreenState extends State<UserLessonsScreen> {
-  late final service = widget.service ?? LearningService();
-  late final lessons = service.lessons(widget.course.id);
-  late final progress = service.progress(widget.uid, widget.course.id);
-  bool favoritesOnly = false;
-  String? selectedChapter;
-  final pending = <String>{};
-  Future<bool> mark(String id, bool completed, bool favorite) async {
-    if (pending.contains(id)) return false;
-    setState(() => pending.add(id));
-    try {
-      await service.markLesson(
-        widget.uid,
-        widget.course.id,
-        id,
-        completed: completed,
-        favorite: favorite,
-      );
-      return true;
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không lưu được tiến độ. Hãy thử lại.')),
-        );
-      }
-      return false;
-    } finally {
-      if (mounted) setState(() => pending.remove(id));
-    }
-  }
-
-  void open(
-    String id,
-    Map<String, dynamic> lesson,
-    bool completed,
-    bool favorite,
-  ) {
-    Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-        builder: (context) => StatefulBuilder(
-          builder: (context, setReaderState) => Scaffold(
-            appBar: AppBar(title: Text(lesson['title'] ?? 'Bài học')),
-            body: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                Text(
-                  lesson['chapter'] ?? '',
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                const SizedBox(height: 16),
-                SelectableText(
-                  lesson['content'] ?? '',
-                  style: const TextStyle(fontSize: 17, height: 1.6),
-                ),
-                if (lesson['type'] == 'image' &&
-                    (lesson['url'] as String? ?? '').isNotEmpty)
-                  Image.network(
-                    lesson['url'],
-                    errorBuilder: (_, error, stack) =>
-                        const Text('Không tải được hình ảnh.'),
-                  ),
-                if ((lesson['url'] as String? ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Text('Tài liệu ${lesson['type']}'),
-                  SelectableText(lesson['url']),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      await Clipboard.setData(
-                        ClipboardData(text: lesson['url']),
-                      );
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Đã sao chép liên kết tài liệu.'),
-                          ),
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.copy),
-                    label: const Text('Sao chép liên kết để mở tài liệu'),
-                  ),
-                ],
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.green.shade700,
-                  ),
-                  onPressed: pending.contains(id)
-                      ? null
-                      : () async {
-                          final saving = mark(id, !completed, favorite);
-                          setReaderState(() {});
-                          final success = await saving;
-                          if (context.mounted) {
-                            setReaderState(() {
-                              if (success) completed = !completed;
-                            });
-                          }
-                        },
-                  icon: Icon(completed ? Icons.check_circle : Icons.check),
-                  label: Text(
-                    completed
-                        ? 'Đã học • Đánh dấu chưa học'
-                        : 'Hoàn thành bài học',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.course.data()['title'] ?? 'Bài học')),
+    appBar: LearnerHeader(title: const Text('Thư viện học tập')),
     body: LearningList(
-      stream: lessons,
-      builder: (docs) => LearningList(
+      stream: courses,
+      builder: (cacBanGhi) => LearningList(
         stream: progress,
-        builder: (records) {
-          final states = {
-            for (final d in records) d.data()['lessonId']: d.data(),
-          };
-          final completed = records
-              .where((d) => d.data()['completed'] == true)
-              .map((d) => d.data()['lessonId'] as String);
-          final ratio = LearningPolicy.completion(
-            docs.map((d) => d.id),
-            completed,
-          );
-          final chapters = docs
-              .map((d) => (d.data()['chapter'] as String? ?? '').trim())
-              .where((c) => c.isNotEmpty)
-              .toSet()
-              .toList();
-          final activeChapter = chapters.contains(selectedChapter)
-              ? selectedChapter
-              : null;
-          final visible = docs
+        builder: (cacMauTin) {
+          final subjects =
+              cacBanGhi
+                  .map((d) => (d.data()['subject'] as String? ?? '').trim())
+                  .where((s) => s.isNotEmpty)
+                  .toSet()
+                  .toList()
+                ..sort();
+          final daLoc = cacBanGhi
               .where(
                 (d) =>
-                    (!favoritesOnly || states[d.id]?['favorite'] == true) &&
-                    (activeChapter == null ||
-                        (d.data()['chapter'] as String? ?? '').trim() ==
-                            activeChapter),
+                    LearningPolicy.canRead(d.data(), '') &&
+                    !CourseForm.hasExam(d.data()) &&
+                    (subject == null || d.data()['subject'] == subject) &&
+                    '${d.data()['title']} ${d.data()['subject']}'
+                        .toLowerCase()
+                        .contains(search),
               )
               .toList();
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      widget.course.data()['description'] ?? '',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.blueGrey,
-                        height: 1.5,
+                    TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Tìm bài học, nghiệp vụ…',
+                        prefixIcon: Icon(Icons.search),
                       ),
+                      onChanged: (v) =>
+                          setState(() => search = v.toLowerCase()),
                     ),
                     const SizedBox(height: 12),
-                    Text('Hoàn thành ${(ratio * 100).round()}%'),
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(value: ratio),
-                    if (docs.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: FilledButton.icon(
-                          onPressed: () {
-                            final nextIndex = docs.indexWhere(
-                              (d) => states[d.id]?['completed'] != true,
-                            );
-                            final next = docs[nextIndex < 0 ? 0 : nextIndex];
-                            open(
-                              next.id,
-                              next.data(),
-                              states[next.id]?['completed'] == true,
-                              states[next.id]?['favorite'] == true,
-                            );
-                          },
-                          icon: const Icon(Icons.play_arrow),
-                          label: Text(
-                            ratio == 1 ? 'Ôn tập lại' : 'Tiếp tục học',
-                          ),
-                        ),
-                      ),
-                    SwitchListTile(
-                      title: const Text('Chỉ xem bài yêu thích'),
-                      value: favoritesOnly,
-                      onChanged: (v) => setState(() => favoritesOnly = v),
-                    ),
-                    if (chapters.isNotEmpty)
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            ChoiceChip(
-                              label: const Text('Tất cả chương'),
-                              selected: activeChapter == null,
-                              onSelected: (_) =>
-                                  setState(() => selectedChapter = null),
-                            ),
-                            for (final chapter in chapters)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: ChoiceChip(
-                                  label: Text(chapter),
-                                  selected: activeChapter == chapter,
-                                  onSelected: (_) =>
-                                      setState(() => selectedChapter = chapter),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final s in <String?>[null, ...subjects])
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                showCheckmark: false,
+                                selectedColor: AppTheme.red,
+                                label: Text(
+                                  s ?? 'Tất cả',
+                                  style: TextStyle(
+                                    color: subject == s
+                                        ? Colors.white
+                                        : AppTheme.navy,
+                                  ),
                                 ),
+                                selected: subject == s,
+                                onSelected: (_) => setState(() => subject = s),
                               ),
-                          ],
-                        ),
+                            ),
+                        ],
                       ),
+                    ),
                   ],
                 ),
               ),
               Expanded(
-                child: visible.isEmpty
-                    ? const Center(child: Text('Chưa có bài học.'))
-                    : ListView(
-                        children: [
-                          for (final doc in visible)
-                            Card(
-                              child: ListTile(
-                                onTap: () => open(
-                                  doc.id,
-                                  doc.data(),
-                                  states[doc.id]?['completed'] == true,
-                                  states[doc.id]?['favorite'] == true,
-                                ),
-                                leading: Checkbox(
-                                  value: states[doc.id]?['completed'] == true,
-                                  onChanged: pending.contains(doc.id)
-                                      ? null
-                                      : (v) => mark(
-                                          doc.id,
-                                          v!,
-                                          states[doc.id]?['favorite'] == true,
-                                        ),
-                                ),
-                                title: Text(doc.data()['title'] ?? ''),
-                                subtitle: Text(
-                                  '${doc.data()['chapter']} • ${doc.data()['type']}',
-                                ),
-                                trailing: IconButton(
-                                  tooltip: 'Yêu thích',
-                                  onPressed: pending.contains(doc.id)
-                                      ? null
-                                      : () => mark(
-                                          doc.id,
-                                          states[doc.id]?['completed'] == true,
-                                          states[doc.id]?['favorite'] != true,
-                                        ),
-                                  icon: Icon(
-                                    states[doc.id]?['favorite'] == true
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                  ),
+                child: daLoc.isEmpty
+                    ? const Center(child: Text('Chưa có khóa học phù hợp.'))
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                        itemCount: daLoc.length,
+                        itemBuilder: (context, viTri) {
+                          final banGhi = daLoc[viTri];
+                          return _TheThuVienKhoaHoc(
+                            key: ValueKey(banGhi.id),
+                            course: banGhi,
+                            service: service,
+                            records: cacMauTin,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => UserLessonsScreen(
+                                  uid: widget.uid,
+                                  course: banGhi,
+                                  service: service,
                                 ),
                               ),
                             ),
-                        ],
+                          );
+                        },
                       ),
               ),
             ],
@@ -426,4 +140,344 @@ class _UserLessonsScreenState extends State<UserLessonsScreen> {
       ),
     ),
   );
+}
+
+class _TheThuVienKhoaHoc extends StatefulWidget {
+  const _TheThuVienKhoaHoc({
+    super.key,
+    required this.course,
+    required this.service,
+    required this.records,
+    required this.onTap,
+  });
+  final LessonDoc course;
+  final LearningService service;
+  final List<LessonDoc> records;
+  final VoidCallback onTap;
+  @override
+  State<_TheThuVienKhoaHoc> createState() => _TrangThaiTheThuVienKhoaHoc();
+}
+
+class _TrangThaiTheThuVienKhoaHoc extends State<_TheThuVienKhoaHoc> {
+  late final lessons = widget.service.lessons(widget.course.id);
+  @override
+  Widget build(BuildContext context) => LearningList(
+    stream: lessons,
+    builder: (allDocs) {
+      final duLieu = widget.course.data();
+      final explicitCourseMode =
+          duLieu['learningMode'] == 'study_only' ||
+          duLieu['learningMode'] == 'study_exam';
+      final cacBanGhi = allDocs
+          .where(
+            (banGhi) => explicitCourseMode
+                ? !CourseForm.hasExam(duLieu)
+                : !LessonForm.hasExam(banGhi.data()),
+          )
+          .toList();
+      if (cacBanGhi.isEmpty) return const SizedBox.shrink();
+      final tyLe = LearningPolicy.completion(
+        cacBanGhi.map((d) => d.id),
+        widget.records
+            .where(
+              (r) =>
+                  r.data()['courseId'] == widget.course.id &&
+                  r.data()['completed'] == true,
+            )
+            .map((r) => r.data()['lessonId'] as String),
+      );
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: widget.onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CourseCover(
+                  url: duLieu['coverUrl'] ?? '',
+                  width: 86,
+                  height: 100,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (duLieu['subject'] as String? ?? '').toUpperCase(),
+                        style: const TextStyle(
+                          color: AppTheme.red,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        duLieu['title'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.navy,
+                        ),
+                      ),
+                      if ((duLieu['instructor'] as String? ?? '').isNotEmpty)
+                        Text(
+                          'Giảng viên: ${duLieu['instructor']}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.blueGrey,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 4,
+                        children: [
+                          Text(
+                            '${cacBanGhi.length} bài học',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.blueGrey,
+                            ),
+                          ),
+                          Text(
+                            tyLe == 0
+                                ? 'Chưa học'
+                                : tyLe == 1
+                                ? 'Đã hoàn thành'
+                                : 'Đang học (${(tyLe * 100).round()}%)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: tyLe > 0
+                                  ? Colors.green.shade700
+                                  : Colors.blueGrey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: widget.onTap,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 9,
+                    ),
+                    minimumSize: const Size(0, 38),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Vào học', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// Danh sách bài học trong một chuyên đề để học viên tiếp tục học.
+class UserLessonsScreen extends StatefulWidget {
+  const UserLessonsScreen({
+    super.key,
+    required this.uid,
+    required this.course,
+    this.service,
+  });
+  final String uid;
+  final LessonDoc course;
+  final LearningService? service;
+  @override
+  State<UserLessonsScreen> createState() => _TrangThaiBaiHocHocVien();
+}
+
+class _TrangThaiBaiHocHocVien extends State<UserLessonsScreen> {
+  late final service = widget.service ?? LearningService();
+  @override
+  Widget build(BuildContext context) {
+    final duLieu = widget.course.data();
+    final objectives = (duLieu['objectives'] as String? ?? '')
+        .split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        bottomNavigationBar: const LearnerNavigation(selectedIndex: 1),
+        appBar: LearnerHeader(
+          backgroundColor: AppTheme.red,
+          title: const Text('Chi tiết chuyên đề'),
+        ),
+        body: NestedScrollView(
+          headerSliverBuilder: (context, inner) => [
+            SliverToBoxAdapter(
+              child: Stack(
+                children: [
+                  CourseCover(
+                    url: duLieu['coverUrl'] ?? '',
+                    width: double.infinity,
+                    height: 190,
+                  ),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            AppTheme.red.withValues(alpha: .35),
+                            AppTheme.red.withValues(alpha: .95),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 20,
+                    right: 20,
+                    bottom: 20,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          duLieu['subject'] ?? 'Chuyên đề học tập',
+                          style: const TextStyle(
+                            color: AppTheme.gold,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          duLieu['title'] ?? '',
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if ((duLieu['instructor'] as String? ?? '').isNotEmpty)
+              SliverToBoxAdapter(
+                child: Card(
+                  margin: const EdgeInsets.all(16),
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.person_outline),
+                    ),
+                    title: Text(duLieu['instructor']),
+                    subtitle: const Text('Giảng viên phụ trách'),
+                  ),
+                ),
+              ),
+            SliverPersistentHeader(pinned: true, delegate: _CacTabKhoaHoc()),
+          ],
+          body: TabBarView(
+            children: [
+              ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  const Text(
+                    'Mục tiêu huấn luyện',
+                    style: TextStyle(
+                      color: AppTheme.navy,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (objectives.isEmpty)
+                    Text(
+                      duLieu['description'] ??
+                          'Nội dung chuyên đề được cập nhật bởi đơn vị.',
+                    ),
+                  for (final goal in objectives)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.check_circle_outline,
+                            color: Colors.green,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(goal.trim())),
+                        ],
+                      ),
+                    ),
+                  if (objectives.isNotEmpty &&
+                      (duLieu['description'] as String? ?? '').isNotEmpty)
+                    Text(duLieu['description']),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => CourseChaptersScreen(
+                          uid: widget.uid,
+                          course: widget.course,
+                          service: service,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('BẮT ĐẦU HỌC NGAY'),
+                  ),
+                ],
+              ),
+              CourseChapterList(
+                uid: widget.uid,
+                course: widget.course,
+                service: service,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CacTabKhoaHoc extends SliverPersistentHeaderDelegate {
+  @override
+  double get minExtent => 48;
+  @override
+  double get maxExtent => 48;
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => const ColoredBox(
+    color: Color(0xFFF7F8FA),
+    child: TabBar(
+      labelColor: AppTheme.red,
+      unselectedLabelColor: AppTheme.navy,
+      indicatorColor: AppTheme.red,
+      tabs: [
+        Tab(text: 'Tổng quan'),
+        Tab(text: 'Chương học'),
+      ],
+    ),
+  );
+  @override
+  bool shouldRebuild(covariant _CacTabKhoaHoc oldDelegate) => false;
 }

@@ -1,3 +1,6 @@
+// KHỞI TẠO / GIAO DIỆN: Điểm chạy web quản trị: mở cổng Admin và trang tổng quan.
+// Chạy: flutter run -t lib/main_admin.dart -d chrome.
+
 import 'app/app_portal.dart';
 import 'app/bootstrap.dart';
 import 'app/elearning_app.dart';

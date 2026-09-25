@@ -1,6 +1,6 @@
 import 'package:e09_elearning/screens/admin/admin_courses_screen.dart';
 import 'package:e09_elearning/screens/user/user_courses_screen.dart';
-import 'package:e09_elearning/services/learning_service.dart';
+import 'package:e09_elearning/services/nghiep_vu/learning_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,6 +29,13 @@ void main() {
         'subject': 'Toán',
         'published': false,
         'audience': 'all',
+      });
+      await db.doc('courses/visible/lessons/one').set({
+        'title': 'Bài học đầu tiên',
+        'order': 1,
+        'type': 'text',
+        'content': 'Nội dung học tập',
+        'learningMode': 'study_only',
       });
       await tester.pumpWidget(
         MaterialApp(

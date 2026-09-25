@@ -1,3 +1,6 @@
+// GIAO DIỆN DÙNG CHUNG: Hiển thị một lựa chọn đáp án và trạng thái đang chọn.
+// Các màn hình import tệp này sẽ dùng chung thay đổi.
+
 import 'package:flutter/material.dart';
 
 class OptionItem extends StatelessWidget {

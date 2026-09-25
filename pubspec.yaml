@@ -2,7 +2,7 @@ name: e09_elearning
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.13.1
@@ -22,6 +22,7 @@ dependencies:
   cloud_functions: ^6.4.0
   crypto: ^3.0.7
   firebase_storage: ^13.5.0
+  speech_to_text: ^7.5.0
 
 dev_dependencies:
   flutter_test:
@@ -35,4 +36,10 @@ flutter:
   assets:
     - lib/assets/images/logo.png
     - lib/assets/images/wed_logo.png
+    - lib/assets/images/learner-background-light.png
+    - lib/assets/images/learner-background-red.png
+    - lib/assets/images/learner-splash.png
     - lib/assets/templates/users_template.xlsx
+    - assets/branding/default-user-avatar.png
+    - assets/branding/admin-login-bg.png
+    - assets/branding/app-splash-background.png

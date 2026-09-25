@@ -5,8 +5,10 @@
   "main": "src/index.js",
   "engines": { "node": "22" },
   "scripts": {
-    "test": "node --test test/*.test.js",
-    "test:rules": "firebase emulators:exec --config ../firebase.secure.json --project demo-e09 --only firestore,auth \"node --test test/security.emulator.js\"",
+    "test": "node scripts/run-tests.mjs unit",
+    "test:all-emulators": "firebase emulators:exec --config ../firebase.full.test.json --project demo-e09 --only firestore,auth,storage,functions \"node scripts/run-tests.mjs emulator\"",
+    "test:rules": "firebase emulators:exec --config ../firebase.json --project demo-e09 --only firestore,auth \"node --test test/security.emulator.js\"",
+    "test:audit": "firebase emulators:exec --config ../firebase.json --project demo-e09 --only firestore,auth,storage \"node --test --test-concurrency=1 test/account_changes.emulator.js test/images.emulator.js\"",
     "bootstrap": "node scripts/bootstrap.js",
     "migrate": "node scripts/migrate.js"
   },

@@ -1,45 +1,130 @@
+// APP HỌC VIÊN: Chỉnh sửa họ tên, đơn vị trực thuộc và mật khẩu của học viên.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
+import '../../widgets/learner_header.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../widgets/learning_widgets.dart';
+import '../../widgets/learner_card.dart';
+import '../../widgets/default_user_avatar.dart';
 import '../../models/unit_label.dart';
+import '../../services/ket_noi_api/account_api.dart';
 
+/// Chỉnh sửa họ tên, đơn vị trực thuộc và mật khẩu của học viên.
 class ProfileEditScreen extends StatefulWidget {
-  const ProfileEditScreen({super.key, required this.uid, this.firestore});
+  const ProfileEditScreen({
+    super.key,
+    required this.uid,
+    this.firestore,
+    this.openEditor = false,
+    this.accounts,
+  });
   final String uid;
   final FirebaseFirestore? firestore;
+  final bool openEditor;
+  final AccountApi? accounts;
   @override
-  State<ProfileEditScreen> createState() => _ProfileEditScreenState();
+  State<ProfileEditScreen> createState() => _TrangThaiSuaHoSo();
 }
 
-class _ProfileEditScreenState extends State<ProfileEditScreen> {
+class _TrangThaiSuaHoSo extends State<ProfileEditScreen> {
+  bool _daMoTrinhSua = false;
   late final ref = (widget.firestore ?? FirebaseFirestore.instance)
       .collection('users')
       .doc(widget.uid);
   late final stream = ref.snapshots();
-  Future<void> edit(Map<String, dynamic> data) => editLearningRecord(
-    context,
-    title: 'Cập nhật hồ sơ',
-    fields: {
-      'Họ tên': data['name'] ?? '',
-      'Đơn vị trực thuộc (tổ/đội/bộ phận)': data['subUnit'] ?? '',
-    },
-    optional: {'Đơn vị trực thuộc (tổ/đội/bộ phận)'},
-    imageFolder: 'avatars/${widget.uid}',
-    initialImage: data['avatarUrl'] ?? '',
-    note:
-        'Đơn vị quản lý được khóa: ${data['unit'] ?? ''}. Chỉ nhập phần đứng trước, ví dụ c1 để thành c1-${data['unit'] ?? ''}.',
-    maxLengths: {
-      'Họ tên': 100,
-      'Đơn vị trực thuộc (tổ/đội/bộ phận)': 200,
-    },
-    save: (v) => ref.update({
-      'name': v['Họ tên'],
-      'avatarUrl': v['imageUrl'],
-      'subUnit': v['Đơn vị trực thuộc (tổ/đội/bộ phận)'],
-    }),
-  );
+  Future<void> edit(Map<String, dynamic> duLieu) async {
+    final managerId = (duLieu['createdBy'] ?? '').toString().trim();
+    var allowed = <String>[];
+    if (managerId.isNotEmpty) {
+      try {
+        Map<String, dynamic> cacLuaChon;
+        try {
+          cacLuaChon = await (widget.accounts ?? AccountApi(useBackend: true))
+              .call('accountGetSubUnits', {});
+        } on FirebaseFunctionsException {
+          final manager = await ref.firestore
+              .collection('users')
+              .doc(managerId)
+              .get();
+          cacLuaChon = {
+            'managerId': manager.id,
+            'subUnits': manager.data()?['subUnits'] ?? const [],
+          };
+        }
+        if (cacLuaChon['managerId'] != managerId) {
+          throw StateError('Đơn vị vừa thay đổi.');
+        }
+        allowed =
+            ((cacLuaChon['subUnits'] as List?) ?? const [])
+                .whereType<String>()
+                .map((giaTri) => giaTri.trim())
+                .where((giaTri) => giaTri.isNotEmpty)
+                .toSet()
+                .toList()
+              ..sort();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Không tải được danh sách trực thuộc. Vui lòng thử lại.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
+    if (!mounted) return;
+    final currentSubUnit = (duLieu['subUnit'] ?? '').toString().trim();
+    await editLearningRecord(
+      context,
+      title: 'Cập nhật hồ sơ',
+      fields: {
+        'Họ tên': duLieu['name'] ?? '',
+        'Đơn vị trực thuộc (tổ/đội/bộ phận)':
+            allowed.isNotEmpty && !allowed.contains(currentSubUnit)
+            ? allowed.first
+            : currentSubUnit,
+      },
+      selectFields: allowed.isEmpty
+          ? const {}
+          : {'Đơn vị trực thuộc (tổ/đội/bộ phận)': allowed},
+      note:
+          'Đơn vị quản lý: ${duLieu['unit'] ?? 'Chưa phân đơn vị'}. Chỉ quản lý tổng mới đổi đơn vị quản lý; bạn có thể cập nhật đơn vị trực thuộc bên dưới.',
+      maxLengths: {'Họ tên': 100, 'Đơn vị trực thuộc (tổ/đội/bộ phận)': 200},
+      save: (v) async {
+        await ref.firestore.runTransaction((tx) async {
+          final latest = (await tx.get(ref)).data();
+          if (latest == null ||
+              latest['unit'] != duLieu['unit'] ||
+              latest['createdBy'] != duLieu['createdBy'] ||
+              (latest['unitAssignmentVersion'] ?? 0) !=
+                  (duLieu['unitAssignmentVersion'] ?? 0)) {
+            throw ArgumentError(
+              'Đơn vị vừa thay đổi. Hãy đóng biểu mẫu và mở lại để cập nhật đơn vị mới.',
+            );
+          }
+          final hasUnit = (latest['unit'] as String? ?? '').trim().isNotEmpty;
+          tx.update(ref, {
+            'name': v['Họ tên']!.trim(),
+            'subUnit': v['Đơn vị trực thuộc (tổ/đội/bộ phận)']!.trim(),
+            if (hasUnit) ...{
+              'unitNeedsConfirmation': false,
+              'unitConfirmedVersion': latest['unitAssignmentVersion'] ?? 0,
+              'unitConfirmedAt': FieldValue.serverTimestamp(),
+            },
+          });
+        });
+      },
+    );
+  }
+
   Future<void> password() async {
     await editLearningRecord(
       context,
@@ -54,64 +139,105 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             v['Mật khẩu mới'] != v['Nhập lại mật khẩu mới']) {
           throw ArgumentError('Mật khẩu không hợp lệ');
         }
-        final user = FirebaseAuth.instance.currentUser!;
-        await user.reauthenticateWithCredential(
+        final nguoiDung = FirebaseAuth.instance.currentUser!;
+        await nguoiDung.reauthenticateWithCredential(
           EmailAuthProvider.credential(
-            email: user.email!,
+            email: nguoiDung.email!,
             password: v['Mật khẩu hiện tại']!,
           ),
         );
-        await user.updatePassword(v['Mật khẩu mới']!);
+        await nguoiDung.updatePassword(v['Mật khẩu mới']!);
       },
     );
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Hồ sơ và bảo mật')),
+    appBar: LearnerHeader(title: const Text('Hồ sơ và bảo mật')),
     body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: stream,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
+      builder: (context, duLieuNhan) {
+        if (duLieuNhan.hasError) {
           return const Center(child: Text('Không tải được hồ sơ.'));
         }
-        if (!snapshot.hasData) {
+        if (!duLieuNhan.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final d = snapshot.data!.data() ?? {};
-        final url = d['avatarUrl'] as String? ?? '';
+        final d = duLieuNhan.data!.data() ?? {};
+        if (widget.openEditor && !_daMoTrinhSua) {
+          _daMoTrinhSua = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) edit(d);
+          });
+        }
         return ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            if (url.isNotEmpty)
-              Center(
-                child: ClipOval(
-                  child: Image.network(
-                    url,
-                    width: 96,
-                    height: 96,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, error, stack) =>
-                        const Icon(Icons.person, size: 96),
+            LearnerCard(
+              accentColor: const Color(0xFFB51F24),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const DefaultUserAvatar(radius: 48),
+                  const SizedBox(height: 14),
+                  Text(
+                    d['name'] ?? '',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-              ),
-            ListTile(
-              title: Text(d['name'] ?? ''),
-              subtitle: Text(
-                'Đơn vị: ${unitLabel(d)}\nĐơn vị quản lý (khóa): ${d['unit'] ?? 'Chưa phân đơn vị'}',
+                  const SizedBox(height: 6),
+                  Text(
+                    'Đơn vị: ${unitLabel(d)}',
+                    style: const TextStyle(color: Colors.blueGrey),
+                    textAlign: TextAlign.center,
+                  ),
+                  Text(
+                    'Đơn vị quản lý: ${d['unit'] ?? 'Chưa phân đơn vị'}',
+                    style: const TextStyle(color: Colors.blueGrey),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
-            const Text(
-              'Bạn chỉ bổ sung phần đơn vị đứng trước. Phần đơn vị quản lý phía sau do admin tổng phân cho admin phụ và không thể tự sửa.',
+            LearnerCard(
+              accentColor: const Color(0xFFD7B558),
+              padding: const EdgeInsets.all(16),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: Color(0xFF8D6E00)),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Bạn chỉ bổ sung phần đơn vị đứng trước. Phần đơn vị quản lý phía sau do quản lý tổng phân cho quản lý và không thể tự sửa.',
+                      style: TextStyle(height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
               onPressed: () => edit(d),
               icon: const Icon(Icons.edit),
               label: const Text('Cập nhật hồ sơ'),
             ),
             OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
               onPressed: password,
               icon: const Icon(Icons.lock),
               label: const Text('Đổi mật khẩu'),

@@ -60,7 +60,8 @@ test('two-root approval and limited ownership end to end', async () => {
   await assert.rejects(auth.getUser(own[0].id), { code: 'auth/user-not-found' });
   assert.equal((await own[0].ref.get()).exists, false);
   await assert.rejects(handlers.deleteUser(roots[0], { userId: roots[1] }), { code: 'permission-denied' });
-  await assert.rejects(handlers.updateUser(roots[0], { userId: roots[1], name: 'takeover', password: 'abcdef' }), { code: 'permission-denied' });
+  await assert.rejects(handlers.updateUser(roots[0], { userId: roots[1], name: 'takeover', password: 'abcdef' }), { code: 'failed-precondition' });
+  await assert.rejects(handlers.updateUser(roots[0], { userId: roots[1], name: 'takeover' }), { code: 'permission-denied' });
 
   const limitedDb = env.authenticatedContext(limited, {
     email: 'limited@accounts.invalid',
@@ -105,7 +106,7 @@ test('two-root approval and limited ownership end to end', async () => {
 });
 
 test('reverse proposer and rejection leave Auth disabled', async () => {
-  const { requestId } = await handlers.proposeAdmin(roots[1], { unit: 'Đơn vị A', account: row('rejected01'), operationId: operationId() });
+  const { requestId } = await handlers.proposeAdmin(roots[1], { unit: 'Đơn vị B', account: row('rejected01'), operationId: operationId() });
   await assert.rejects(handlers.decideAdmin(roots[1], { requestId, approve: false }), { code: 'permission-denied' });
   await handlers.decideAdmin(roots[0], { requestId, approve: false });
   const request = (await db.doc(`admin_requests/${requestId}`).get()).data();
@@ -234,6 +235,26 @@ test('learning access respects class, publication, ownership and schedule', asyn
   await assertFails(getDoc(doc(a, 'learning_notifications/later')));
   await assertSucceeds(getDocs(query(collection(a, 'learning_notifications'), where('audience', 'in', ['all', 'class:A', 'user:learner_a']), where('sendAt', '<=', new Date(Date.now() - 1000)))));
   await assertFails(setDoc(doc(a, 'learning_audit/spoof'), { actorId: roots[0], path: 'courses/class_a', action: 'save', at: serverTimestamp() }));
+});
+
+test('root can delete an ended course and its lessons', async () => {
+  await db.doc('courses/ended-delete').set({
+    title: 'Ended delete',
+    published: true,
+    audience: 'all',
+    endsAt: new Date(Date.now() - 60000),
+  });
+  await db.doc('courses/ended-delete/lessons/one').set({
+    title: 'Lesson',
+    order: 1,
+    type: 'text',
+  });
+
+  const rootDb = env.authenticatedContext(roots[0], {
+    email: rootEmails[0],
+  }).firestore();
+  await assertSucceeds(deleteDoc(doc(rootDb, 'courses/ended-delete/lessons/one')));
+  await assertSucceeds(deleteDoc(doc(rootDb, 'courses/ended-delete')));
 });
 
 test('exam run history is atomic, immutable and private', async () => {

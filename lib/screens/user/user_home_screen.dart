@@ -1,15 +1,24 @@
+// APP HỌC VIÊN: Trang bài thi của học viên, hiển thị các đề đang mở và trạng thái làm bài.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
+import '../../widgets/learner_header.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../../widgets/default_user_avatar.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../login_screen.dart';
 import '../../models/exam_arguments.dart';
 import 'user_exam_screen.dart';
 import '../../models/user_arguments.dart';
-import '../../services/account_auth.dart';
-import '../../services/firestore_service.dart';
+import '../../services/tai_khoan/account_auth.dart';
+import '../../services/du_lieu/firestore_service.dart';
 
+/// Trang bài thi của học viên, hiển thị các đề đang mở và trạng thái làm bài.
 class UserHomeScreen extends StatefulWidget {
   final UserArguments args;
 
@@ -24,34 +33,34 @@ class UserHomeScreen extends StatefulWidget {
   final Future<void> Function()? onSignOut;
 
   @override
-  State<UserHomeScreen> createState() => _UserHomeScreenState();
+  State<UserHomeScreen> createState() => _TrangThaiTrangChuHocVien();
 }
 
-class _UserHomeScreenState extends State<UserHomeScreen> {
+class _TrangThaiTrangChuHocVien extends State<UserHomeScreen> {
   final Color primaryColor = const Color(0xFFB51F24);
-  late final FirestoreService _firestoreService =
+  late final FirestoreService _dichVuFirestore =
       widget.service ?? FirestoreService();
-  Timer? _deadlineRefresh;
+  Timer? _lamMoiHanChot;
 
   @override
   void initState() {
     super.initState();
-    _deadlineRefresh = Timer.periodic(const Duration(seconds: 30), (_) {
+    _lamMoiHanChot = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
   }
 
   @override
   void dispose() {
-    _deadlineRefresh?.cancel();
+    _lamMoiHanChot?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
+      backgroundColor: Colors.transparent,
+      appBar: LearnerHeader(
         backgroundColor: primaryColor,
         elevation: 0,
         title: const Text(
@@ -90,15 +99,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   ),
                   child: Row(
                     children: [
-                      const CircleAvatar(
-                        radius: 28,
-                        backgroundColor: Colors.white24,
-                        child: Icon(
-                          Icons.school,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
+                      const DefaultUserAvatar(radius: 28),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -135,25 +136,25 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 const SizedBox(height: 12),
 
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _firestoreService.getExamsStream(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
+                  stream: _dichVuFirestore.getExamsStream(),
+                  builder: (context, duLieuNhan) {
+                    if (duLieuNhan.hasError) {
                       return const Center(child: Text('Lỗi tải bài thi'));
                     }
-                    if (snapshot.connectionState == ConnectionState.waiting) {
+                    if (duLieuNhan.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
 
-                    final docs = snapshot.data!.docs.where((doc) {
-                      final data = doc.data();
-                      final rawClosing = data['closesAt'];
+                    final cacBanGhi = duLieuNhan.data!.docs.where((banGhi) {
+                      final duLieu = banGhi.data();
+                      final rawClosing = duLieu['closesAt'];
                       final closing = rawClosing is Timestamp
                           ? rawClosing.toDate()
                           : null;
-                      return data['isOpen'] == true &&
+                      return duLieu['isOpen'] == true &&
                           (closing == null || closing.isAfter(DateTime.now()));
                     }).toList();
-                    if (docs.isEmpty) {
+                    if (cacBanGhi.isEmpty) {
                       return const Center(
                         child: Text('Hiện chưa có bài thi nào'),
                       );
@@ -172,19 +173,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                 mainAxisSpacing: 16,
                                 mainAxisExtent: 126,
                               ),
-                          itemCount: docs.length,
-                          itemBuilder: (context, index) {
-                            final data = docs[index].data();
+                          itemCount: cacBanGhi.length,
+                          itemBuilder: (context, viTri) {
+                            final duLieu = cacBanGhi[viTri].data();
 
                             return FutureBuilder(
-                              future: _firestoreService.getQuestionsForExam(
-                                docs[index].id,
+                              future: _dichVuFirestore.getQuestionsForExam(
+                                cacBanGhi[viTri].id,
                               ),
                               builder: (context, questionSnapshot) {
                                 final validQuestions =
                                     questionSnapshot.data
                                         ?.where(
-                                          (question) => question.isValidForExam,
+                                          (cauHoi) => cauHoi.isValidForExam,
                                         )
                                         .toList() ??
                                     const [];
@@ -200,8 +201,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                     actualQuestionCount ==
                                         questionSnapshot.data?.length;
                                 final durationText =
-                                    data['duration']?.toString() ?? '45 phút';
-                                final rawClosing = data['closesAt'];
+                                    duLieu['duration']?.toString() ?? '45 phút';
+                                final rawClosing = duLieu['closesAt'];
                                 final closing = rawClosing is Timestamp
                                     ? rawClosing.toDate()
                                     : null;
@@ -230,7 +231,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                       ),
                                     ),
                                     title: Text(
-                                      data['title'] ?? 'Bài kiểm tra',
+                                      duLieu['title'] ?? 'Bài kiểm tra',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -242,7 +243,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                           : isChecking
                                           ? 'Đang kiểm tra'
                                           : '$actualQuestionCount câu thực tế'} | '
-                                      '${data['maxAttempts'] == null ? 'Không giới hạn lượt' : '${data['maxAttempts']} lượt'}\n'
+                                      '${duLieu['maxAttempts'] == null ? 'Không giới hạn lượt' : '${duLieu['maxAttempts']} lượt'}\n'
                                       '$closingText',
                                     ),
                                     trailing: ElevatedButton(
@@ -257,10 +258,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                       onPressed: canStart
                                           ? () async {
                                               final durationText =
-                                                  data['duration']
+                                                  duLieu['duration']
                                                       ?.toString() ??
                                                   '45';
-                                              final minutes =
+                                              final soPhut =
                                                   int.tryParse(
                                                     RegExp(r'\d+')
                                                             .firstMatch(
@@ -276,18 +277,18 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                                                   builder: (_) => UserExamScreen(
                                                     args: ExamArguments(
                                                       maBaiKiemTra:
-                                                          docs[index].id,
+                                                          cacBanGhi[viTri].id,
                                                       dsMaCauHoi: const [],
                                                       maNguoiDung:
                                                           widget.args.userId,
                                                       thoiGianLamBaiPhut:
-                                                          minutes,
+                                                          soPhut,
                                                       tenBaiKiemTra:
-                                                          data['title']
+                                                          duLieu['title']
                                                               ?.toString() ??
                                                           'Bài kiểm tra',
                                                       soLuotLamToiDa:
-                                                          (data['maxAttempts']
+                                                          (duLieu['maxAttempts']
                                                                   as num?)
                                                               ?.toInt(),
                                                       questions: validQuestions,

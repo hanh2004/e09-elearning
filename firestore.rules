@@ -9,19 +9,83 @@ service cloud.firestore {
       profile().createdBy in get(/databases/$(database)/documents/system/access).data.rootUids &&
       profile().approvedBy in get(/databases/$(database)/documents/system/access).data.rootUids); }
     function student() { return active() && profile().role == 'user'; }
+    // HTTP is only valid for demo-e09 emulator tokens and its image bucket.
+    // Production Firebase Auth rejects tokens whose audience is a different project.
+    function hasCover(data) { return data.get('coverUrl','') is string && data.coverUrl.size() <= 2000 &&
+      (data.coverUrl.matches('https://.*') || data.coverUrl in ['icon:book','icon:math','icon:computer','icon:science','icon:language','icon:safety'] ||
+       (request.auth != null && request.auth.token.get('aud', '') == 'demo-e09' &&
+        data.coverUrl.matches('http://[^/]+/v0/b/demo-e09[.]appspot[.]com/o/.*'))); }
+    function hasBannerImage(data) { return data.get('imageUrl','') is string && data.imageUrl.size() > 0 && data.imageUrl.size() <= 2000 &&
+      data.imageUrl.matches('https://.*'); }
     function canManageUser(uid) { let user = get(/databases/$(database)/documents/users/$(uid)).data;
       return admin() && (root() || (user.role == 'user' && user.createdBy == request.auth.uid)); }
     function courseReadable(courseId) { let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
       return active() && course.published == true; }
+    function courseEnded(data) {
+      return data.get('endsAt', null) is timestamp && request.time >= data.endsAt;
+    }
+    function courseOpen(courseId) {
+      let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
+      return courseReadable(courseId) && !courseEnded(course) &&
+        (!(course.get('startsAt', null) is timestamp) || request.time >= course.startsAt);
+    }
+    function allowedSubUnit(data) {
+      let managerId = data.get('createdBy', '');
+      return managerId == '' || !exists(/databases/$(database)/documents/users/$(managerId)) ||
+        !(get(/databases/$(database)/documents/users/$(managerId)).data.get('subUnits', []) is list) ||
+        get(/databases/$(database)/documents/users/$(managerId)).data.get('subUnits', []).size() == 0 ||
+        data.get('subUnit', '') in get(/databases/$(database)/documents/users/$(managerId)).data.get('subUnits', []);
+    }
+    function courseEditable(courseId) {
+      return !courseEnded(get(/databases/$(database)/documents/courses/$(courseId)).data);
+    }
+    function validLessonMode(data) {
+      return (data.get('learningMode', 'study_only') == 'study_only' && data.get('examId', '') == '') ||
+        (data.get('learningMode', '') == 'study_exam' && data.get('examId', '') is string &&
+         data.examId.size() > 0 && data.examId.size() <= 128 &&
+         exists(/databases/$(database)/documents/exams/$(data.examId)) &&
+         get(/databases/$(database)/documents/exams/$(data.examId)).data.get('deleting', false) == false);
+    }
+    function validNewsCategory(data) {
+      let category = data.get('category', 'Điểm tin');
+      return category is string && category.size() > 0 && category.size() <= 100 &&
+        category.matches('.*[^\\s].*');
+    }
+    function validCourseExam(courseId, data) {
+      let examId = data.get('examId', '');
+      return examId == '' ||
+        (examId is string && examId.size() <= 128 &&
+         exists(/databases/$(database)/documents/exams/$(examId)) &&
+         get(/databases/$(database)/documents/exams/$(examId)).data.get('courseId', '') in ['', courseId]);
+    }
     match /users/{uid} {
-      allow get: if admin() || (active() && request.auth.uid == uid);
+      allow get: if admin() || (active() && request.auth.uid == uid) ||
+        (active() && resource.data.role == 'admin' &&
+          resource.data.status == 'active' &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'user' &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('createdBy', '') == uid);
       allow list: if admin();
       allow update: if active() && request.auth.uid == uid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','avatarUrl','subUnit']) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','subUnit','unitNeedsConfirmation','unitConfirmedAt','unitConfirmedVersion']) &&
         request.resource.data.get('subUnit','') is string && request.resource.data.get('subUnit','').size() <= 200 &&
+        allowedSubUnit(request.resource.data) &&
         request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100 &&
         request.resource.data.get('unit','') is string && request.resource.data.get('unit','').size() <= 200 &&
-        request.resource.data.get('avatarUrl','') is string && request.resource.data.get('avatarUrl','').size() <= 2000;
+        request.resource.data.get('avatarUrl','') is string && request.resource.data.get('avatarUrl','').size() <= 2000 &&
+        (
+          (request.resource.data.get('unitNeedsConfirmation', false) == false &&
+            request.resource.data.get('unitConfirmedAt', null) == request.time &&
+            request.resource.data.get('unitConfirmedVersion', -1) == resource.data.get('unitAssignmentVersion', 0) &&
+            request.resource.data.get('subUnit', '').matches('.*[^\\s].*') &&
+            resource.data.get('unit', '').size() > 0) ||
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['unitNeedsConfirmation','unitConfirmedAt','unitConfirmedVersion'])
+        );
+      // Khi không có Functions transport, quản trị viên vẫn có thể lưu danh
+      // sách trực thuộc của chính mình qua Firestore trực tiếp.
+      allow update: if admin() && request.auth.uid == uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subUnits']) &&
+        request.resource.data.subUnits is list && request.resource.data.subUnits.size() <= 200;
       allow update: if canManageUser(uid) && resource.data.role != 'super_admin' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classId','updatedBy','updatedAt']) &&
         request.resource.data.get('classId','') is string && request.resource.data.get('classId','').size() <= 100 &&
@@ -37,11 +101,42 @@ service cloud.firestore {
       }
       match /learning/{id} {
         allow read: if admin() || (active() && request.auth.uid == uid);
-        allow create, update: if active() && request.auth.uid == uid &&
-          request.resource.data.keys().hasOnly(['courseId','lessonId','completed','favorite','updatedAt']) &&
-          id == request.resource.data.courseId + '_' + request.resource.data.lessonId &&
-          request.resource.data.completed is bool && request.resource.data.favorite is bool && request.resource.data.updatedAt == request.time &&
-          courseReadable(request.resource.data.courseId) && exists(/databases/$(database)/documents/courses/$(request.resource.data.courseId)/lessons/$(request.resource.data.lessonId));
+        allow delete: if root();
+        function validProgress() {
+          return active() && request.auth.uid == uid &&
+            request.resource.data.keys().hasOnly(['courseId','lessonId','completed','startedAt','completedAt','updatedAt','studyCompleted','studyCompletedAt']) &&
+            id == request.resource.data.courseId + '_' + request.resource.data.lessonId &&
+            request.resource.data.completed is bool && request.resource.data.startedAt is timestamp &&
+            request.resource.data.updatedAt == request.time && courseOpen(request.resource.data.courseId) &&
+            exists(/databases/$(database)/documents/courses/$(request.resource.data.courseId)/lessons/$(request.resource.data.lessonId));
+        }
+        function completeAfterDuration() {
+          let lesson = get(/databases/$(database)/documents/courses/$(resource.data.courseId)/lessons/$(resource.data.lessonId)).data;
+          let course = get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data;
+          let needsExam = course.get('learningMode', '') != 'study_only' &&
+            (course.get('learningMode', '') == 'study_exam' || course.get('examId', '') != '' || lesson.get('learningMode', '') == 'study_exam');
+          return resource.data.completed == false && resource.data.get('studyCompleted', false) == false &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed','completedAt','updatedAt','studyCompleted','studyCompletedAt']) &&
+            ((!needsExam && request.resource.data.completed == true && request.resource.data.completedAt == request.time) ||
+             (needsExam && request.resource.data.completed == false && !('completedAt' in request.resource.data))) &&
+            ((!needsExam && !('studyCompleted' in request.resource.data)) ||
+             (request.resource.data.studyCompleted == true && request.resource.data.studyCompletedAt == request.time)) &&
+            request.time >= resource.data.startedAt + duration.value(lesson.get('minimumStudySeconds',300), 's');
+        }
+        function normalizeStudyOnlyCompletion() {
+          let course = get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data;
+          return resource.data.completed == false && resource.data.get('studyCompleted', false) == true &&
+            course.get('learningMode', 'study_only') == 'study_only' &&
+            request.resource.data.completed == true && request.resource.data.completedAt == request.time &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed','completedAt','updatedAt']);
+        }
+        allow create: if validProgress() && request.resource.data.completed == false &&
+          request.resource.data.startedAt == request.time && !('completedAt' in request.resource.data) &&
+          !('studyCompleted' in request.resource.data) && !('studyCompletedAt' in request.resource.data);
+        allow update: if validProgress() && (completeAfterDuration() || normalizeStudyOnlyCompletion() ||
+          (resource.data.completed == false && resource.data.get('studyCompleted', false) == false && request.resource.data.completed == false &&
+           request.resource.data.startedAt == request.time && !('completedAt' in request.resource.data) &&
+           !('studyCompleted' in request.resource.data) && !('studyCompletedAt' in request.resource.data)));
       }
     }
     match /system/app_status {
@@ -51,6 +146,10 @@ service cloud.firestore {
     }
     match /usernames/{id} { allow read: if admin(); }
     match /admin_requests/{id} { allow read: if root(); }
+    match /password_reset_requests/{id} {
+      allow read: if admin() && (root() ||
+        (resource.data.get('managerId', '') == request.auth.uid && resource.data.status == 'approved'));
+    }
     // Answer keys and grading snapshots never leave the trusted backend.
     match /exams/{id} {
       allow read: if admin();
@@ -73,19 +172,60 @@ service cloud.firestore {
     }
     match /courses/{id} {
       allow read: if admin() || (active() && resource.data.published == true);
-      allow create, update: if root() && request.resource.data.title is string && request.resource.data.title.size() > 0 &&
-        request.resource.data.published is bool && request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
+      allow create, update: if root() &&
+        (!exists(/databases/$(database)/documents/courses/$(id)) || !courseEnded(resource.data)) &&
+        request.resource.data.title is string && request.resource.data.title.size() > 0 &&
+        request.resource.data.published is bool && (!request.resource.data.published || hasCover(request.resource.data)) &&
+        validCourseExam(id, request.resource.data) &&
+        request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if root();
+      // Chỉ cho quản lý tổng dọn dữ liệu đánh giá cũ khi xóa vĩnh viễn khóa học.
+      // Không còn quyền tạo hoặc cập nhật đánh giá mới.
+      match /reviews/{uid} {
+        allow read, delete: if root();
+      }
       match /lessons/{lid} {
         allow read: if admin() || courseReadable(id);
-        allow create, update: if root() && request.resource.data.title is string && request.resource.data.title.size() > 0 &&
-          request.resource.data.order is int && request.resource.data.order >= 0 &&
+        allow create, update: if root() && courseEditable(id) && request.resource.data.title is string && request.resource.data.title.size() > 0 &&
+          hasCover(request.resource.data) && request.resource.data.order is int && request.resource.data.order >= 0 &&
+          request.resource.data.get('minimumStudySeconds',300) is int &&
+          request.resource.data.get('minimumStudySeconds',300) >= 1 && request.resource.data.get('minimumStudySeconds',300) <= 86400 &&
+          validLessonMode(request.resource.data) &&
           request.resource.data.type in ['text','pdf','image','video'] && request.resource.data.updatedBy == request.auth.uid;
+        allow delete: if root();
       }
+    }
+    match /news/{id} {
+      allow read: if admin() || (active() && resource.data.published == true);
+      allow create, update: if root() &&
+        request.resource.data.keys().hasOnly(['title','summary','content','contentFormat','coverUrl','published','updatedBy','updatedAt','publishedAt','category','featured','homeBanner']) &&
+        validNewsCategory(request.resource.data) &&
+        request.resource.data.get('featured', false) is bool && request.resource.data.get('homeBanner', false) is bool &&
+        (!request.resource.data.get('homeBanner', false) || hasCover(request.resource.data)) &&
+        (!(request.resource.data.get('publishedAt', null) != null) ||
+          (request.resource.data.publishedAt is timestamp && request.resource.data.publishedAt <= request.time)) &&
+        request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200 &&
+        request.resource.data.summary is string && request.resource.data.summary.size() <= 500 &&
+        request.resource.data.content is string && request.resource.data.content.size() > 0 && request.resource.data.content.size() <= 50000 &&
+        request.resource.data.published is bool &&
+        (request.resource.data.get('coverUrl','') == '' || hasCover(request.resource.data)) &&
+        request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+    }
+    match /home_banners/{id} {
+      allow read: if admin() || (active() && resource.data.get('active', true) == true);
+      allow create, update: if root() &&
+        request.resource.data.keys().hasOnly(['imageUrl','title','order','active','newsId','updatedBy','updatedAt']) &&
+        hasBannerImage(request.resource.data) &&
+        request.resource.data.get('title','') is string && request.resource.data.get('title','').size() <= 120 &&
+        request.resource.data.order is int && request.resource.data.order >= 1 && request.resource.data.order <= 5 &&
+        request.resource.data.active is bool && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+      allow delete: if root();
     }
     match /learning_notifications/{id} {
       allow read: if admin() || (active() && resource.data.sendAt <= request.time && resource.data.audience in ['all','class:' + profile().get('classId',''),'user:' + request.auth.uid]);
       allow create, update: if root() && request.resource.data.title is string && request.resource.data.body is string &&
         request.resource.data.sendAt is timestamp && request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if root();
     }
     match /learning_events/{id} {
       allow read: if admin() || (active() && resource.data.audience in ['all','class:' + profile().get('classId','')]);
@@ -94,6 +234,15 @@ service cloud.firestore {
         request.resource.data.type in ['lesson','exam'];
     }
     match /account_audit/{id} { allow read: if admin(); }
+    // Góp ý chỉ admin tổng được đọc; ghi dữ liệu qua Cloud Functions.
+    match /feedback/{id} {
+      allow get, list: if root();
+      allow create, update, delete: if false;
+    }
+    // Bộ đếm chống spam chỉ Cloud Functions Admin SDK được truy cập.
+    match /feedback_limits/{uid} { allow read, write: if false; }
+    // Dấu giới hạn khôi phục admin tổng chỉ Cloud Functions Admin SDK truy cập.
+    match /root_password_reset_limits/{uid} { allow read, write: if false; }
     match /learning_audit/{id} {
       allow read: if admin();
       allow create: if root() && request.resource.data.keys().hasOnly(['actorId','path','action','at']) &&

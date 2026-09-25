@@ -3,7 +3,7 @@ import 'package:e09_elearning/app/app_portal.dart';
 import 'package:e09_elearning/models/user_arguments.dart';
 import 'package:e09_elearning/screens/login_screen.dart';
 import 'package:e09_elearning/screens/user/user_home_screen.dart';
-import 'package:e09_elearning/services/firestore_service.dart';
+import 'package:e09_elearning/services/du_lieu/firestore_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -46,8 +46,19 @@ void main() {
     });
 
     for (final id in ['closed', 'expired']) {
+      await db.doc('courses/c/lessons/$id').set({
+        'learningMode': 'study_exam',
+        'examId': id,
+      });
+      await db.doc('users/student/learning/c_$id').set({
+        'courseId': 'c',
+        'lessonId': id,
+        'completed': true,
+      });
       await expectLater(
         service.getOrCreateAttempt(
+          courseId: 'c',
+          lessonId: id,
           userId: 'student',
           examId: id,
           durationMinutes: 30,

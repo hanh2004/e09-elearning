@@ -1,0 +1,12 @@
+{
+  "functions": [{"source":"functions", "codebase":"accounts", "runtime":"nodejs22"}],
+  "firestore": {"rules": "firestore.rules", "indexes": "firestore.indexes.json"},
+  "storage": {"rules": "storage.rules"},
+  "hosting": {
+    "site": "e09-elearning-admin",
+    "public": "build/admin_web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "headers": [{"source": "**", "headers": [{"key":"Cache-Control","value":"no-cache"}]}],
+    "rewrites": [{"source": "**", "destination": "/index.html"}]
+  }
+}

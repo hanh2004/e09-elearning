@@ -1,3 +1,6 @@
+// DỮ LIỆU: Thông tin tài khoản hiện tại và các điều kiện kiểm tra vai trò trong giao diện.
+// Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
+
 class AccountIdentity {
   const AccountIdentity({required this.id, required this.role});
   final String id;
@@ -20,7 +23,7 @@ class AccountIdentity {
       target['status'] == 'active';
 }
 
-// UI hint only. Server authorization always reloads the authenticated profile.
+// Chỉ là gợi ý cho giao diện. Máy chủ luôn đọc lại hồ sơ của phiên đăng nhập.
 class AccountSession {
   static AccountIdentity? current;
 }

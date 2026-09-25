@@ -4,17 +4,7 @@ allprojects {
         mavenCentral()
     }
 }
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        // Chú ý: Dùng ngoặc đơn () và nháy kép ""
-        classpath("com.google.gms:google-services:4.3.15")
-    }
-}
-// ... các phần sau giữ nguyên
+// Phiên bản Google Services chỉ khai báo tại settings.gradle.kts để tránh trùng plugin.
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")

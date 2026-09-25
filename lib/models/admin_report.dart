@@ -1,3 +1,6 @@
+// DỮ LIỆU: Tổng hợp kết quả thi để màn hình báo cáo lọc theo đề, người học và đơn vị.
+// Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
+
 import 'exam_outcome.dart';
 
 class AdminReportRow {
@@ -42,22 +45,39 @@ class AdminReport {
 
   List<int> get distribution {
     final buckets = List.filled(5, 0);
-    for (final row in rows) {
-      if (row.score != null) buckets[(row.score! ~/ 2).clamp(0, 4)]++;
+    for (final dong in rows) {
+      if (dong.score != null) buckets[(dong.score! ~/ 2).clamp(0, 4)]++;
     }
     return buckets;
   }
 
   List<AdminReportRow> get ranking {
-    final best = <String, AdminReportRow>{};
-    for (final row in rows.where((r) => r.score != null)) {
-      if (row.score! > (best[row.userId]?.score ?? -1)) best[row.userId] = row;
+    final totNhat = <String, AdminReportRow>{};
+    for (final dong in rows.where((r) => r.score != null)) {
+      if (dong.score! > (totNhat[dong.userId]?.score ?? -1)) {
+        totNhat[dong.userId] = dong;
+      }
     }
-    return best.values.toList()..sort((a, b) {
+    return totNhat.values.toList()..sort((a, b) {
       final byScore = b.score!.compareTo(a.score!);
       return byScore != 0 ? byScore : a.name.compareTo(b.name);
     });
   }
+
+  static bool matchesUser(
+    String maNguoiDung,
+    Map<String, dynamic> nguoiDung, {
+    String? classId,
+    String? unit,
+    String? subUnit,
+    String search = '',
+  }) =>
+      (classId == null || (nguoiDung['classId'] ?? '') == classId) &&
+      (unit == null || (nguoiDung['unit'] ?? '') == unit) &&
+      (subUnit == null || (nguoiDung['subUnit'] ?? '') == subUnit) &&
+      '$maNguoiDung ${nguoiDung['name'] ?? ''} ${nguoiDung['username'] ?? ''} ${nguoiDung['unit'] ?? ''} ${nguoiDung['subUnit'] ?? ''} ${nguoiDung['subUnit'] ?? ''}-${nguoiDung['unit'] ?? ''}'
+          .toLowerCase()
+          .contains(search.trim().toLowerCase());
 
   static AdminReport build({
     required Map<String, Map<String, dynamic>> users,
@@ -66,69 +86,77 @@ class AdminReport {
     String? classId,
     String? examId,
     String? unit,
+    String? subUnit,
     String search = '',
   }) {
-    final query = search.trim().toLowerCase();
-    bool matches(String uid, Map<String, dynamic> user) =>
-        (classId == null || (user['classId'] ?? '') == classId) &&
-        (unit == null || (user['unit'] ?? '') == unit) &&
-        '$uid ${user['name'] ?? ''} ${user['username'] ?? ''} ${user['unit'] ?? ''} ${user['subUnit'] ?? ''} ${user['subUnit'] ?? ''}-${user['unit'] ?? ''}'
-            .toLowerCase()
-            .contains(query);
+    bool matches(String maNguoiDung, Map<String, dynamic> nguoiDung) =>
+        matchesUser(
+          maNguoiDung,
+          nguoiDung,
+          classId: classId,
+          unit: unit,
+          subUnit: subUnit,
+          search: search,
+        );
     final groups = <String, Map<String, AdminReportRow>>{};
-    for (final data in attempts) {
-      final uid = data['userId']?.toString() ?? '';
-      final eid = data['examId']?.toString() ?? '';
-      if (uid.isEmpty || eid.isEmpty || (examId != null && examId != eid)) {
+    for (final duLieu in attempts) {
+      final maNguoiDung = duLieu['userId']?.toString() ?? '';
+      final eid = duLieu['examId']?.toString() ?? '';
+      if (maNguoiDung.isEmpty ||
+          eid.isEmpty ||
+          (examId != null && examId != eid)) {
         continue;
       }
-      final user = users[uid] ?? <String, dynamic>{};
-      if (!matches(uid, user)) continue;
-      final count = data['attemptCount'] is num
-          ? (data['attemptCount'] as num).toInt()
-          : data['status'] == 'completed'
+      final nguoiDung = users[maNguoiDung] ?? <String, dynamic>{};
+      if (!matches(maNguoiDung, nguoiDung)) continue;
+      final soLuong = duLieu['attemptCount'] is num
+          ? (duLieu['attemptCount'] as num).toInt()
+          : duLieu['status'] == 'completed'
           ? 1
           : 0;
-      if (count <= 0) continue;
-      final row = (groups[uid] ??= {}).putIfAbsent(
+      if (soLuong <= 0) continue;
+      final dong = (groups[maNguoiDung] ??= {}).putIfAbsent(
         eid,
         () => AdminReportRow(
-          userId: uid,
+          userId: maNguoiDung,
           examId: eid,
-          name: (user['name'] ?? user['username'] ?? uid).toString(),
-          classId: (user['classId'] ?? '').toString(),
-          unit: (user['unit'] ?? '').toString(),
-          subUnit: (user['subUnit'] ?? '').toString(),
-          examTitle: (exams[eid]?['title'] ?? data['examTitle'] ?? eid)
+          name: (nguoiDung['name'] ?? nguoiDung['username'] ?? maNguoiDung)
+              .toString(),
+          classId: (nguoiDung['classId'] ?? '').toString(),
+          unit: (nguoiDung['unit'] ?? '').toString(),
+          subUnit: (nguoiDung['subUnit'] ?? '').toString(),
+          examTitle: (exams[eid]?['title'] ?? duLieu['examTitle'] ?? eid)
               .toString(),
         ),
       );
-      row.attempts += count;
-      final latest = data['reportLastAt'] as DateTime?;
+      dong.attempts += soLuong;
+      final latest = duLieu['reportLastAt'] as DateTime?;
       if (latest != null &&
-          (row.submittedAt == null || latest.isAfter(row.submittedAt!))) {
-        row.submittedAt = latest;
+          (dong.submittedAt == null || latest.isAfter(dong.submittedAt!))) {
+        dong.submittedAt = latest;
       }
-      final value = data['bestScore'] ?? data['diemSo'] ?? data['score'];
-      if (value is! num || !value.isFinite || value < 0 || value > 10) continue;
-      final bestAt = data['reportBestAt'] as DateTime?;
-      if (row.score == null ||
-          value > row.score! ||
-          (value == row.score &&
+      final giaTri = duLieu['bestScore'] ?? duLieu['diemSo'] ?? duLieu['score'];
+      if (giaTri is! num || !giaTri.isFinite || giaTri < 0 || giaTri > 10) {
+        continue;
+      }
+      final bestAt = duLieu['reportBestAt'] as DateTime?;
+      if (dong.score == null ||
+          giaTri > dong.score! ||
+          (giaTri == dong.score &&
               bestAt != null &&
-              (row.bestAt == null || bestAt.isAfter(row.bestAt!)))) {
-        row.score = value.toDouble();
-        row.passed = ExamOutcome.passed(data);
-        row.bestAt = bestAt;
+              (dong.bestAt == null || bestAt.isAfter(dong.bestAt!)))) {
+        dong.score = giaTri.toDouble();
+        dong.passed = ExamOutcome.passed(duLieu);
+        dong.bestAt = bestAt;
       }
     }
-    final rows = groups.values.expand((g) => g.values).toList()
+    final cacDong = groups.values.expand((g) => g.values).toList()
       ..sort((a, b) {
-        final name = a.name.compareTo(b.name);
-        return name != 0 ? name : a.examTitle.compareTo(b.examTitle);
+        final ten = a.name.compareTo(b.name);
+        return ten != 0 ? ten : a.examTitle.compareTo(b.examTitle);
       });
     return AdminReport(
-      rows: rows,
+      rows: cacDong,
       studentCount: users.entries
           .where((e) => e.value['role'] == 'user' && matches(e.key, e.value))
           .length,

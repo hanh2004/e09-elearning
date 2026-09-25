@@ -1,31 +1,34 @@
+// WEB ADMIN: Trang tổng quan quản trị với các chỉ số học tập và lối tắt báo cáo.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/app_theme.dart';
+import '../../widgets/admin_ui.dart';
 import '../../models/account_identity.dart';
 import '../../models/admin_report.dart';
 import 'admin_responsive_shell.dart';
 import 'admin_account_screen.dart';
-import 'admin_classes_screen.dart';
 import 'admin_courses_screen.dart';
 import 'admin_notifications_screen.dart';
+import 'admin_news_screen.dart';
 import 'admin_learning_dashboard.dart';
-import 'admin_exam_screen.dart';
 import 'admin_report_screen.dart';
 import 'admin_progress_screen.dart';
-import 'admin_settings_screen.dart';
 
+/// Trang tổng quan quản trị với các chỉ số học tập và lối tắt báo cáo.
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key, this.firestore});
   final FirebaseFirestore? firestore;
   @override
-  State<AdminHomeScreen> createState() => _AdminHomeScreenState();
+  State<AdminHomeScreen> createState() => _TrangThaiTrangChuQuanTri();
 }
 
-class _AdminHomeScreenState extends State<AdminHomeScreen> {
-  late Future<List<QuerySnapshot<Map<String, dynamic>>>>? data = _load();
-  Future<List<QuerySnapshot<Map<String, dynamic>>>>? _load() {
+class _TrangThaiTrangChuQuanTri extends State<AdminHomeScreen> {
+  late Future<List<QuerySnapshot<Map<String, dynamic>>>>? data = _taiDuLieu();
+  Future<List<QuerySnapshot<Map<String, dynamic>>>>? _taiDuLieu() {
     if (widget.firestore == null && Firebase.apps.isEmpty) return null;
     final db = widget.firestore ?? FirebaseFirestore.instance;
     return Future.wait(
@@ -40,19 +43,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   void open(Widget page) =>
       Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
-  void tab(int index) {
-    if (index == 0) return;
-    Navigator.pushReplacement(
-      context,
-      adminTabRoute(
-        [
-          const SizedBox(),
-          const AdminExamScreen(),
-          const AdminReportScreen(),
-          const AdminSettingsScreen(),
-        ][index],
-      ),
-    );
+  void tab(int viTri) {
+    if (viTri == 0) return;
+    pushAdminPrimary(context, viTri);
   }
 
   @override
@@ -66,14 +59,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       selectedIndex: 0,
       onSelected: tab,
       child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          centerTitle: false,
-          title: const Text('Trang chủ quản trị'),
+        appBar: AdminUi.appBar(
+          'Trang chủ quản trị',
           actions: [
             IconButton(
               tooltip: 'Làm mới',
-              onPressed: () => setState(() => data = _load()),
+              onPressed: () => setState(() => data = _taiDuLieu()),
               icon: const Icon(Icons.refresh),
             ),
             IconButton(
@@ -104,7 +95,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'HỆ THỐNG HỌC TẬP SỐ E09',
+                        'CẢNH SÁT CƠ ĐỘNG • HỌC TẬP SỐ E09',
                         style: TextStyle(
                           color: AppTheme.gold,
                           fontSize: 12,
@@ -142,42 +133,44 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             const SizedBox(height: 20),
             FutureBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
               future: data,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
+              builder: (context, duLieuNhan) {
+                if (duLieuNhan.hasError) {
                   return Card(
                     child: ListTile(
                       title: const Text('Không tải được thống kê'),
                       subtitle: const Text('Bấm làm mới để thử lại.'),
                       trailing: IconButton(
-                        onPressed: () => setState(() => data = _load()),
+                        onPressed: () => setState(() => data = _taiDuLieu()),
                         icon: const Icon(Icons.refresh),
                       ),
                     ),
                   );
                 }
-                if (!snapshot.hasData) {
+                if (!duLieuNhan.hasData) {
                   return const Padding(
                     padding: EdgeInsets.all(24),
                     child: Center(child: Text('Đang tải thống kê…')),
                   );
                 }
-                final docs = snapshot.data!;
-                final users = {for (final d in docs[0].docs) d.id: d.data()};
-                final report = AdminReport.build(
-                  users: users,
-                  exams: {for (final d in docs[2].docs) d.id: d.data()},
-                  attempts: docs[3].docs.map((d) => d.data()).toList(),
+                final cacBanGhi = duLieuNhan.data!;
+                final cacNguoiDung = {
+                  for (final d in cacBanGhi[0].docs) d.id: d.data(),
+                };
+                final baoCao = AdminReport.build(
+                  users: cacNguoiDung,
+                  exams: {for (final d in cacBanGhi[2].docs) d.id: d.data()},
+                  attempts: cacBanGhi[3].docs.map((d) => d.data()).toList(),
                 );
-                final students = users.entries
+                final cacHocVien = cacNguoiDung.entries
                     .where((u) => u.value['role'] == 'user')
                     .toList();
-                final units =
-                    students
+                final cacDonVi =
+                    cacHocVien
                         .map((u) => (u.value['unit'] ?? '').toString())
                         .toSet()
                         .toList()
                       ..sort();
-                final participants = report.rows.map((r) => r.userId).toSet();
+                final participants = baoCao.rows.map((r) => r.userId).toSet();
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -188,28 +181,29 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           spacing: 12,
                           runSpacing: 12,
                           children: [
-                            for (final entry in <(String, String, IconData)>[
-                              (
-                                'Tổng học viên',
-                                '${students.length}',
-                                Icons.people_outline,
-                              ),
-                              (
-                                'Khóa học',
-                                '${docs[1].docs.length}',
-                                Icons.menu_book_outlined,
-                              ),
-                              (
-                                'Lượt thi đã nộp',
-                                '${report.attempts}',
-                                Icons.assignment_turned_in_outlined,
-                              ),
-                              (
-                                'Điểm TB tốt nhất',
-                                report.average?.toStringAsFixed(2) ?? '—',
-                                Icons.insights,
-                              ),
-                            ])
+                            for (final capDuLieu
+                                in <(String, String, IconData)>[
+                                  (
+                                    'Tổng học viên',
+                                    '${cacHocVien.length}',
+                                    Icons.people_outline,
+                                  ),
+                                  (
+                                    'Khóa học',
+                                    '${cacBanGhi[1].docs.length}',
+                                    Icons.menu_book_outlined,
+                                  ),
+                                  (
+                                    'Lượt thi đã nộp',
+                                    '${baoCao.attempts}',
+                                    Icons.assignment_turned_in_outlined,
+                                  ),
+                                  (
+                                    'Điểm TB tốt nhất',
+                                    baoCao.average?.toStringAsFixed(2) ?? '—',
+                                    Icons.insights,
+                                  ),
+                                ])
                               SizedBox(
                                 width:
                                     (c.maxWidth - 12 * (columns - 1)) / columns,
@@ -220,16 +214,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Icon(entry.$3, color: AppTheme.red),
+                                        Icon(capDuLieu.$3, color: AppTheme.red),
                                         const SizedBox(height: 12),
                                         Text(
-                                          entry.$2,
+                                          capDuLieu.$2,
                                           style: const TextStyle(
                                             fontSize: 26,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                        Text(entry.$1),
+                                        Text(capDuLieu.$1),
                                       ],
                                     ),
                                   ),
@@ -258,16 +252,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                               'Số học viên đã nộp ít nhất một bài kiểm tra.',
                             ),
                             const SizedBox(height: 16),
-                            if (units.isEmpty) const Text('Chưa có học viên.'),
-                            for (final unit in units)
+                            if (cacDonVi.isEmpty)
+                              const Text('Chưa có học viên.'),
+                            for (final donVi in cacDonVi)
                               Builder(
                                 builder: (context) {
-                                  final members = students
+                                  final thanhVien = cacHocVien
                                       .where(
-                                        (u) => (u.value['unit'] ?? '') == unit,
+                                        (u) => (u.value['unit'] ?? '') == donVi,
                                       )
                                       .toList();
-                                  final done = members
+                                  final daXong = thanhVien
                                       .where(
                                         (u) => participants.contains(u.key),
                                       )
@@ -280,24 +275,24 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                           children: [
                                             Expanded(
                                               child: Text(
-                                                unit.isEmpty
+                                                donVi.isEmpty
                                                     ? 'Chưa phân đơn vị'
-                                                    : unit,
+                                                    : donVi,
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                             ),
                                             Text(
-                                              '$done/${members.length} đã làm',
+                                              '$daXong/${thanhVien.length} đã làm',
                                             ),
                                           ],
                                         ),
                                         const SizedBox(height: 8),
                                         LinearProgressIndicator(
-                                          value: members.isEmpty
+                                          value: thanhVien.isEmpty
                                               ? 0
-                                              : done / members.length,
+                                              : daXong / thanhVien.length,
                                           minHeight: 7,
                                           borderRadius: BorderRadius.circular(
                                             6,
@@ -335,34 +330,24 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   children: [
                     for (final e in <(String, String, IconData, Widget)>[
                       (
+                        'Tin tức',
+                        'Thêm tin và quản lý nội dung đã đăng',
+                        Icons.newspaper_outlined,
+                        const AdminNewsScreen(),
+                      ),
+                      (
                         'Quản lý Tài khoản',
                         'Học viên và phân quyền',
                         Icons.people_outline,
                         const AdminAccountScreen(),
                       ),
                       (
-                        'Khóa học và bài học',
-                        'Nội dung học tập',
+                        'Khóa học không kiểm tra',
+                        'Nội dung học tập không có bài kiểm tra',
                         Icons.menu_book,
-                        const AdminCoursesScreen(),
-                      ),
-                      (
-                        'Quản lý Kiểm tra',
-                        'Đề thi và câu hỏi',
-                        Icons.assignment_outlined,
-                        const AdminExamScreen(),
-                      ),
-                      (
-                        'Đơn vị học viên',
-                        'Tra cứu theo đơn vị',
-                        Icons.groups_outlined,
-                        const AdminClassesScreen(),
-                      ),
-                      (
-                        'Lịch học và lịch thi',
-                        'Kế hoạch học tập',
-                        Icons.calendar_month,
-                        const AdminScheduleScreen(),
+                        const AdminCoursesScreen(
+                          initialCourseModeFilter: 'study_only',
+                        ),
                       ),
                       (
                         'Thông báo',
@@ -426,7 +411,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.assignment),
-                    label: 'Bài thi',
+                    label: 'Quản lý khóa học',
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.bar_chart),

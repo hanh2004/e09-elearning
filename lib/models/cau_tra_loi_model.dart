@@ -1,3 +1,6 @@
+// DỮ LIỆU: Dữ liệu câu trả lời của học viên khi lưu hoặc nộp bài.
+// Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
+
 class CauTraLoiModel {
   final String maCauTraLoi;
   final String maCauHoi;
@@ -15,14 +18,14 @@ class CauTraLoiModel {
     required this.diemDatDuoc,
   });
 
-  factory CauTraLoiModel.fromMap(Map<String, dynamic> map, String id) {
+  factory CauTraLoiModel.fromMap(Map<String, dynamic> bangAnhXa, String ma) {
     return CauTraLoiModel(
-      maCauTraLoi: id,
-      maCauHoi: map['ma_cau_hoi'] ?? '',
-      maLuaChon: map['ma_lua_chon'],
-      noiDungTraLoi: map['noi_dung_tra_loi'],
-      traLoiDung: map['tra_loi_dung'] ?? false,
-      diemDatDuoc: (map['diem_dat_duoc'] ?? 0).toDouble(),
+      maCauTraLoi: ma,
+      maCauHoi: bangAnhXa['ma_cau_hoi'] ?? '',
+      maLuaChon: bangAnhXa['ma_lua_chon'],
+      noiDungTraLoi: bangAnhXa['noi_dung_tra_loi'],
+      traLoiDung: bangAnhXa['tra_loi_dung'] ?? false,
+      diemDatDuoc: (bangAnhXa['diem_dat_duoc'] ?? 0).toDouble(),
     );
   }
 

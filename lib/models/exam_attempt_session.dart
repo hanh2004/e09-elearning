@@ -1,3 +1,6 @@
+// DỮ LIỆU: Thông tin phiên thi đang thực hiện.
+// Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
+
 class ExamAttemptSession {
   final String attemptId;
   final DateTime endsAt;

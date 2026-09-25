@@ -7,12 +7,24 @@ service firebase.storage {
       let roots = firestore.get(/databases/(default)/documents/system/access).data.rootUids;
       return active() && p.role == 'super_admin' && request.auth.uid in roots;
     }
-    function image() { return request.resource != null && request.resource.size > 0 && request.resource.size <= 5 * 1024 * 1024 && request.resource.contentType.matches('image/(jpeg|png|webp)'); }
+    function image() { return request.resource != null && request.resource.size > 0 && request.resource.size <= 20 * 1024 * 1024 && request.resource.contentType.matches('image/(jpeg|png|webp)'); }
     match /avatars/{uid}/{file} {
       allow read: if active();
-      allow create: if active() && request.auth.uid == uid && image();
+      allow create, update: if active() && request.auth.uid == uid && image();
     }
     match /lessons/{course}/{file} {
+      allow read: if active();
+      allow create: if admin() && image();
+    }
+    match /courses/{file} {
+      allow read: if active();
+      allow create: if admin() && image();
+    }
+    match /news/{file} {
+      allow read: if active();
+      allow create: if admin() && image();
+    }
+    match /home-banners/{file} {
       allow read: if active();
       allow create: if admin() && image();
     }

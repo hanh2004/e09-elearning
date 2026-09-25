@@ -1,17 +1,25 @@
+// APP HỌC VIÊN: Khung chính của ứng dụng học viên với thanh điều hướng phía dưới.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
 import 'user_dashboard_screen.dart';
-import '../../app/app_theme.dart';
-import 'secure_exam_screen.dart';
+import 'profile_edit_screen.dart';
+import '../../widgets/unit_update_notice.dart';
+import '../../widgets/learner_navigation.dart';
+import 'user_learning_tests_screen.dart';
 import 'user_courses_screen.dart';
 import 'user_notifications_screen.dart';
+import 'news_screen.dart';
+import 'user_utilities_screen.dart';
 
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'user_home_screen.dart';
 import 'user_profile_screen.dart';
 import '../../models/user_arguments.dart';
-import '../../services/learning_service.dart';
-import '../../services/secure_exam_service.dart';
+import '../../services/nghiep_vu/learning_service.dart';
+import '../../services/ket_noi_api/secure_exam_service.dart';
 
+/// Khung chính của ứng dụng học viên với thanh điều hướng phía dưới.
 class UserMainLayout extends StatefulWidget {
   final UserArguments args;
 
@@ -25,12 +33,34 @@ class UserMainLayout extends StatefulWidget {
   final SecureExamService? examService;
 
   @override
-  State<UserMainLayout> createState() => _UserMainLayoutState();
+  State<UserMainLayout> createState() => _TrangThaiKhungHocVien();
 }
 
-class _UserMainLayoutState extends State<UserMainLayout> {
-  int _selectedIndex = 0;
-  final Color primaryColor = const Color(0xFFB51F24);
+class _TrangThaiKhungHocVien extends State<UserMainLayout> {
+  int _viTriDaChon = 0;
+  late final service = widget.learningService ?? LearningService();
+  late final profileStream = service.db
+      .collection('users')
+      .doc(widget.args.userId)
+      .snapshots();
+  @override
+  void initState() {
+    super.initState();
+    LearnerNavigation.section.value = 0;
+    LearnerNavigation.section.addListener(syncSection);
+  }
+
+  void syncSection() {
+    if (mounted) {
+      setState(() => _viTriDaChon = LearnerNavigation.section.value);
+    }
+  }
+
+  @override
+  void dispose() {
+    LearnerNavigation.section.removeListener(syncSection);
+    super.dispose();
+  }
 
   // Danh sách màn hình cho thanh Bottom Navigation
   @override
@@ -39,118 +69,69 @@ class _UserMainLayoutState extends State<UserMainLayout> {
       UserDashboardScreen(
         args: widget.args,
         service: widget.learningService,
-        onSelect: (index) => setState(() => _selectedIndex = index),
+        onSelect: (viTri) => LearnerNavigation.section.value = viTri,
       ),
       UserCoursesScreen(
         uid: widget.args.userId,
         service: widget.learningService,
       ),
-      const bool.fromEnvironment('USE_SECURE_BACKEND', defaultValue: true)
-          ? SecureExamHomeScreen(service: widget.examService)
-          : UserHomeScreen(args: widget.args),
+      UserLearningTestsScreen(
+        uid: widget.args.userId,
+        service: widget.learningService,
+        examService: widget.examService,
+      ),
       UserNotificationsScreen(
         uid: widget.args.userId,
         service: widget.learningService,
       ),
-      UserProfileScreen(args: widget.args, service: widget.learningService),
+      UserProfileScreen(
+        args: widget.args,
+        service: widget.learningService,
+        examService: widget.examService,
+      ),
+      NewsScreen(service: service, active: _viTriDaChon == 5),
+      UserUtilitiesScreen(
+        uid: widget.args.userId,
+        service: service,
+        examService: widget.examService,
+        onSelect: (viTri) => LearnerNavigation.section.value = viTri,
+      ),
     ];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 900;
-        return Scaffold(
-          body: Row(
-            children: [
-              if (isDesktop)
-                NavigationRail(
-                  extended: constraints.maxWidth >= 1180,
-                  backgroundColor: Colors.white,
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: (index) =>
-                      setState(() => _selectedIndex = index),
-                  leading: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Image.asset(AppTheme.logo, width: 56, height: 56),
+    final noiDung = Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: profileStream,
+            builder: (context, duLieuNhan) {
+              if (!duLieuNhan.hasData || duLieuNhan.hasError) {
+                return const SizedBox.shrink();
+              }
+              final duLieu = duLieuNhan.data?.data() ?? {};
+              return UnitUpdateNotice(
+                profile: duLieu,
+                onUpdate: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ProfileEditScreen(
+                      uid: widget.args.userId,
+                      firestore: service.db,
+                      openEditor: true,
+                    ),
                   ),
-                  destinations: const [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.home_outlined),
-                      selectedIcon: Icon(Icons.home),
-                      label: Text('Trang chủ'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.menu_book),
-                      label: Text('Khóa học'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.assignment_outlined),
-                      label: Text('Kiểm tra'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.notifications_outlined),
-                      label: Text('Thông báo'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.person_outline),
-                      selectedIcon: Icon(Icons.person),
-                      label: Text('Cá nhân'),
-                    ),
-                  ],
                 ),
-              Expanded(
-                child: IndexedStack(index: _selectedIndex, children: pages),
-              ),
-            ],
+              );
+            },
           ),
-          bottomNavigationBar: isDesktop
-              ? null
-              : BottomNavigationBar(
-                  currentIndex: _selectedIndex,
-                  onTap: (index) {
-                    setState(() {
-                      _selectedIndex = index;
-                    });
-                  },
-                  type: BottomNavigationBarType.fixed,
-                  selectedItemColor: primaryColor,
-                  unselectedItemColor: Colors.grey,
-                  selectedLabelStyle: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                  unselectedLabelStyle: const TextStyle(fontSize: 12),
-                  items: const [
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.home_outlined),
-                      activeIcon: Icon(Icons.home),
-                      label: 'Trang chủ',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.menu_book),
-                      label: 'Khóa học',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: CircleAvatar(
-                        backgroundColor: AppTheme.red,
-                        child: Icon(
-                          Icons.assignment_outlined,
-                          color: Colors.white,
-                        ),
-                      ),
-                      label: 'Kiểm tra',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.notifications_outlined),
-                      label: 'Thông báo',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.person_outline),
-                      activeIcon: Icon(Icons.person),
-                      label: 'Cá nhân',
-                    ),
-                  ],
-                ),
-        );
-      },
+          Expanded(
+            child: IndexedStack(index: _viTriDaChon, children: pages),
+          ),
+        ],
+      ),
+      bottomNavigationBar: LearnerNavigation(
+        selectedIndex: _viTriDaChon,
+        onSelected: (viTri) => LearnerNavigation.section.value = viTri,
+      ),
     );
+    return noiDung;
   }
 }

@@ -1,10 +1,17 @@
+// WEB ADMIN: Ngân hàng câu hỏi của một đề: xem, thêm, sửa và xóa câu hỏi.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
+import 'admin_responsive_shell.dart';
+import '../../widgets/admin_ui.dart';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../services/firestore_service.dart';
+import '../../services/du_lieu/firestore_service.dart';
 import '../../models/question_bank_arguments.dart';
 import '../../models/account_identity.dart';
 
+/// Ngân hàng câu hỏi của một đề: xem, thêm, sửa và xóa câu hỏi.
 class AdminQuestionBankScreen extends StatefulWidget {
   final QuestionBankArguments args;
 
@@ -13,15 +20,15 @@ class AdminQuestionBankScreen extends StatefulWidget {
 
   @override
   State<AdminQuestionBankScreen> createState() =>
-      _AdminQuestionBankScreenState();
+      _TrangThaiNganHangCauHoiQuanTri();
 }
 
-class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
-  late final FirestoreService _firestoreService =
+class _TrangThaiNganHangCauHoiQuanTri extends State<AdminQuestionBankScreen> {
+  late final FirestoreService _dichVuFirestore =
       widget.service ?? FirestoreService();
   final Color primaryColor = const Color(0xFFB51F24);
 
-  Future<void> _showAddQuestionDialog({
+  Future<void> _moHopThoaiThemCauHoi({
     String? questionId,
     Map<String, dynamic>? question,
   }) async {
@@ -67,7 +74,7 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
                     maxLines: 3,
                   ),
                   const SizedBox(height: 12),
-                  ...List.generate(optionControllers.length, (index) {
+                  ...List.generate(optionControllers.length, (viTri) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: Row(
@@ -75,23 +82,23 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
                           IconButton(
                             tooltip: 'Chọn đáp án đúng',
                             onPressed: () => setModalState(
-                              () => selectedCorrectIndex = index,
+                              () => selectedCorrectIndex = viTri,
                             ),
                             icon: Icon(
-                              selectedCorrectIndex == index
+                              selectedCorrectIndex == viTri
                                   ? Icons.radio_button_checked
                                   : Icons.radio_button_unchecked,
-                              color: selectedCorrectIndex == index
+                              color: selectedCorrectIndex == viTri
                                   ? primaryColor
                                   : Colors.grey,
                             ),
                           ),
                           Expanded(
                             child: TextField(
-                              controller: optionControllers[index],
+                              controller: optionControllers[viTri],
                               decoration: InputDecoration(
                                 labelText:
-                                    'Đáp án ${String.fromCharCode(65 + index)}',
+                                    'Đáp án ${String.fromCharCode(65 + viTri)}',
                               ),
                             ),
                           ),
@@ -111,17 +118,17 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
                 style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
                 onPressed: () async {
                   if (busy) return;
-                  final options = optionControllers
+                  final cacLuaChon = optionControllers
                       .map((e) => e.text.trim())
                       .toList();
                   if (questionController.text.isNotEmpty &&
-                      options.every((e) => e.isNotEmpty)) {
+                      cacLuaChon.every((e) => e.isNotEmpty)) {
                     setModalState(() => busy = true);
                     try {
-                      await _firestoreService.addQuestion(
+                      await _dichVuFirestore.addQuestion(
                         widget.args.examId,
                         questionText: questionController.text.trim(),
-                        options: options,
+                        options: cacLuaChon,
                         correctAnswerIndex: selectedCorrectIndex,
                         explanation: explanationController.text,
                         questionId: questionId,
@@ -161,172 +168,163 @@ class _AdminQuestionBankScreenState extends State<AdminQuestionBankScreen> {
     await dialogRoute.completed;
     questionController.dispose();
     explanationController.dispose();
-    for (final controller in optionControllers) {
-      controller.dispose();
+    for (final boDieuKhien in optionControllers) {
+      boDieuKhien.dispose();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: primaryColor,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Câu hỏi: ${widget.args.examTitle}',
-          style: const TextStyle(
-            fontSize: 16,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _firestoreService.getQuestionsStream(widget.args.examId),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(child: Text('Có lỗi xảy ra'));
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return AdminResponsiveShell(
+      selectedIndex: 1,
+      onSelected: (viTri) => pushAdminPrimary(context, viTri),
+      child: Scaffold(
+        appBar: AdminUi.appBar('Câu hỏi: ${widget.args.examTitle}'),
+        body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _dichVuFirestore.getQuestionsStream(widget.args.examId),
+          builder: (context, duLieuNhan) {
+            if (duLieuNhan.hasError) {
+              return const Center(child: Text('Có lỗi xảy ra'));
+            }
+            if (duLieuNhan.connectionState == ConnectionState.waiting) {
+              return const AdminLoading();
+            }
 
-          final docs = snapshot.data!.docs;
-          if (docs.isEmpty) {
-            return Center(
-              child: Text(
-                AccountSession.current?.isRoot == true
-                    ? 'Chưa có câu hỏi nào. Bấm nút + để thêm.'
-                    : 'Chưa có câu hỏi nào.',
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final q = docs[index].data();
-              final options = List<String>.from(q['options'] ?? []);
-              final correctIndex = q['correctAnswerIndex'] ?? 0;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            final cacBanGhi = duLieuNhan.data!.docs;
+            if (cacBanGhi.isEmpty) {
+              return Center(
+                child: Text(
+                  AccountSession.current?.isRoot == true
+                      ? 'Chưa có câu hỏi nào. Bấm nút + để thêm.'
+                      : 'Chưa có câu hỏi nào.',
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Câu ${index + 1}: ${q['questionText']}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ),
-                          if (AccountSession.current?.isRoot == true)
-                            IconButton(
-                              tooltip: 'Sửa câu hỏi',
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: () => _showAddQuestionDialog(
-                                questionId: docs[index].id,
-                                question: q,
-                              ),
-                            ),
-                          if (AccountSession.current?.isRoot == true)
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete,
-                                color: Colors.red,
-                                size: 20,
-                              ),
-                              onPressed: () => _firestoreService.deleteQuestion(
-                                widget.args.examId,
-                                docs[index].id,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ...List.generate(options.length, (optIndex) {
-                        final isCorrect = optIndex == correctIndex;
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 6,
-                            horizontal: 10,
-                          ),
-                          margin: const EdgeInsets.only(bottom: 4),
-                          decoration: BoxDecoration(
-                            color: isCorrect
-                                ? Colors.green[50]
-                                : Colors.grey[50],
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: isCorrect
-                                  ? Colors.green
-                                  : Colors.transparent,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                '${String.fromCharCode(65 + optIndex)}. ',
-                                style: TextStyle(
-                                  color: isCorrect
-                                      ? Colors.green[800]
-                                      : Colors.black87,
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: cacBanGhi.length,
+              itemBuilder: (context, viTri) {
+                final q = cacBanGhi[viTri].data();
+                final cacLuaChon = List<String>.from(q['options'] ?? []);
+                final correctIndex = q['correctAnswerIndex'] ?? 0;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Câu ${viTri + 1}: ${q['questionText']}',
+                                style: const TextStyle(
                                   fontWeight: FontWeight.bold,
+                                  fontSize: 15,
                                 ),
                               ),
-                              Expanded(
-                                child: Text(
-                                  options[optIndex],
+                            ),
+                            if (AccountSession.current?.isRoot == true)
+                              IconButton(
+                                tooltip: 'Sửa câu hỏi',
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () => _moHopThoaiThemCauHoi(
+                                  questionId: cacBanGhi[viTri].id,
+                                  question: q,
+                                ),
+                              ),
+                            if (AccountSession.current?.isRoot == true)
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                  size: 20,
+                                ),
+                                onPressed: () =>
+                                    _dichVuFirestore.deleteQuestion(
+                                      widget.args.examId,
+                                      cacBanGhi[viTri].id,
+                                    ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ...List.generate(cacLuaChon.length, (optIndex) {
+                          final isCorrect = optIndex == correctIndex;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6,
+                              horizontal: 10,
+                            ),
+                            margin: const EdgeInsets.only(bottom: 4),
+                            decoration: BoxDecoration(
+                              color: isCorrect
+                                  ? Colors.green[50]
+                                  : Colors.grey[50],
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isCorrect
+                                    ? Colors.green
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '${String.fromCharCode(65 + optIndex)}. ',
                                   style: TextStyle(
                                     color: isCorrect
                                         ? Colors.green[800]
                                         : Colors.black87,
-                                    fontWeight: isCorrect
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              ),
-                              if (isCorrect)
-                                const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: 18,
+                                Expanded(
+                                  child: Text(
+                                    cacLuaChon[optIndex],
+                                    style: TextStyle(
+                                      color: isCorrect
+                                          ? Colors.green[800]
+                                          : Colors.black87,
+                                      fontWeight: isCorrect
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
                                 ),
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
+                                if (isCorrect)
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                    size: 18,
+                                  ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          );
-        },
+                );
+              },
+            );
+          },
+        ),
+        floatingActionButton: AccountSession.current?.isRoot == true
+            ? FloatingActionButton(
+                backgroundColor: primaryColor,
+                onPressed: _moHopThoaiThemCauHoi,
+                child: const Icon(Icons.add, color: Colors.white),
+              )
+            : null,
       ),
-      floatingActionButton: AccountSession.current?.isRoot == true
-          ? FloatingActionButton(
-              backgroundColor: primaryColor,
-              onPressed: _showAddQuestionDialog,
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
     );
   }
 }

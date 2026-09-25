@@ -1,29 +1,34 @@
+// APP HỌC VIÊN: Danh sách thông báo và trạng thái đã đọc của học viên.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
+import '../../widgets/learner_header.dart';
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/learning_service.dart';
+import '../../services/nghiep_vu/learning_service.dart';
 import '../../widgets/learning_widgets.dart';
 
+/// Danh sách thông báo và trạng thái đã đọc của học viên.
 class UserNotificationsScreen extends StatefulWidget {
   const UserNotificationsScreen({super.key, required this.uid, this.service});
   final String uid;
   final LearningService? service;
   @override
-  State<UserNotificationsScreen> createState() =>
-      _UserNotificationsScreenState();
+  State<UserNotificationsScreen> createState() => _TrangThaiThongBaoHocVien();
 }
 
-class _UserNotificationsScreenState extends State<UserNotificationsScreen> {
+class _TrangThaiThongBaoHocVien extends State<UserNotificationsScreen> {
   late final service = widget.service ?? LearningService();
   late final reads = service.notificationReads(widget.uid);
   bool unreadOnly = false;
   final pending = <String>{};
-  Future<void> markRead(String id) async {
-    if (!pending.add(id)) return;
+  Future<void> markRead(String ma) async {
+    if (!pending.add(ma)) return;
     try {
-      await service.markNotificationRead(widget.uid, id);
+      await service.markNotificationRead(widget.uid, ma);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -33,7 +38,7 @@ class _UserNotificationsScreenState extends State<UserNotificationsScreen> {
         );
       }
     } finally {
-      pending.remove(id);
+      pending.remove(ma);
     }
   }
 
@@ -58,39 +63,39 @@ class _UserNotificationsScreenState extends State<UserNotificationsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Thông báo hệ thống')),
+    appBar: LearnerHeader(title: const Text('Thông báo hệ thống')),
     body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: profile,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
+      builder: (context, duLieuNhan) {
+        if (duLieuNhan.hasError) {
           return const Center(child: Text('Không tải được hồ sơ.'));
         }
-        if (!snapshot.hasData) {
+        if (!duLieuNhan.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         return LearningList(
           stream: service.notifications(
             widget.uid,
-            snapshot.data!.data()?['classId'] ?? '',
+            duLieuNhan.data!.data()?['classId'] ?? '',
           ),
-          builder: (docs) {
-            final sorted = docs.toList()
+          builder: (cacBanGhi) {
+            final daSapXep = cacBanGhi.toList()
               ..sort(
                 (a, b) => (b.data()['sendAt'] as Timestamp).compareTo(
                   a.data()['sendAt'] as Timestamp,
                 ),
               );
-            if (sorted.isEmpty) {
+            if (daSapXep.isEmpty) {
               return const Center(child: Text('Bạn chưa có thông báo mới.'));
             }
             return LearningList(
               stream: reads,
               builder: (receipts) {
                 final readIds = receipts.map((r) => r.id).toSet();
-                final unread = sorted
+                final unread = daSapXep
                     .where((d) => !readIds.contains(d.id))
                     .toList();
-                final visible = unreadOnly ? unread : sorted;
+                final visible = unreadOnly ? unread : daSapXep;
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -98,7 +103,7 @@ class _UserNotificationsScreenState extends State<UserNotificationsScreen> {
                       spacing: 8,
                       children: [
                         ChoiceChip(
-                          label: Text('Tất cả (${sorted.length})'),
+                          label: Text('Tất cả (${daSapXep.length})'),
                           selected: !unreadOnly,
                           onSelected: (_) => setState(() => unreadOnly = false),
                         ),
@@ -114,9 +119,9 @@ class _UserNotificationsScreenState extends State<UserNotificationsScreen> {
                         padding: EdgeInsets.all(32),
                         child: Text('Bạn đã đọc tất cả thông báo.'),
                       ),
-                    for (final doc in visible)
+                    for (final banGhi in visible)
                       Card(
-                        color: readIds.contains(doc.id)
+                        color: readIds.contains(banGhi.id)
                             ? Colors.white
                             : const Color(0xFFF0F4FC),
                         child: Padding(
@@ -125,20 +130,20 @@ class _UserNotificationsScreenState extends State<UserNotificationsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                doc.data()['title'] ?? '',
+                                banGhi.data()['title'] ?? '',
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                '${(doc.data()['sendAt'] as Timestamp).toDate()}',
+                                '${(banGhi.data()['sendAt'] as Timestamp).toDate()}',
                               ),
                               const SizedBox(height: 12),
-                              SelectableText(doc.data()['body'] ?? ''),
-                              if (!readIds.contains(doc.id))
+                              SelectableText(banGhi.data()['body'] ?? ''),
+                              if (!readIds.contains(banGhi.id))
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: TextButton.icon(
-                                    onPressed: () => markRead(doc.id),
+                                    onPressed: () => markRead(banGhi.id),
                                     icon: const Icon(Icons.done, size: 18),
                                     label: const Text('Đánh dấu đã đọc'),
                                   ),

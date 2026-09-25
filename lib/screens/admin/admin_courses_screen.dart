@@ -1,245 +1,489 @@
+// WEB ADMIN: Danh sách khóa học: tìm kiếm, lọc khóa đã kết thúc và mở form chỉnh sửa.
+// Form: forms/course_editor.dart; dữ liệu nhập: ../../models/course_form.dart.
+
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/app_theme.dart';
 import '../../models/account_identity.dart';
-import '../../services/learning_service.dart';
+import '../../models/course_form.dart';
+import '../../services/nghiep_vu/learning_service.dart';
+import '../../widgets/admin_ui.dart';
+import '../../widgets/course_cover.dart';
 import '../../widgets/learning_widgets.dart';
+import 'admin_course_report_screen.dart';
+import 'admin_lessons_screen.dart';
+import 'admin_responsive_shell.dart';
+import 'forms/course_editor.dart';
 
+// Các nơi import màn hình bài học từ tệp cũ vẫn tiếp tục hoạt động.
+export 'admin_lessons_screen.dart' show AdminLessonsScreen;
+
+/// Danh sách khóa học: tìm kiếm, lọc khóa đã kết thúc và mở form chỉnh sửa.
 class AdminCoursesScreen extends StatefulWidget {
-  const AdminCoursesScreen({super.key, this.service});
+  const AdminCoursesScreen({
+    super.key,
+    this.service,
+    this.ended = false,
+    this.initialCourseModeFilter = 'all',
+  });
   final LearningService? service;
+  final bool ended;
+  final String initialCourseModeFilter;
   @override
-  State<AdminCoursesScreen> createState() => _AdminCoursesScreenState();
+  State<AdminCoursesScreen> createState() => _TrangThaiKhoaHocQuanTri();
 }
 
-class _AdminCoursesScreenState extends State<AdminCoursesScreen> {
+class _TrangThaiKhoaHocQuanTri extends State<AdminCoursesScreen> {
   late final service = widget.service ?? LearningService();
   late final stream = service.courses();
   String search = '';
-  Future<void> edit([QueryDocumentSnapshot<Map<String, dynamic>>? doc]) async {
-    if (AccountSession.current?.isRoot != true) return;
-    final data = doc?.data() ?? {};
-    await editLearningRecord(
-      context,
-      title: doc == null ? 'Tạo khóa học' : 'Sửa khóa học',
-      fields: {
-        'Tên khóa học': data['title'] ?? '',
-        'Môn học': data['subject'] ?? '',
-        'Mô tả': data['description'] ?? '',
-      },
-      optional: {'Mô tả'},
-      note: 'Sau khi xuất bản, tất cả học viên đều được học.',
-      save: (values) async {
-        await service.saveContent(
-          AccountSession.current!.id,
-          doc?.reference ?? service.db.collection('courses').doc(),
-          {
-            'title': values['Tên khóa học'],
-            'subject': values['Môn học'],
-            'description': values['Mô tả'],
-            'audience': 'all',
-            'published': data['published'] == true,
-          },
-        );
-      },
-    );
+  late String courseModeFilter = widget.initialCourseModeFilter;
+  String dateFilter = 'all';
+  DateTime dateFilterDate = DateTime.now();
+  late final Timer refreshTimer;
+
+  String get pageTitle {
+    if (widget.ended) return 'Khóa học kết thúc';
+    if (widget.initialCourseModeFilter == 'study_exam') {
+      return 'Khóa học có kiểm tra';
+    }
+    if (widget.initialCourseModeFilter == 'study_only') {
+      return 'Khóa học không kiểm tra';
+    }
+    return 'Quản lý khóa học';
+  }
+
+  String? get activeMenu {
+    if (widget.ended) return 'Khóa học kết thúc';
+    if (widget.initialCourseModeFilter == 'study_exam') {
+      return 'Khóa học có kiểm tra';
+    }
+    if (widget.initialCourseModeFilter == 'study_only') {
+      return 'Khóa học không kiểm tra';
+    }
+    return null;
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Môn học và khóa học')),
-    floatingActionButton: AccountSession.current?.isRoot != true
-        ? null
-        : FloatingActionButton.extended(
-            onPressed: edit,
-            icon: const Icon(Icons.add),
-            label: const Text('Tạo khóa học'),
-          ),
-    body: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: TextField(
-            decoration: const InputDecoration(
-              labelText: 'Tìm theo tên hoặc môn học',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onChanged: (value) => setState(() => search = value.toLowerCase()),
-          ),
-        ),
-        Expanded(
-          child: LearningList(
-            stream: stream,
-            builder: (docs) {
-              final filtered = docs
-                  .where(
-                    (doc) => '${doc.data()['title']} ${doc.data()['subject']}'
-                        .toLowerCase()
-                        .contains(search),
-                  )
-                  .toList();
-              if (filtered.isEmpty) {
-                return const Center(child: Text('Chưa có khóa học phù hợp.'));
-              }
-              return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final doc = filtered[index];
-                  final d = doc.data();
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.menu_book),
-                      title: Text(d['title'] ?? ''),
-                      subtitle: Text(
-                        '${d['subject']} • ${d['published'] == true ? 'Đã xuất bản • Tất cả học viên' : 'Bản nháp'}',
-                      ),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => AdminLessonsScreen(course: doc),
-                        ),
-                      ),
-                      trailing: AccountSession.current?.isRoot != true
-                          ? null
-                          : IconButton(
-                              tooltip: 'Sửa khóa học',
-                              icon: const Icon(Icons.edit),
-                              onPressed: () => edit(doc),
-                            ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    ),
-  );
-}
+  void initState() {
+    super.initState();
+    refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
 
-class AdminLessonsScreen extends StatefulWidget {
-  const AdminLessonsScreen({super.key, required this.course});
-  final QueryDocumentSnapshot<Map<String, dynamic>> course;
   @override
-  State<AdminLessonsScreen> createState() => _AdminLessonsScreenState();
-}
+  void dispose() {
+    refreshTimer.cancel();
+    super.dispose();
+  }
 
-class _AdminLessonsScreenState extends State<AdminLessonsScreen> {
-  final service = LearningService();
-  late final stream = service.lessons(widget.course.id);
-  late bool published = widget.course.data()['published'] == true;
-  bool busy = false;
-  Future<void> publish() async {
-    if (AccountSession.current?.isRoot != true) return;
-    setState(() => busy = true);
-    try {
-      await service.saveContent(
-        AccountSession.current!.id,
-        widget.course.reference,
-        {'published': !published, 'audience': 'all'},
-      );
-      if (mounted) setState(() => published = !published);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không đổi được trạng thái khóa học.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => busy = false);
+  Color _mauTrienKhai(String nhan) => switch (nhan) {
+    'Đang triển khai' => Colors.green.shade700,
+    'Đã triển khai' => Colors.blueGrey.shade700,
+    _ => Colors.orange.shade800,
+  };
+
+  DateTime? _ngayBatDauKhoa(Map<String, dynamic> duLieu) {
+    for (final khoa in ['startsAt', 'publishedAt', 'createdAt', 'updatedAt']) {
+      final giaTri = LearningPolicy.readDateTime(duLieu[khoa]);
+      if (giaTri != null) return giaTri;
+    }
+    return null;
+  }
+
+  DateTime? _ngayKetThucKhoa(Map<String, dynamic> duLieu) =>
+      LearningPolicy.readDateTime(duLieu['endsAt']) ?? _ngayBatDauKhoa(duLieu);
+
+  bool _khopNgay(Map<String, dynamic> duLieu) {
+    if (dateFilter == 'all') return true;
+    final batDau = _ngayBatDauKhoa(duLieu);
+    final ketThuc = _ngayKetThucKhoa(duLieu);
+    if (batDau == null && ketThuc == null) return false;
+    final anchor = DateTime(
+      dateFilterDate.year,
+      dateFilterDate.month,
+      dateFilterDate.day,
+    );
+    final tuNgay = switch (dateFilter) {
+      'day' => anchor,
+      'week' => anchor.subtract(Duration(days: anchor.weekday - 1)),
+      'month' => DateTime(anchor.year, anchor.month),
+      _ => anchor,
+    };
+    final denNgay = switch (dateFilter) {
+      'day' => tuNgay.add(const Duration(days: 1)),
+      'week' => tuNgay.add(const Duration(days: 7)),
+      'month' => DateTime(tuNgay.year, tuNgay.month + 1),
+      _ => tuNgay.add(const Duration(days: 1)),
+    };
+    final lower = batDau ?? ketThuc!;
+    final upper = ketThuc ?? batDau!;
+    return !upper.isBefore(tuNgay) && lower.isBefore(denNgay);
+  }
+
+  Future<void> _chonNgayLoc() async {
+    final daChon = await showDatePicker(
+      context: context,
+      initialDate: dateFilterDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      helpText: 'Chọn mốc thời gian lọc khóa học',
+    );
+    if (daChon != null && mounted) {
+      setState(() => dateFilterDate = daChon);
     }
   }
 
-  Future<void> edit([QueryDocumentSnapshot<Map<String, dynamic>>? doc]) async {
+  Future<void> edit([QueryDocumentSnapshot<Map<String, dynamic>>? banGhi]) {
+    if (banGhi != null && LearningPolicy.hasEnded(banGhi.data())) {
+      return Future<void>.value();
+    }
+    return showCourseEditor(context, service: service, course: banGhi);
+  }
+
+  Future<void> createCourse(String mode) =>
+      showCourseEditor(context, service: service, fixedLearningMode: mode);
+
+  Future<void> deleteCourse(
+    QueryDocumentSnapshot<Map<String, dynamic>> banGhi,
+  ) async {
     if (AccountSession.current?.isRoot != true) return;
-    final d = doc?.data() ?? {};
-    await editLearningRecord(
-      context,
-      title: doc == null ? 'Thêm bài học' : 'Sửa bài học',
-      fields: {
-        'Tên bài học': d['title'] ?? '',
-        'Chương': d['chapter'] ?? '',
-        'Thứ tự': '${d['order'] ?? 1}',
-        'Nội dung': d['content'] ?? '',
-      },
-      optional: {'Nội dung'},
-      imageFolder: 'lessons/${widget.course.id}',
-      initialImage: d['type'] == 'image' ? (d['url'] ?? '') : '',
-      save: (v) async {
-        final order = int.tryParse(v['Thứ tự']!);
-        final imageUrl = v['imageUrl'] ?? '';
-        final type = imageUrl.isNotEmpty ? 'image' : (d['type'] ?? 'text');
-        if (order == null || order < 0) {
-          throw ArgumentError('Dữ liệu không hợp lệ');
-        }
-        if (type == 'text' && v['Nội dung']!.isEmpty) {
-          throw ArgumentError('Thiếu nội dung');
-        }
-        await service.saveContent(
-          AccountSession.current!.id,
-          doc?.reference ?? widget.course.reference.collection('lessons').doc(),
-          {
-            'title': v['Tên bài học'],
-            'chapter': v['Chương'],
-            'order': order,
-            'content': v['Nội dung'],
-            'type': type,
-            'url': imageUrl.isNotEmpty ? imageUrl : (d['url'] ?? ''),
-          },
-        );
-      },
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa vĩnh viễn chuyên đề'),
+        content: Text(
+          'Xóa vĩnh viễn chuyên đề "${banGhi.data()['title'] ?? ''}" cùng toàn bộ bài học, tiến độ và dữ liệu liên quan? Không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa vĩnh viễn'),
+          ),
+        ],
+      ),
     );
+    if (confirmed != true) return;
+    try {
+      await service.deleteCourse(banGhi.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã xóa vĩnh viễn chuyên đề và dữ liệu liên quan.'),
+          ),
+        );
+      }
+    } catch (loi) {
+      debugPrint('Xóa khóa học ${banGhi.id} thất bại: $loi');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không xóa được chuyên đề.')),
+        );
+      }
+    }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.course.data()['title'] ?? 'Bài học'),
-      actions: [
-        if (AccountSession.current?.isRoot == true)
-          TextButton(
-            onPressed: busy ? null : publish,
-            child: Text(published ? 'Chuyển về nháp' : 'Xuất bản'),
-          ),
-      ],
-    ),
-    floatingActionButton: AccountSession.current?.isRoot != true
-        ? null
-        : FloatingActionButton.extended(
-            onPressed: edit,
-            icon: const Icon(Icons.add),
-            label: const Text('Thêm bài học'),
-          ),
-    body: LearningList(
-      stream: stream,
-      builder: (docs) => docs.isEmpty
-          ? const Center(
-              child: Text('Thêm bài học trước khi xuất bản khóa học.'),
-            )
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-              children: [
-                for (final doc in docs)
-                  Card(
-                    child: ListTile(
-                      title: Text(
-                        '${doc.data()['order']}. ${doc.data()['title']}',
+  Widget build(BuildContext context) => AdminResponsiveShell(
+    selectedIndex: 0,
+    activeExtra: activeMenu,
+    onSelected: (viTri) => pushAdminPrimary(context, viTri),
+    child: Scaffold(
+      appBar: AdminUi.appBar(pageTitle),
+      body: LearningList(
+        stream: stream,
+        builder: (cacBanGhi) {
+          final daLoc = cacBanGhi
+              .where(
+                (banGhi) =>
+                    LearningPolicy.hasEnded(banGhi.data()) == widget.ended,
+              )
+              .where(
+                (banGhi) =>
+                    '${banGhi.data()['title']} ${banGhi.data()['subject']}'
+                        .toLowerCase()
+                        .contains(search),
+              )
+              .where(
+                (banGhi) =>
+                    courseModeFilter == 'all' ||
+                    CourseForm.hasExam(banGhi.data()) ==
+                        (courseModeFilter == 'study_exam'),
+              )
+              .where((banGhi) => _khopNgay(banGhi.data()))
+              .toList();
+          final dangHoatDong = daLoc
+              .where((banGhi) => !LearningPolicy.hasEnded(banGhi.data()))
+              .length;
+          final draft = daLoc
+              .where((banGhi) => banGhi.data()['published'] != true)
+              .length;
+          final createActions =
+              AccountSession.current?.isRoot != true || widget.ended
+              ? null
+              : Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    if (widget.initialCourseModeFilter != 'study_exam')
+                      FilledButton.icon(
+                        onPressed: () =>
+                            createCourse(CourseForm.studyOnlyLabel),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Tạo khóa học không kiểm tra'),
                       ),
-                      subtitle: Text(
-                        '${doc.data()['chapter']} • ${doc.data()['type']}',
+                    if (widget.initialCourseModeFilter != 'study_only')
+                      FilledButton.icon(
+                        onPressed: () =>
+                            createCourse(CourseForm.studyExamLabel),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Tạo khóa học có kiểm tra'),
                       ),
-                      trailing: AccountSession.current?.isRoot == true
-                          ? const Icon(Icons.edit)
-                          : null,
-                      onTap: AccountSession.current?.isRoot == true
-                          ? () => edit(doc)
-                          : null,
+                  ],
+                );
+          return Column(
+            children: [
+              AdminPageHeading(
+                title: pageTitle,
+                subtitle: widget.ended
+                    ? 'Tra cứu và quản lý các khóa học đã kết thúc.'
+                    : 'Quản lý các khóa học và nội dung học tập trên hệ thống.',
+                action: createActions,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Tìm theo tên hoặc môn học',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (giaTri) =>
+                      setState(() => search = giaTri.toLowerCase()),
+                ),
+              ),
+              if (MediaQuery.sizeOf(context).width >= 900)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 16, 28, 8),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final soLuong = constraints.maxWidth >= 600 ? 3 : 1;
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          SizedBox(
+                            width: soLuong == 3
+                                ? (constraints.maxWidth - 24) / 3
+                                : constraints.maxWidth,
+                            child: AdminMetricCard(
+                              value: '${daLoc.length}',
+                              label: widget.ended
+                                  ? 'khóa học đã kết thúc'
+                                  : 'khóa học',
+                              icon: widget.ended
+                                  ? Icons.inventory_2_outlined
+                                  : Icons.menu_book_outlined,
+                              color: AppTheme.red,
+                            ),
+                          ),
+                          if (!widget.ended)
+                            SizedBox(
+                              width: soLuong == 3
+                                  ? (constraints.maxWidth - 24) / 3
+                                  : constraints.maxWidth,
+                              child: AdminMetricCard(
+                                value: '$dangHoatDong',
+                                label: 'đang triển khai',
+                                icon: Icons.play_circle_outline,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                          if (!widget.ended)
+                            SizedBox(
+                              width: soLuong == 3
+                                  ? (constraints.maxWidth - 24) / 3
+                                  : constraints.maxWidth,
+                              child: AdminMetricCard(
+                                value: '$draft',
+                                label: 'chưa triển khai',
+                                icon: Icons.schedule_outlined,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              if (widget.initialCourseModeFilter == 'all')
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 4, 28, 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment<String>(
+                          value: 'all',
+                          label: Text('Tất cả'),
+                        ),
+                        ButtonSegment<String>(
+                          value: 'study_only',
+                          label: Text('Học để biết'),
+                        ),
+                        ButtonSegment<String>(
+                          value: 'study_exam',
+                          label: Text('Học để làm bài kiểm tra'),
+                        ),
+                      ],
+                      selected: {courseModeFilter},
+                      onSelectionChanged: (giaTri) =>
+                          setState(() => courseModeFilter = giaTri.first),
                     ),
                   ),
-              ],
-            ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(28, 0, 28, 12),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final dateSelector = SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment<String>(
+                            value: 'all',
+                            label: Text('Mọi thời gian'),
+                          ),
+                          ButtonSegment<String>(
+                            value: 'day',
+                            label: Text('Ngày'),
+                          ),
+                          ButtonSegment<String>(
+                            value: 'week',
+                            label: Text('Tuần'),
+                          ),
+                          ButtonSegment<String>(
+                            value: 'month',
+                            label: Text('Tháng'),
+                          ),
+                        ],
+                        selected: {dateFilter},
+                        onSelectionChanged: (giaTri) =>
+                            setState(() => dateFilter = giaTri.first),
+                      ),
+                    );
+                    final dateButton = OutlinedButton.icon(
+                      onPressed: _chonNgayLoc,
+                      icon: const Icon(Icons.event_outlined, size: 18),
+                      label: Text(
+                        '${dateFilterDate.day.toString().padLeft(2, '0')}/${dateFilterDate.month.toString().padLeft(2, '0')}/${dateFilterDate.year}',
+                      ),
+                    );
+                    if (constraints.maxWidth < 1000) {
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          SizedBox(
+                            width: constraints.maxWidth,
+                            child: dateSelector,
+                          ),
+                          dateButton,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: dateSelector),
+                        const SizedBox(width: 8),
+                        dateButton,
+                      ],
+                    );
+                  },
+                ),
+              ),
+              Expanded(
+                child: daLoc.isEmpty
+                    ? const Center(child: Text('Chưa có khóa học phù hợp.'))
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(28, 0, 28, 96),
+                        itemCount: daLoc.length,
+                        itemBuilder: (context, viTri) {
+                          final banGhi = daLoc[viTri];
+                          final d = banGhi.data();
+                          final status = LearningPolicy.deploymentLabel(d);
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
+                              leading: CourseCover(
+                                url: d['coverUrl'] ?? '',
+                                width: 64,
+                                height: 56,
+                              ),
+                              title: Text(
+                                d['title'] ?? '',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${d['subject']} • ${CourseForm.modeLabel(d)} • ${CourseForm.formatDateTime(d['startsAt'])} - ${CourseForm.formatDateTime(d['endsAt'])}${(d['coverUrl'] as String? ?? '').isEmpty ? ' • Cần thêm ảnh bìa' : ''}',
+                                style: TextStyle(color: _mauTrienKhai(status)),
+                              ),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) => widget.ended
+                                      ? AdminCourseReportScreen(
+                                          course: banGhi,
+                                          service: service,
+                                        )
+                                      : AdminLessonsScreen(
+                                          course: banGhi,
+                                          service: service,
+                                        ),
+                                ),
+                              ),
+                              trailing: AccountSession.current?.isRoot != true
+                                  ? null
+                                  : Wrap(
+                                      spacing: 4,
+                                      children: [
+                                        if (!LearningPolicy.hasEnded(d))
+                                          IconButton(
+                                            tooltip: 'Sửa chuyên đề',
+                                            icon: const Icon(Icons.edit),
+                                            onPressed: () => edit(banGhi),
+                                          ),
+                                        IconButton(
+                                          tooltip: 'Xóa vĩnh viễn chuyên đề',
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                          ),
+                                          onPressed: () => deleteCourse(banGhi),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
     ),
   );
 }

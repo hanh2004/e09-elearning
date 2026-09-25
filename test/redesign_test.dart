@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e09_elearning/app/app_theme.dart';
+import 'package:e09_elearning/app/learner_theme.dart';
 import 'package:e09_elearning/app/app_portal.dart';
 import 'package:e09_elearning/app/elearning_app.dart';
 import 'package:e09_elearning/models/exam_outcome.dart';
@@ -11,12 +12,12 @@ import 'package:e09_elearning/models/account_identity.dart';
 import 'package:e09_elearning/models/question_bank_arguments.dart';
 import 'package:e09_elearning/screens/admin/admin_question_bank_screen.dart';
 import 'package:e09_elearning/screens/admin/admin_home_screen.dart';
-import 'package:e09_elearning/services/firestore_service.dart';
+import 'package:e09_elearning/services/du_lieu/firestore_service.dart';
 import 'package:e09_elearning/screens/user/user_dashboard_screen.dart';
 import 'package:e09_elearning/screens/user/user_notifications_screen.dart';
 import 'package:e09_elearning/screens/user/user_main_layout.dart';
-import 'package:e09_elearning/services/secure_exam_service.dart';
-import 'package:e09_elearning/services/learning_service.dart';
+import 'package:e09_elearning/services/ket_noi_api/secure_exam_service.dart';
+import 'package:e09_elearning/services/nghiep_vu/learning_service.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -127,6 +128,7 @@ void main() {
         await db.doc('courses/c/lessons/l').set({
           'title': 'Bài học đầu tiên',
           'content': 'Nội dung học tập.',
+          'minimumStudySeconds': 2,
           'chapter': 'Chương 1',
           'order': 1,
           'type': 'text',
@@ -138,7 +140,7 @@ void main() {
             key: boundaryKey,
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: AppTheme.light,
+              theme: LearnerTheme.light,
               home: UserDashboardScreen(
                 args: UserArguments(
                   userId: 'u',
@@ -176,20 +178,33 @@ void main() {
             image.dispose();
           });
         }
-        await tester.tap(find.text('KHÁM PHÁ KHÓA HỌC'));
+        await tester.tap(find.text('Khám phá khóa học'));
         expect(selected, 1);
-        await tester.scrollUntilVisible(find.text('Kiến thức nghiệp vụ'), 250);
+        await tester.scrollUntilVisible(
+          find.text('Kiến thức nghiệp vụ'),
+          250,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.drag(find.byType(ListView).first, const Offset(0, -200));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Kiến thức nghiệp vụ'));
         await tester.pumpAndSettle();
+        await capture(tester, boundaryKey, 'course-detail-${width.toInt()}');
+        await tester.ensureVisible(find.text('BẮT ĐẦU HỌC NGAY'));
+        await tester.tap(find.text('BẮT ĐẦU HỌC NGAY'));
+        await tester.pumpAndSettle();
+        await capture(tester, boundaryKey, 'course-chapters-${width.toInt()}');
         await tester.tap(find.text('Tiếp tục học'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Hoàn thành bài học'));
+        await tester.pump(const Duration(seconds: 3));
         await tester.pumpAndSettle();
+        await capture(tester, boundaryKey, 'course-reader-${width.toInt()}');
         expect(
           (await db.doc('users/u/learning/c_l').get()).data()?['completed'],
           true,
         );
-        expect(find.text('Đã học • Đánh dấu chưa học'), findsOneWidget);
+        expect(find.text('Đã học'), findsOneWidget);
+        expect(find.textContaining('Đánh dấu chưa học'), findsNothing);
         expect(tester.takeException(), isNull);
         await db.doc('learning_notifications/n').set({
           'title': 'Lịch học mới',
@@ -223,7 +238,7 @@ void main() {
             key: shellKey,
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: AppTheme.light,
+              theme: LearnerTheme.light,
               home: UserMainLayout(
                 args: UserArguments(
                   userId: 'u',
@@ -242,27 +257,13 @@ void main() {
         );
         await tester.pumpAndSettle();
         await capture(tester, shellKey, 'app-${width.toInt()}');
-        if (width < 900) {
-          expect(
-            tester
-                .widget<BottomNavigationBar>(find.byType(BottomNavigationBar))
-                .items
-                .length,
-            5,
-          );
-          await tester.tap(find.text('Kiểm tra'));
-        } else {
-          expect(
-            tester
-                .widget<NavigationRail>(find.byType(NavigationRail))
-                .destinations
-                .length,
-            5,
-          );
-          await tester.tap(find.text('Kiểm tra'));
-        }
+        expect(find.byType(NavigationRail), findsNothing);
+        await tester.tap(find.text('Học tập'));
         await tester.pumpAndSettle();
-        expect(find.text('Bài kiểm tra'), findsOneWidget);
+        await capture(tester, shellKey, 'course-library-${width.toInt()}');
+        await tester.tap(find.text('Kiểm tra'));
+        await tester.pumpAndSettle();
+        expect(find.text('Học trước, kiểm tra sau'), findsOneWidget);
         expect(tester.takeException(), isNull);
         if (const bool.fromEnvironment('CAPTURE_UI')) {
           final loginKey = GlobalKey();

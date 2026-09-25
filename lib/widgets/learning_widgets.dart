@@ -1,8 +1,14 @@
+// GIAO DIỆN DÙNG CHUNG: Danh sách Firebase và hộp chỉnh sửa dùng chung; cấu hình trường qua tham số.
+// Các màn hình import tệp này sẽ dùng chung thay đổi.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
-import '../services/learning_service.dart';
-import '../services/image_upload_service.dart';
+import '../services/nghiep_vu/learning_service.dart';
+import '../services/tep/image_upload_service.dart';
+import 'lesson_rich_editor.dart';
+import 'course_cover.dart';
 
 class LearningList extends StatelessWidget {
   const LearningList({super.key, required this.stream, required this.builder});
@@ -13,46 +19,111 @@ class LearningList extends StatelessWidget {
   Widget build(BuildContext context) =>
       StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: stream,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
+        builder: (context, duLieuNhan) {
+          if (duLieuNhan.hasError) {
             return const Center(
               child: Text(
                 'Không tải được dữ liệu. Kiểm tra kết nối và quyền truy cập.',
               ),
             );
           }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+          if (!duLieuNhan.hasData) {
+            return const Center(
+              child: SizedBox(
+                width: 220,
+                child: LinearProgressIndicator(minHeight: 4),
+              ),
+            );
           }
-          return builder(snapshot.data!.docs);
+          return builder(duLieuNhan.data!.docs);
         },
       );
 }
 
+/// [fields] dùng mã trường ổn định; [labels] chỉ đổi chữ hiển thị trên form.
+/// Form cũ có thể bỏ [labels] để tiếp tục dùng nhãn làm mã trường.
 Future<bool> editLearningRecord(
   BuildContext context, {
   required String title,
   required Map<String, String> fields,
   required Future<void> Function(Map<String, String>) save,
+  Map<String, String> labels = const {},
   Set<String> optional = const {},
   Set<String> urls = const {},
   Map<String, int> maxLengths = const {},
+  Map<String, List<String>> selectFields = const {},
+  Map<String, bool Function(Map<String, String>)> visibleWhen = const {},
+  Set<String> dateTimeFields = const {},
+  Set<String> richTextFields = const {},
   String? imageFolder,
+  Map<String, IconData>? iconChoices,
   String initialImage = '',
+  bool imageRequired = false,
+  bool fullPage = false,
   String? note,
+  ImageUploadService? imageService,
 }) async {
   var imageUrl = initialImage;
+  final uploader = imageService ?? ImageUploadService();
+  SelectedUploadImage? selectedImage;
+  double? uploadProgress;
+
+  void showErrorNotification(String thongDiep) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null || thongDiep.trim().isEmpty) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(thongDiep),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
+  String errorMessage(Object loi) {
+    if (loi is ImageUploadException) return loi.message;
+    if (loi is FirebaseFunctionsException &&
+        [
+          'already-exists',
+          'invalid-argument',
+          'failed-precondition',
+          'permission-denied',
+          'not-found',
+        ].contains(loi.code) &&
+        (loi.message ?? '').trim().isNotEmpty) {
+      return loi.message!;
+    }
+    if (loi is ArgumentError && loi.message.toString().trim().isNotEmpty) {
+      return loi.message.toString();
+    }
+    if (loi is FirebaseException) {
+      return switch (loi.code) {
+        'permission-denied' => 'Bạn không có quyền thực hiện thao tác này.',
+        'unauthenticated' => 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.',
+        'unavailable' || 'network-request-failed' =>
+          'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.',
+        'deadline-exceeded' => 'Máy chủ phản hồi quá lâu. Hãy thử lại.',
+        'not-found' => 'Không tìm thấy dữ liệu cần cập nhật.',
+        _ => 'Máy chủ báo lỗi (${loi.code}). Hãy thử lại.',
+      };
+    }
+    return 'Không thể hoàn tất thao tác. Kiểm tra dữ liệu và kết nối rồi thử lại.';
+  }
+
   final controllers = {
     for (final e in fields.entries) e.key: TextEditingController(text: e.value),
   };
   final form = GlobalKey<FormState>();
   var busy = false;
-  String? error;
-  final result = await showDialog<bool>(
+  String? loi;
+  final ketQua = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
     builder: (context) => StatefulBuilder(
-      builder: (context, setState) => AlertDialog(
+      builder: (context, setState) => _KhungSuaBanGhi(
+        fullPage: fullPage,
         title: Text(title),
         content: SizedBox(
           width: 560,
@@ -67,86 +138,190 @@ Future<bool> editLearningRecord(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(note),
                     ),
-                  if (imageFolder != null) ...[
-                    if (imageUrl.isNotEmpty)
-                      Image.network(
-                        imageUrl,
-                        height: 100,
-                        errorBuilder: (_, _, _) => const Icon(Icons.image),
+                  if (imageFolder != null || iconChoices != null) ...[
+                    _XemTruocAnhDaChon(url: imageUrl, image: selectedImage),
+                    const SizedBox(height: 10),
+                    if (iconChoices != null)
+                      _BoChonBieuTuong(
+                        choices: iconChoices,
+                        selected: imageUrl.startsWith('icon:')
+                            ? imageUrl.substring(5)
+                            : null,
+                        onSelected: busy
+                            ? null
+                            : (khoa) => setState(() {
+                                imageUrl = 'icon:$khoa';
+                                selectedImage = null;
+                                loi = null;
+                              }),
                       ),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.add_photo_alternate_outlined),
-                      label: Text(
-                        busy
-                            ? 'Đang xử lý…'
-                            : 'Chọn ảnh từ thiết bị (tối đa 5 MB)',
+                    if (imageFolder != null) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.add_photo_alternate_outlined),
+                          label: Text(
+                            busy
+                                ? 'Đang xử lý…'
+                                : imageUrl.isEmpty
+                                ? 'Chọn ảnh từ thiết bị (tối đa 20 MB)'
+                                : 'Đổi ảnh từ thiết bị (tối đa 20 MB)',
+                          ),
+                          onPressed: busy
+                              ? null
+                              : () async {
+                                  setState(() {
+                                    busy = true;
+                                    loi = null;
+                                  });
+                                  try {
+                                    final picked = await uploader.pick();
+                                    if (context.mounted && picked != null) {
+                                      setState(() {
+                                        selectedImage = picked;
+                                        imageUrl = '';
+                                      });
+                                    }
+                                  } catch (errorObject) {
+                                    if (context.mounted) {
+                                      final thongDiep = errorMessage(
+                                        errorObject,
+                                      );
+                                      showErrorNotification(thongDiep);
+                                      setState(() => loi = thongDiep);
+                                    }
+                                  } finally {
+                                    if (context.mounted) {
+                                      setState(() => busy = false);
+                                    }
+                                  }
+                                },
+                        ),
                       ),
-                      onPressed: busy
-                          ? null
-                          : () async {
-                              setState(() {
-                                busy = true;
-                                error = null;
-                              });
-                              try {
-                                final uploaded =
-                                    await ImageUploadService.pickAndUpload(
-                                      imageFolder,
-                                    );
-                                if (context.mounted && uploaded != null) {
-                                  setState(() => imageUrl = uploaded);
-                                }
-                              } catch (_) {
-                                if (context.mounted) {
-                                  setState(
-                                    () => error = 'Không tải được ảnh. Chọn JPG, PNG hoặc WebP tối đa 5 MB và kiểm tra kết nối.',
-                                  );
-                                }
-                              } finally {
-                                if (context.mounted) {
-                                  setState(() => busy = false);
-                                }
-                              }
-                            },
-                    ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (selectedImage != null) ...[
+                      Text(
+                        selectedImage!.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Text(
+                        'Ảnh xem trước trên thiết bị. Bấm Lưu để tải lên.',
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (uploadProgress != null) ...[
+                      LinearProgressIndicator(value: uploadProgress),
+                      Text('Đang tải ảnh: ${(uploadProgress! * 100).round()}%'),
+                      const SizedBox(height: 12),
+                    ],
                   ],
-                  for (final entry in controllers.entries)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: TextFormField(
-                        controller: entry.value,
-                        enabled: !busy,
-                        obscureText: entry.key.toLowerCase().contains(
-                          'mật khẩu',
-                        ),
-                        minLines: 1,
-                        maxLines: entry.key.toLowerCase().contains('mật khẩu')
-                            ? 1
-                            : entry.key.contains('Nội dung')
-                            ? 8
-                            : 2,
-                        decoration: InputDecoration(
-                          labelText: entry.key,
-                          border: const OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          final text = value!.trim();
-                          if (!optional.contains(entry.key) && text.isEmpty) {
-                            return 'Vui lòng nhập thông tin';
-                          }
-                          final limit = maxLengths[entry.key] ?? 20000;
-                          if (text.length > limit) {
-                            return 'Tối đa $limit ký tự.';
-                          }
-                          if (urls.contains(entry.key)) {
-                            return LearningPolicy.validateUrl(text);
-                          }
-                          return null;
-                        },
+                  for (final capDuLieu in controllers.entries)
+                    if (visibleWhen[capDuLieu.key]?.call({
+                          for (final e in controllers.entries)
+                            e.key: e.value.text,
+                        }) ??
+                        true)
+                      Padding(
+                        key: ValueKey(capDuLieu.key),
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: dateTimeFields.contains(capDuLieu.key)
+                            ? _TruongNgayGio(
+                                controller: capDuLieu.value,
+                                enabled: !busy,
+                                label: labels[capDuLieu.key] ?? capDuLieu.key,
+                                optional: optional.contains(capDuLieu.key),
+                              )
+                            : selectFields.containsKey(capDuLieu.key)
+                            ? DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                initialValue:
+                                    selectFields[capDuLieu.key]!.contains(
+                                      capDuLieu.value.text,
+                                    )
+                                    ? capDuLieu.value.text
+                                    : selectFields[capDuLieu.key]!.first,
+                                decoration: InputDecoration(
+                                  labelText:
+                                      labels[capDuLieu.key] ?? capDuLieu.key,
+                                  border: const OutlineInputBorder(),
+                                ),
+                                items: [
+                                  for (final luaChon
+                                      in selectFields[capDuLieu.key]!)
+                                    DropdownMenuItem(
+                                      value: luaChon,
+                                      child: Text(
+                                        luaChon,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                ],
+                                onChanged: busy
+                                    ? null
+                                    : (giaTri) {
+                                        if (giaTri != null) {
+                                          setState(
+                                            () => capDuLieu.value.text = giaTri,
+                                          );
+                                        }
+                                      },
+                                validator: (giaTri) =>
+                                    giaTri == null || giaTri.trim().isEmpty
+                                    ? 'Vui lòng chọn thông tin'
+                                    : null,
+                              )
+                            : richTextFields.contains(capDuLieu.key)
+                            ? LessonRichEditor(
+                                controller: capDuLieu.value,
+                                enabled: !busy,
+                                label:
+                                    labels[capDuLieu.key] ?? 'Nội dung bài học',
+                                imageFolder: imageFolder,
+                              )
+                            : TextFormField(
+                                controller: capDuLieu.value,
+                                enabled: !busy,
+                                obscureText: capDuLieu.key
+                                    .toLowerCase()
+                                    .contains('mật khẩu'),
+                                minLines: 1,
+                                maxLines:
+                                    capDuLieu.key.toLowerCase().contains(
+                                      'mật khẩu',
+                                    )
+                                    ? 1
+                                    : capDuLieu.key.contains('Nội dung')
+                                    ? 8
+                                    : 2,
+                                decoration: InputDecoration(
+                                  labelText:
+                                      labels[capDuLieu.key] ?? capDuLieu.key,
+                                  border: const OutlineInputBorder(),
+                                ),
+                                validator: (giaTri) {
+                                  final vanBan = giaTri!.trim();
+                                  if (!optional.contains(capDuLieu.key) &&
+                                      vanBan.isEmpty) {
+                                    return 'Vui lòng nhập thông tin';
+                                  }
+                                  final gioiHan =
+                                      maxLengths[capDuLieu.key] ?? 20000;
+                                  if (vanBan.length > gioiHan) {
+                                    return 'Tối đa $gioiHan ký tự.';
+                                  }
+                                  if (urls.contains(capDuLieu.key)) {
+                                    return LearningPolicy.validateUrl(vanBan);
+                                  }
+                                  return null;
+                                },
+                              ),
                       ),
-                    ),
-                  if (error != null)
-                    Text(error!, style: const TextStyle(color: Colors.red)),
+                  if (loi != null)
+                    Text(loi!, style: const TextStyle(color: Colors.red)),
                 ],
               ),
             ),
@@ -162,24 +337,61 @@ Future<bool> editLearningRecord(
                 ? null
                 : () async {
                     if (!form.currentState!.validate()) return;
+                    if (imageRequired &&
+                        imageUrl.isEmpty &&
+                        selectedImage == null) {
+                      setState(
+                        () => loi = iconChoices == null
+                            ? 'Vui lòng chọn ảnh bìa từ thiết bị trước khi lưu.'
+                            : 'Vui lòng chọn ảnh bìa hoặc biểu tượng trước khi lưu.',
+                      );
+                      showErrorNotification(
+                        iconChoices == null
+                            ? 'Vui lòng chọn ảnh bìa từ thiết bị trước khi lưu.'
+                            : 'Vui lòng chọn ảnh bìa hoặc biểu tượng trước khi lưu.',
+                      );
+                      return;
+                    }
                     setState(() {
                       busy = true;
-                      error = null;
+                      loi = null;
                     });
                     try {
+                      if (selectedImage != null && imageFolder != null) {
+                        setState(() => uploadProgress = 0);
+                        final uploadedUrl = await uploader.upload(
+                          imageFolder,
+                          selectedImage!,
+                          onProgress: (tienDo) {
+                            if (context.mounted) {
+                              setState(() => uploadProgress = tienDo);
+                            }
+                          },
+                        );
+                        imageUrl = uploadedUrl;
+                        if (!context.mounted) return;
+                        setState(() {
+                          selectedImage = null;
+                          uploadProgress = null;
+                        });
+                      }
                       await save({
-                        if (imageFolder != null) 'imageUrl': imageUrl,
+                        if (imageFolder != null || iconChoices != null)
+                          'imageUrl': imageUrl,
                         for (final e in controllers.entries)
                           e.key: e.key.toLowerCase().contains('mật khẩu')
                               ? e.value.text
                               : e.value.text.trim(),
                       });
                       if (context.mounted) Navigator.pop(context, true);
-                    } catch (_) {
+                    } catch (saveError) {
                       if (context.mounted) {
+                        final thongDiep = errorMessage(saveError);
+                        showErrorNotification(thongDiep);
                         setState(() {
                           busy = false;
-                          error = 'Không lưu được. Kiểm tra dữ liệu và quyền truy cập.';
+                          uploadProgress = null;
+                          loi = thongDiep;
                         });
                       }
                     }
@@ -190,10 +402,233 @@ Future<bool> editLearningRecord(
       ),
     ),
   );
-  // Controllers are disposed after the dialog route finishes its exit animation.
+  // Hủy controller sau khi hiệu ứng đóng hộp thoại kết thúc.
   await Future<void>.delayed(const Duration(milliseconds: 300));
-  for (final controller in controllers.values) {
-    controller.dispose();
+  for (final boDieuKhien in controllers.values) {
+    boDieuKhien.dispose();
   }
-  return result == true;
+  return ketQua == true;
+}
+
+class _KhungSuaBanGhi extends StatelessWidget {
+  const _KhungSuaBanGhi({
+    required this.fullPage,
+    required this.title,
+    required this.content,
+    required this.actions,
+  });
+
+  final bool fullPage;
+  final Widget title, content;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!fullPage) {
+      return AlertDialog(title: title, content: content, actions: actions);
+    }
+    return Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(title: title, automaticallyImplyLeading: false),
+        body: Center(
+          child: Padding(padding: const EdgeInsets.all(20), child: content),
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: actions,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TruongNgayGio extends StatefulWidget {
+  const _TruongNgayGio({
+    required this.controller,
+    required this.enabled,
+    required this.label,
+    required this.optional,
+  });
+
+  final TextEditingController controller;
+  final bool enabled;
+  final String label;
+  final bool optional;
+
+  @override
+  State<_TruongNgayGio> createState() => _TrangThaiTruongNgayGio();
+}
+
+class _TrangThaiTruongNgayGio extends State<_TruongNgayGio> {
+  DateTime? _doc() =>
+      DateTime.tryParse(widget.controller.text.trim().replaceFirst(' ', 'T'));
+
+  String _dinhDang(DateTime ngay) {
+    String two(int giaTri) => giaTri.toString().padLeft(2, '0');
+    return '${ngay.year}-${two(ngay.month)}-${two(ngay.day)} '
+        '${two(ngay.hour)}:${two(ngay.minute)}';
+  }
+
+  Future<void> _chon() async {
+    final hienHanh = _doc() ?? DateTime.now();
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: hienHanh,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (selectedDate == null || !mounted) return;
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(hienHanh),
+    );
+    if (selectedTime == null || !mounted) return;
+    setState(() {
+      widget.controller.text = _dinhDang(
+        DateTime(
+          selectedDate.year,
+          selectedDate.month,
+          selectedDate.day,
+          selectedTime.hour,
+          selectedTime.minute,
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => TextFormField(
+    controller: widget.controller,
+    enabled: widget.enabled,
+    readOnly: true,
+    onTap: widget.enabled ? _chon : null,
+    decoration: InputDecoration(
+      labelText: widget.label,
+      border: const OutlineInputBorder(),
+      prefixIcon: const Icon(Icons.calendar_month_outlined),
+      suffixIcon: widget.controller.text.isEmpty
+          ? null
+          : IconButton(
+              tooltip: 'Xóa ngày giờ',
+              onPressed: widget.enabled
+                  ? () => setState(widget.controller.clear)
+                  : null,
+              icon: const Icon(Icons.clear),
+            ),
+    ),
+    validator: (giaTri) =>
+        !widget.optional && (giaTri == null || giaTri.isEmpty)
+        ? 'Vui lòng chọn ngày giờ'
+        : null,
+  );
+}
+
+class _XemTruocAnhDaChon extends StatelessWidget {
+  const _XemTruocAnhDaChon({required this.url, this.image});
+
+  final String url;
+  final SelectedUploadImage? image;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    decoration: BoxDecoration(
+      color: const Color(0xFFF6E9E7),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xFFE4C9C5)),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: AspectRatio(
+      aspectRatio: 16 / 9,
+      child: image != null
+          ? Image.memory(
+              image!.bytes,
+              fit: BoxFit.contain,
+              cacheWidth: 1000,
+              errorBuilder: (_, _, _) => const Center(
+                child: Text('Không đọc được ảnh. Hãy chọn lại.'),
+              ),
+            )
+          : url.startsWith('icon:')
+          ? CourseCover(url: url, height: 160)
+          : url.isEmpty
+          ? const Center(
+              child: Icon(
+                Icons.image_outlined,
+                size: 36,
+                color: Color(0xFF5A2F2F),
+              ),
+            )
+          : Image.network(
+              url,
+              webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+              fit: BoxFit.contain,
+              loadingBuilder: (context, child, loading) => loading == null
+                  ? child
+                  : const Center(
+                      child: SizedBox(
+                        width: 180,
+                        child: LinearProgressIndicator(minHeight: 4),
+                      ),
+                    ),
+              errorBuilder: (_, _, _) => const Center(
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  size: 36,
+                  color: Color(0xFF5A2F2F),
+                ),
+              ),
+            ),
+    ),
+  );
+}
+
+class _BoChonBieuTuong extends StatelessWidget {
+  const _BoChonBieuTuong({
+    required this.choices,
+    required this.selected,
+    required this.onSelected,
+  });
+  final Map<String, IconData> choices;
+  final String? selected;
+  final ValueChanged<String>? onSelected;
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 10,
+    runSpacing: 10,
+    children: choices.entries
+        .map(
+          (capDuLieu) => InkWell(
+            onTap: onSelected == null ? null : () => onSelected!(capDuLieu.key),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                color: selected == capDuLieu.key
+                    ? const Color(0xFFFFE0E0)
+                    : const Color(0xFFF6E9E7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: selected == capDuLieu.key
+                      ? const Color(0xFFC51F2B)
+                      : const Color(0xFFE4C9C5),
+                  width: selected == capDuLieu.key ? 2 : 1,
+                ),
+              ),
+              child: Icon(
+                capDuLieu.value,
+                color: const Color(0xFFC51F2B),
+                size: 30,
+              ),
+            ),
+          ),
+        )
+        .toList(),
+  );
 }

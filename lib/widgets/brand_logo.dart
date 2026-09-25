@@ -1,8 +1,13 @@
+// GIAO DIỆN DÙNG CHUNG: Giữ nguyên ảnh huy hiệu; chỉ che phần trắng bên ngoài hình khiên.
+// Các màn hình import tệp này sẽ dùng chung thay đổi.
+
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../app/app_theme.dart';
 
-/// Keep the supplied badge pixels; hide only the white area outside its shield.
+/// Giữ nguyên ảnh huy hiệu; chỉ che phần trắng bên ngoài hình khiên.
 class BrandLogo extends StatelessWidget {
   const BrandLogo({super.key, this.admin = false, this.height = 64});
   final bool admin;
@@ -10,7 +15,7 @@ class BrandLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) => admin
       ? ClipPath(
-          clipper: _ShieldClipper(),
+          clipper: _CatHinhKhien(),
           child: Image.asset(
             AppTheme.webLogo,
             height: height,
@@ -21,7 +26,7 @@ class BrandLogo extends StatelessWidget {
       : Image.asset(AppTheme.appLogo, height: height, width: height);
 }
 
-class _ShieldClipper extends CustomClipper<Path> {
+class _CatHinhKhien extends CustomClipper<Path> {
   @override
   Path getClip(Size s) {
     final p = Path()
@@ -31,11 +36,13 @@ class _ShieldClipper extends CustomClipper<Path> {
       ..cubicTo(220, 230, 250, 149, 245, 43)
       ..cubicTo(203, 48, 159, 35, 125, 5)
       ..close();
+    final sx = s.width / 250;
+    final sy = s.height / 286;
     return p.transform(
-      Matrix4.diagonal3Values(s.width / 250, s.height / 286, 1).storage,
+      Float64List.fromList([sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
     );
   }
 
   @override
-  bool shouldReclip(_ShieldClipper oldClipper) => false;
+  bool shouldReclip(_CatHinhKhien oldClipper) => false;
 }

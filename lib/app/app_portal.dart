@@ -1,3 +1,6 @@
+// KHỞI TẠO / GIAO DIỆN: Phân biệt cổng Admin/Học viên và truyền cách mở trang chủ sau đăng nhập.
+// Các màn hình import tệp này sẽ dùng chung thay đổi.
+
 import 'package:flutter/widgets.dart';
 
 enum AppPortal {
@@ -5,20 +8,22 @@ enum AppPortal {
   admin;
 
   String get title => this == user ? 'Học tập số E09' : 'Quản trị E09';
-  String get loginLabel => this == user
-      ? 'Ứng dụng dành cho học viên'
-      : 'Cổng quản trị dành cho Admin';
+  // Cổng học viên đã có tiêu đề thương hiệu phía trên; không lặp lại dòng
+  // mô tả cổng bên dưới biểu trưng.
+  // Dùng một khoảng trắng vô hình làm giá trị tương thích cho các tích hợp
+  // cũ; giao diện không còn hiển thị dòng mô tả cổng học viên.
+  String get loginLabel => this == user ? ' ' : 'Cổng dành cho quản lý';
 
-  bool acceptsRole(Object? role) {
-    final value = role?.toString().trim().toLowerCase();
+  bool acceptsRole(Object? vaiTro) {
+    final giaTri = vaiTro?.toString().trim().toLowerCase();
     return this == admin
-        ? value == 'admin' || value == 'super_admin'
-        : value == 'user' || value == 'học viên';
+        ? giaTri == 'admin' || giaTri == 'super_admin'
+        : giaTri == 'user' || giaTri == 'học viên';
   }
 }
 
-/// Each entry point supplies only its own screen builder. Shared UI never
-/// imports either portal's screens, including after logout.
+/// Mỗi cổng chỉ cung cấp bộ dựng màn hình của mình. Giao diện dùng chung không
+/// import màn hình của cổng còn lại, kể cả sau khi đăng xuất.
 class PortalScope extends InheritedWidget {
   const PortalScope({
     super.key,

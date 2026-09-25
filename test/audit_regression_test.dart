@@ -1,8 +1,20 @@
-import 'package:e09_elearning/services/firestore_service.dart';
-import 'package:e09_elearning/services/learning_service.dart';
+import 'package:e09_elearning/services/du_lieu/firestore_service.dart';
+import 'package:e09_elearning/services/nghiep_vu/learning_service.dart';
 import 'package:e09_elearning/models/cau_hoi_model.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+Future<void> seedStudy(FakeFirebaseFirestore db) async {
+  await db.doc('courses/c/lessons/l').set({
+    'learningMode': 'study_exam',
+    'examId': 'e',
+  });
+  await db.doc('users/u/learning/c_l').set({
+    'courseId': 'c',
+    'lessonId': 'l',
+    'completed': true,
+  });
+}
 
 void main() {
   test('editing an audience preserves all characters of class IDs', () {
@@ -15,12 +27,15 @@ void main() {
     () async {
       final db = FakeFirebaseFirestore();
       final service = FirestoreService(firestore: db);
+      await seedStudy(db);
       await db.doc('exams/e').set({
         'isOpen': true,
         'durationMinutes': 5,
         'maxAttempts': 1,
       });
       final session = await service.getOrCreateAttempt(
+        courseId: 'c',
+        lessonId: 'l',
         userId: 'u',
         examId: 'e',
         durationMinutes: 60,
@@ -36,6 +51,8 @@ void main() {
       });
       await expectLater(
         service.getOrCreateAttempt(
+          courseId: 'c',
+          lessonId: 'l',
           userId: 'u',
           examId: 'e',
           durationMinutes: 60,
@@ -48,6 +65,7 @@ void main() {
   test('retry preserves legacy attempts and their histories', () async {
     final db = FakeFirebaseFirestore();
     final service = FirestoreService(firestore: db);
+    await seedStudy(db);
     await db.doc('exams/e').set({'isOpen': true, 'durationMinutes': 5});
     for (final id in ['a', 'b']) {
       await db.doc('exam_attempts/$id').set({
@@ -60,6 +78,8 @@ void main() {
       await db.doc('exam_attempts/$id/runs/1').set({'score': 8});
     }
     await service.getOrCreateAttempt(
+      courseId: 'c',
+      lessonId: 'l',
       userId: 'u',
       examId: 'e',
       durationMinutes: 5,

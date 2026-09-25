@@ -1,8 +1,8 @@
 import 'package:e09_elearning/models/user_import.dart';
 import 'package:e09_elearning/screens/admin/admin_account_screen.dart';
 import 'package:e09_elearning/screens/admin/admin_user_import_dialog.dart';
-import 'package:e09_elearning/services/firestore_service.dart';
-import 'package:e09_elearning/services/account_api.dart';
+import 'package:e09_elearning/services/du_lieu/firestore_service.dart';
+import 'package:e09_elearning/services/ket_noi_api/account_api.dart';
 import 'package:e09_elearning/models/account_identity.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -147,7 +147,7 @@ void main() {
       expect(
         tester
             .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Xác nhận thêm 1 User'),
+              find.widgetWithText(FilledButton, 'Xác nhận thêm 1 học viên'),
             )
             .onPressed,
         isNull,
@@ -159,7 +159,7 @@ void main() {
       expect(
         tester
             .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Xác nhận thêm 1 User'),
+              find.widgetWithText(FilledButton, 'Xác nhận thêm 1 học viên'),
             )
             .onPressed,
         isNotNull,
@@ -198,12 +198,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Nhập User từ Excel'), findsOneWidget);
+    expect(find.text('Nhập học viên từ Excel'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.person_add));
     await tester.pumpAndSettle();
     expect(find.text('Giáo viên'), findsNothing);
-    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
-    expect(find.text('Vai trò: User (Học viên)'), findsOneWidget);
+    // The account page now has a unit filter behind the dialog; verify the
+    // dialog itself still does not expose role selection.
+    expect(find.text('Cách triển khai'), findsNothing);
+    expect(find.text('Vai trò: Học viên'), findsOneWidget);
   });
 
   for (final width in [390.0, 1200.0]) {
@@ -271,7 +273,7 @@ void main() {
         expect(find.textContaining('Nguyễn An'), findsOneWidget);
         expect(find.textContaining('PrivatePassword!'), findsNothing);
         expect((await db.collection('users').get()).docs, isEmpty);
-        await tester.tap(find.text('Xác nhận thêm 1 User'));
+        await tester.tap(find.text('Xác nhận thêm 1 học viên'));
         await tester.pumpAndSettle();
         expect(completed, 1);
         expect(writes, 1);
@@ -311,7 +313,7 @@ void main() {
     expect(
       tester
           .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Xác nhận thêm 1 User'),
+            find.widgetWithText(FilledButton, 'Xác nhận thêm 1 học viên'),
           )
           .onPressed,
       isNull,

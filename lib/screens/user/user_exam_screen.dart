@@ -1,3 +1,8 @@
+// APP HỌC VIÊN: Màn hình làm bài thi trên ứng dụng học viên.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
+import '../../widgets/learner_header.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -5,19 +10,20 @@ import 'package:flutter/material.dart';
 import '../../models/cau_hoi_model.dart';
 import '../../models/cau_tra_loi_model.dart';
 import '../../models/exam_arguments.dart';
-import '../../services/firestore_service.dart';
+import '../../services/du_lieu/firestore_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/option_item.dart';
 import 'user_result_screen.dart';
 import '../../models/exam_result_arguments.dart';
 
+/// Màn hình làm bài thi trên ứng dụng học viên.
 class UserExamScreen extends StatefulWidget {
   final ExamArguments args;
 
   const UserExamScreen({super.key, required this.args});
 
   @override
-  State<UserExamScreen> createState() => _UserExamScreenState();
+  State<UserExamScreen> createState() => _TrangThaiBaiThiHocVien();
 }
 
 class ExamColors {
@@ -39,35 +45,35 @@ class ExamColors {
   static const Color textDark = Colors.black87;
 }
 
-class _UserExamScreenState extends State<UserExamScreen>
+class _TrangThaiBaiThiHocVien extends State<UserExamScreen>
     with WidgetsBindingObserver {
-  final FirestoreService _firestoreService = FirestoreService();
+  final FirestoreService _dichVuFirestore = FirestoreService();
 
   List<CauHoiModel> _dsCauHoi = [];
-  bool _isLoading = true;
-  bool _isSubmitting = false;
-  String? _loadError;
-  int _currentQuestionIndex = 0;
+  bool _dangTai = true;
+  bool _dangNop = false;
+  String? _loiTaiDuLieu;
+  int _viTriCauHoiHienTai = 0;
   String? _maLuot;
-  final Map<int, int> _selectedAnswers = {};
+  final Map<int, int> _dapAnDaChon = {};
 
-  Timer? _timer;
-  DateTime? _endsAt;
-  late int _remainingSeconds;
+  Timer? _boDemGio;
+  DateTime? _thoiDiemKetThuc;
+  late int _soGiayConLai;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _remainingSeconds = widget.args.thoiGianLamBaiPhut * 60;
-    _initExamData();
+    _soGiayConLai = widget.args.thoiGianLamBaiPhut * 60;
+    _khoiTaoDuLieuThi();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_saveProgress());
-    _timer?.cancel();
+    unawaited(_luuTienDo());
+    _boDemGio?.cancel();
     super.dispose();
   }
 
@@ -76,89 +82,86 @@ class _UserExamScreenState extends State<UserExamScreen>
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      unawaited(_saveProgress());
+      unawaited(_luuTienDo());
     } else if (state == AppLifecycleState.resumed) {
-      _updateRemainingTime();
+      _capNhatThoiGianConLai();
     }
   }
 
-  void _startTimer() {
-    _timer?.cancel();
-    _updateRemainingTime();
-    if (_remainingSeconds <= 0) {
+  void _batDauDemGio() {
+    _boDemGio?.cancel();
+    _capNhatThoiGianConLai();
+    if (_soGiayConLai <= 0) {
       unawaited(_xuLyTuDongNopBai());
       return;
     }
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _boDemGio = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
-      _updateRemainingTime();
-      if (_remainingSeconds <= 0) {
-        _timer?.cancel();
+      _capNhatThoiGianConLai();
+      if (_soGiayConLai <= 0) {
+        _boDemGio?.cancel();
         unawaited(_xuLyTuDongNopBai());
       }
     });
   }
 
-  void _updateRemainingTime() {
-    if (_endsAt == null) return;
-    final seconds = _endsAt!.difference(DateTime.now()).inSeconds;
+  void _capNhatThoiGianConLai() {
+    if (_thoiDiemKetThuc == null) return;
+    final soGiay = _thoiDiemKetThuc!.difference(DateTime.now()).inSeconds;
     if (mounted) {
-      setState(() => _remainingSeconds = seconds > 0 ? seconds : 0);
+      setState(() => _soGiayConLai = soGiay > 0 ? soGiay : 0);
     } else {
-      _remainingSeconds = seconds > 0 ? seconds : 0;
+      _soGiayConLai = soGiay > 0 ? soGiay : 0;
     }
   }
 
-  Future<void> _saveProgress() async {
+  Future<void> _luuTienDo() async {
     final attemptId = _maLuot;
-    if (attemptId == null || _isSubmitting) return;
+    if (attemptId == null || _dangNop) return;
     try {
-      await _firestoreService.saveAttemptProgress(
+      await _dichVuFirestore.saveAttemptProgress(
         attemptId: attemptId,
-        selectedAnswers: Map<int, int>.from(_selectedAnswers),
-        currentQuestionIndex: _currentQuestionIndex,
+        selectedAnswers: Map<int, int>.from(_dapAnDaChon),
+        currentQuestionIndex: _viTriCauHoiHienTai,
       );
     } catch (_) {
-      // Firestore tự xếp hàng ghi offline và đồng bộ lại khi có mạng.
+      // Firestore tự xếp hàng khi mất mạng và đồng bộ lại khi có mạng.
     }
   }
 
-  void _goToQuestion(int index) {
-    setState(() => _currentQuestionIndex = index);
-    unawaited(_saveProgress());
+  void _denCauHoi(int viTri) {
+    setState(() => _viTriCauHoiHienTai = viTri);
+    unawaited(_luuTienDo());
   }
 
-  void _selectAnswer(int optionIndex) {
-    if (_isLoading ||
-        _isSubmitting ||
-        _maLuot == null ||
-        _remainingSeconds <= 0) {
+  void _chonDapAn(int optionIndex) {
+    if (_dangTai || _dangNop || _maLuot == null || _soGiayConLai <= 0) {
       return;
     }
     setState(() {
-      _selectedAnswers[_currentQuestionIndex] = optionIndex;
+      _dapAnDaChon[_viTriCauHoiHienTai] = optionIndex;
     });
-    unawaited(_saveProgress());
+    unawaited(_luuTienDo());
   }
 
-  String get _formattedTime {
-    int minutes = _remainingSeconds ~/ 60;
-    int seconds = _remainingSeconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  String get _thoiGianHienThi {
+    int soPhut = _soGiayConLai ~/ 60;
+    int soGiay = _soGiayConLai % 60;
+    return '${soPhut.toString().padLeft(2, '0')}:${soGiay.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _initExamData() async {
+  Future<void> _khoiTaoDuLieuThi() async {
     try {
       final loadedQuestions = widget.args.questions.isNotEmpty
           ? widget.args.questions
-          : await _firestoreService.getQuestionsForExam(
+          : await _dichVuFirestore.getQuestionsForExam(
               widget.args.maBaiKiemTra,
             );
-      final questions = loadedQuestions
-          .where((question) => question.isValidForExam)
+      final cacCauHoi = loadedQuestions
+          .where((cauHoi) => cauHoi.isValidForExam)
           .toList();
 
-      if (questions.length != loadedQuestions.length) {
+      if (cacCauHoi.length != loadedQuestions.length) {
         throw StateError(
           'Đề có câu hỏi chưa hợp lệ hoặc chưa hỗ trợ. Vui lòng liên hệ giáo viên để kiểm tra đề.',
         );
@@ -166,72 +169,73 @@ class _UserExamScreenState extends State<UserExamScreen>
 
       if (!mounted) return;
       setState(() {
-        _dsCauHoi = questions;
-        _isLoading = questions.isNotEmpty;
+        _dsCauHoi = cacCauHoi;
+        _dangTai = cacCauHoi.isNotEmpty;
       });
 
-      if (questions.isEmpty) return;
+      if (cacCauHoi.isEmpty) return;
 
       try {
-        var session = await _firestoreService.getOrCreateAttempt(
+        var phien = await _dichVuFirestore.getOrCreateAttempt(
+          courseId: widget.args.courseId,
+          lessonId: widget.args.lessonId,
           userId: widget.args.maNguoiDung,
           examId: widget.args.maBaiKiemTra,
           durationMinutes: widget.args.thoiGianLamBaiPhut,
           maxAttempts: widget.args.soLuotLamToiDa,
         );
-        if (!session.endsAt.isAfter(DateTime.now())) {
-          final expiredResult = _gradeAnswers(
-            questions,
-            session.selectedAnswers,
-          );
-          await _firestoreService.submitExam(
-            maLuot: session.attemptId,
+        if (!phien.endsAt.isAfter(DateTime.now())) {
+          final expiredResult = _chamDapAn(cacCauHoi, phien.selectedAnswers);
+          await _dichVuFirestore.submitExam(
+            maLuot: phien.attemptId,
             diemSo: expiredResult.score,
             dsCauTraLoi: expiredResult.answers,
             examTitle: widget.args.tenBaiKiemTra,
             correctAnswers: expiredResult.correctAnswers,
-            totalQuestions: questions.length,
+            totalQuestions: cacCauHoi.length,
           );
-          session = await _firestoreService.getOrCreateAttempt(
+          phien = await _dichVuFirestore.getOrCreateAttempt(
+            courseId: widget.args.courseId,
+            lessonId: widget.args.lessonId,
             userId: widget.args.maNguoiDung,
             examId: widget.args.maBaiKiemTra,
             durationMinutes: widget.args.thoiGianLamBaiPhut,
             maxAttempts: widget.args.soLuotLamToiDa,
           );
         }
-        _maLuot = session.attemptId;
-        _endsAt = session.endsAt;
-        for (final answer in session.selectedAnswers.entries) {
-          _selectedAnswers.putIfAbsent(answer.key, () => answer.value);
+        _maLuot = phien.attemptId;
+        _thoiDiemKetThuc = phien.endsAt;
+        for (final dapAn in phien.selectedAnswers.entries) {
+          _dapAnDaChon.putIfAbsent(dapAn.key, () => dapAn.value);
         }
-        if (session.currentQuestionIndex >= 0 &&
-            session.currentQuestionIndex < questions.length) {
-          _currentQuestionIndex = session.currentQuestionIndex;
+        if (phien.currentQuestionIndex >= 0 &&
+            phien.currentQuestionIndex < cacCauHoi.length) {
+          _viTriCauHoiHienTai = phien.currentQuestionIndex;
         }
         if (mounted) {
           setState(() {
-            _loadError = null;
-            _isLoading = false;
+            _loiTaiDuLieu = null;
+            _dangTai = false;
           });
-          await _saveProgress();
-          _startTimer();
+          await _luuTienDo();
+          _batDauDemGio();
         }
-      } catch (error) {
+      } catch (loi) {
         if (!mounted) return;
-        final errorText = _readableError(error);
+        final errorText = _thongBaoLoiDeDoc(loi);
         setState(() {
-          _loadError = errorText;
-          _isLoading = false;
+          _loiTaiDuLieu = errorText;
+          _dangTai = false;
         });
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(errorText)));
       }
     } catch (e) {
       if (mounted) {
-        final errorText = _readableError(e);
+        final errorText = _thongBaoLoiDeDoc(e);
         setState(() {
-          _isLoading = false;
-          _loadError = errorText;
+          _dangTai = false;
+          _loiTaiDuLieu = errorText;
         });
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(errorText)));
@@ -239,24 +243,24 @@ class _UserExamScreenState extends State<UserExamScreen>
     }
   }
 
-  String _readableError(Object error) {
-    if (error is StateError) return error.message.toString();
-    if (error.toString().contains('permission-denied')) {
+  String _thongBaoLoiDeDoc(Object loi) {
+    if (loi is StateError) return loi.message.toString();
+    if (loi.toString().contains('permission-denied')) {
       return 'Không có quyền đọc câu hỏi hoặc lượt làm bài trên Firestore.';
     }
-    return 'Không thể tải bài thi: $error';
+    return 'Không thể tải bài thi: $loi';
   }
 
-  void _retryPrepareAttempt() {
+  void _thuChuanBiLuotThiLai() {
     setState(() {
-      _loadError = null;
-      _isLoading = false;
+      _loiTaiDuLieu = null;
+      _dangTai = false;
     });
-    unawaited(_initExamData());
+    unawaited(_khoiTaoDuLieuThi());
   }
 
   Future<void> _xuLyTuDongNopBai() async {
-    if (_isSubmitting) return;
+    if (_dangNop) return;
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -273,35 +277,35 @@ class _UserExamScreenState extends State<UserExamScreen>
   }
 
   Future<void> _xuLyNopBai() async {
-    if (_maLuot == null || _isSubmitting) return;
+    if (_maLuot == null || _dangNop) return;
 
-    _timer?.cancel();
+    _boDemGio?.cancel();
     if (mounted) {
-      setState(() => _isSubmitting = true);
+      setState(() => _dangNop = true);
     }
 
-    final result = _gradeAnswers(_dsCauHoi, _selectedAnswers);
+    final ketQua = _chamDapAn(_dsCauHoi, _dapAnDaChon);
 
     try {
-      await _firestoreService.submitExam(
+      await _dichVuFirestore.submitExam(
         maLuot: _maLuot!,
-        diemSo: result.score,
-        dsCauTraLoi: result.answers,
+        diemSo: ketQua.score,
+        dsCauTraLoi: ketQua.answers,
         examTitle: widget.args.tenBaiKiemTra,
-        correctAnswers: result.correctAnswers,
+        correctAnswers: ketQua.correctAnswers,
         totalQuestions: _dsCauHoi.length,
       );
 
       if (mounted) {
-        final elapsed = widget.args.thoiGianLamBaiPhut * 60 - _remainingSeconds;
+        final elapsed = widget.args.thoiGianLamBaiPhut * 60 - _soGiayConLai;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (_) => UserResultScreen(
               args: ExamResultArguments(
-                diemSo: result.score,
+                diemSo: ketQua.score,
                 tongSoCau: _dsCauHoi.length,
-                soCauDung: result.correctAnswers,
+                soCauDung: ketQua.correctAnswers,
                 thoiGianLamBai:
                     '${(elapsed ~/ 60).toString().padLeft(2, '0')}:${(elapsed % 60).toString().padLeft(2, '0')}',
               ),
@@ -309,46 +313,48 @@ class _UserExamScreenState extends State<UserExamScreen>
           ),
         );
       }
-    } catch (error) {
+    } catch (loi) {
       if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      if (_remainingSeconds > 0) _startTimer();
+      setState(() => _dangNop = false);
+      if (_soGiayConLai > 0) _batDauDemGio();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Không thể nộp bài. Vui lòng thử lại: $error'),
+          content: Text('Không thể nộp bài. Vui lòng thử lại: $loi'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  ({int correctAnswers, double score, List<CauTraLoiModel> answers})
-  _gradeAnswers(List<CauHoiModel> questions, Map<int, int> selectedAnswers) {
+  ({int correctAnswers, double score, List<CauTraLoiModel> answers}) _chamDapAn(
+    List<CauHoiModel> cacCauHoi,
+    Map<int, int> selectedAnswers,
+  ) {
     var correctAnswers = 0;
-    final answers = <CauTraLoiModel>[];
+    final cacDapAn = <CauTraLoiModel>[];
 
-    for (var index = 0; index < questions.length; index++) {
-      final question = questions[index];
-      final selectedIndex = selectedAnswers[index];
+    for (var viTri = 0; viTri < cacCauHoi.length; viTri++) {
+      final cauHoi = cacCauHoi[viTri];
+      final selectedIndex = selectedAnswers[viTri];
       final hasValidSelection =
           selectedIndex != null &&
           selectedIndex >= 0 &&
-          selectedIndex < question.dsLuaChon.length;
+          selectedIndex < cauHoi.dsLuaChon.length;
       final selectedOption = hasValidSelection
-          ? question.dsLuaChon[selectedIndex]
+          ? cauHoi.dsLuaChon[selectedIndex]
           : null;
       final isCorrect = selectedOption?.dapAnDung == true;
       if (isCorrect) correctAnswers++;
 
-      answers.add(
+      cacDapAn.add(
         CauTraLoiModel(
           maCauTraLoi: '',
-          maCauHoi: question.maCauHoi,
+          maCauHoi: cauHoi.maCauHoi,
           maLuaChon: selectedOption?.maLuaChon,
           noiDungTraLoi: null,
           traLoiDung: isCorrect,
-          diemDatDuoc: isCorrect && questions.isNotEmpty
-              ? 10.0 / questions.length
+          diemDatDuoc: isCorrect && cacCauHoi.isNotEmpty
+              ? 10.0 / cacCauHoi.length
               : 0,
         ),
       );
@@ -356,13 +362,13 @@ class _UserExamScreenState extends State<UserExamScreen>
 
     return (
       correctAnswers: correctAnswers,
-      score: questions.isEmpty ? 0 : correctAnswers / questions.length * 10,
-      answers: answers,
+      score: cacCauHoi.isEmpty ? 0 : correctAnswers / cacCauHoi.length * 10,
+      answers: cacDapAn,
     );
   }
 
-  void _showSubmitDialog() {
-    final answeredCount = _selectedAnswers.length;
+  void _moHopThoaiNopBai() {
+    final answeredCount = _dapAnDaChon.length;
     final totalCount = _dsCauHoi.length;
 
     showDialog(
@@ -395,9 +401,9 @@ class _UserExamScreenState extends State<UserExamScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_dangTai) {
       return Scaffold(
-        appBar: AppBar(
+        appBar: LearnerHeader(
           backgroundColor: ExamColors.primary,
           title: const Text('Đang tải bài thi...'),
         ),
@@ -407,7 +413,7 @@ class _UserExamScreenState extends State<UserExamScreen>
 
     if (_dsCauHoi.isEmpty) {
       return Scaffold(
-        appBar: AppBar(
+        appBar: LearnerHeader(
           backgroundColor: ExamColors.primary,
           title: const Text('Thông báo'),
         ),
@@ -418,17 +424,17 @@ class _UserExamScreenState extends State<UserExamScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _loadError == null
+                  _loiTaiDuLieu == null
                       ? Icons.quiz_outlined
                       : Icons.error_outline,
                   size: 48,
-                  color: _loadError == null ? Colors.grey : Colors.red,
+                  color: _loiTaiDuLieu == null ? Colors.grey : Colors.red,
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  _loadError == null
+                  _loiTaiDuLieu == null
                       ? 'Bài thi chưa có câu hỏi nào.'
-                      : _loadError!,
+                      : _loiTaiDuLieu!,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
@@ -443,11 +449,11 @@ class _UserExamScreenState extends State<UserExamScreen>
       );
     }
 
-    final currentQuestion = _dsCauHoi[_currentQuestionIndex];
+    final currentQuestion = _dsCauHoi[_viTriCauHoiHienTai];
 
     return Scaffold(
       backgroundColor: ExamColors.scaffoldBackground,
-      appBar: AppBar(
+      appBar: LearnerHeader(
         backgroundColor: ExamColors.primary,
         foregroundColor: Colors.white,
         title: const Text(
@@ -459,7 +465,7 @@ class _UserExamScreenState extends State<UserExamScreen>
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: _remainingSeconds < 300
+              color: _soGiayConLai < 300
                   ? ExamColors.timerUrgent
                   : ExamColors.timerNormal,
               borderRadius: BorderRadius.circular(20),
@@ -469,7 +475,7 @@ class _UserExamScreenState extends State<UserExamScreen>
                 const Icon(Icons.timer, size: 18, color: Colors.white),
                 const SizedBox(width: 6),
                 Text(
-                  _formattedTime,
+                  _thoiGianHienThi,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -480,7 +486,7 @@ class _UserExamScreenState extends State<UserExamScreen>
           ),
         ],
       ),
-      body: _isSubmitting
+      body: _dangNop
           ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -500,12 +506,12 @@ class _UserExamScreenState extends State<UserExamScreen>
                       horizontal: 16,
                       vertical: 8,
                     ),
-                    color: _loadError == null
+                    color: _loiTaiDuLieu == null
                         ? Colors.blue[50]
                         : Colors.red[50],
                     child: Row(
                       children: [
-                        if (_loadError == null)
+                        if (_loiTaiDuLieu == null)
                           const SizedBox(
                             width: 16,
                             height: 16,
@@ -520,13 +526,13 @@ class _UserExamScreenState extends State<UserExamScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _loadError ?? 'Đang chuẩn bị lượt làm bài...',
+                            _loiTaiDuLieu ?? 'Đang chuẩn bị lượt làm bài...',
                             style: const TextStyle(fontSize: 12),
                           ),
                         ),
-                        if (_loadError != null)
+                        if (_loiTaiDuLieu != null)
                           TextButton(
-                            onPressed: _retryPrepareAttempt,
+                            onPressed: _thuChuanBiLuotThiLai,
                             child: const Text('Thử lại'),
                           ),
                       ],
@@ -544,9 +550,9 @@ class _UserExamScreenState extends State<UserExamScreen>
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: _dsCauHoi.length,
-                      itemBuilder: (context, index) {
-                        final isSelected = index == _currentQuestionIndex;
-                        final isAnswered = _selectedAnswers.containsKey(index);
+                      itemBuilder: (context, viTri) {
+                        final isSelected = viTri == _viTriCauHoiHienTai;
+                        final isAnswered = _dapAnDaChon.containsKey(viTri);
 
                         Color borderBgColor = ExamColors.numberBtnDefault;
                         Color textColor = ExamColors.textDark;
@@ -561,7 +567,7 @@ class _UserExamScreenState extends State<UserExamScreen>
 
                         return GestureDetector(
                           onTap: () {
-                            _goToQuestion(index);
+                            _denCauHoi(viTri);
                           },
                           child: Container(
                             width: 40,
@@ -572,7 +578,7 @@ class _UserExamScreenState extends State<UserExamScreen>
                             ),
                             alignment: Alignment.center,
                             child: Text(
-                              '${index + 1}',
+                              '${viTri + 1}',
                               style: TextStyle(
                                 color: textColor,
                                 fontWeight: FontWeight.bold,
@@ -599,7 +605,7 @@ class _UserExamScreenState extends State<UserExamScreen>
                           child: Padding(
                             padding: const EdgeInsets.all(20),
                             child: Text(
-                              'Câu ${_currentQuestionIndex + 1}: ${currentQuestion.noiDung}',
+                              'Câu ${_viTriCauHoiHienTai + 1}: ${currentQuestion.noiDung}',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -613,15 +619,14 @@ class _UserExamScreenState extends State<UserExamScreen>
                           optIndex,
                         ) {
                           final isSelectedOption =
-                              _selectedAnswers[_currentQuestionIndex] ==
-                              optIndex;
+                              _dapAnDaChon[_viTriCauHoiHienTai] == optIndex;
 
                           return OptionItem(
                             indexLabel: String.fromCharCode(65 + optIndex),
                             text: currentQuestion.dsLuaChon[optIndex].noiDung,
                             isSelected: isSelectedOption,
                             onTap: () {
-                              _selectAnswer(optIndex);
+                              _chonDapAn(optIndex);
                             },
                           );
                         }),
@@ -642,17 +647,17 @@ class _UserExamScreenState extends State<UserExamScreen>
                       ),
                     ],
                   ),
-                  child: _buildNavigationActions(),
+                  child: _dungNutDieuHuong(),
                 ),
               ],
             ),
     );
   }
 
-  Widget _buildNavigationActions() {
+  Widget _dungNutDieuHuong() {
     Widget previousButton() => OutlinedButton.icon(
-      onPressed: _currentQuestionIndex > 0
-          ? () => _goToQuestion(_currentQuestionIndex - 1)
+      onPressed: _viTriCauHoiHienTai > 0
+          ? () => _denCauHoi(_viTriCauHoiHienTai - 1)
           : null,
       icon: const Icon(Icons.arrow_back),
       label: const Text('Câu trước'),
@@ -660,7 +665,7 @@ class _UserExamScreenState extends State<UserExamScreen>
 
     Widget submitButton() => CustomButton(
       text: _maLuot == null ? 'Đang chuẩn bị...' : 'Nộp bài',
-      onPressed: _maLuot == null ? null : _showSubmitDialog,
+      onPressed: _maLuot == null ? null : _moHopThoaiNopBai,
       backgroundColor: ExamColors.submitButton,
     );
 
@@ -669,8 +674,8 @@ class _UserExamScreenState extends State<UserExamScreen>
         backgroundColor: ExamColors.primary,
         foregroundColor: Colors.white,
       ),
-      onPressed: _currentQuestionIndex < _dsCauHoi.length - 1
-          ? () => _goToQuestion(_currentQuestionIndex + 1)
+      onPressed: _viTriCauHoiHienTai < _dsCauHoi.length - 1
+          ? () => _denCauHoi(_viTriCauHoiHienTai + 1)
           : null,
       label: const Text('Câu sau'),
       icon: const Icon(Icons.arrow_forward),

@@ -1,13 +1,23 @@
+// APP HỌC VIÊN: Trang tổng quan học viên: tiến độ và khóa học đang học.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
+import '../../widgets/learner_metrics.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../widgets/course_cover.dart';
+
 import '../../app/app_theme.dart';
 import '../../models/user_arguments.dart';
-import '../../services/learning_service.dart';
+import '../../services/nghiep_vu/learning_service.dart';
 import '../../widgets/learning_widgets.dart';
 import 'user_courses_screen.dart';
-import 'user_schedule_screen.dart';
+import 'user_news.dart';
+import '../../widgets/home_news_banner.dart';
+import '../../services/nghiep_vu/news_service.dart';
 
+/// Trang tổng quan học viên: tiến độ và khóa học đang học.
 class UserDashboardScreen extends StatefulWidget {
   const UserDashboardScreen({
     super.key,
@@ -19,10 +29,10 @@ class UserDashboardScreen extends StatefulWidget {
   final ValueChanged<int> onSelect;
   final LearningService? service;
   @override
-  State<UserDashboardScreen> createState() => _UserDashboardScreenState();
+  State<UserDashboardScreen> createState() => _TrangThaiTongQuanHocVien();
 }
 
-class _UserDashboardScreenState extends State<UserDashboardScreen> {
+class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
   late final service = widget.service ?? LearningService();
   late final profile = service.db
       .collection('users')
@@ -42,112 +52,85 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           constraints: const BoxConstraints(maxWidth: 1120),
           child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: profile,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
+            builder: (context, duLieuNhan) {
+              if (duLieuNhan.hasError) {
                 return const Center(
                   child: Text('Không tải được hồ sơ học tập.'),
                 );
               }
-              if (!snapshot.hasData) {
+              if (!duLieuNhan.hasData) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final user = snapshot.data!.data() ?? {};
+              final nguoiDung = duLieuNhan.data!.data() ?? {};
               return LearningList(
                 stream: service.courses(
-                  classId: user['classId'] as String? ?? '',
+                  classId: nguoiDung['classId'] as String? ?? '',
                 ),
-                builder: (courses) => ListView(
-                  padding: const EdgeInsets.all(20),
+                builder: (cacKhoaHoc) => ListView(
+                  padding: EdgeInsets.all(
+                    MediaQuery.sizeOf(context).width < 360 ? 16 : 20,
+                  ),
                   children: [
-                    Row(
-                      children: [
-                        Image.asset(AppTheme.logo, width: 48, height: 48),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Chào mừng trở lại',
-                                style: TextStyle(
-                                  color: Colors.blueGrey,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              Text(
-                                user['name'] as String? ?? widget.args.userName,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Thông báo',
-                          onPressed: () => widget.onSelect(3),
-                          icon: const Icon(Icons.notifications_outlined),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        gradient: const LinearGradient(
-                          colors: [AppTheme.red, Color(0xFF7E151D)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        color: AppTheme.red,
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          const Text(
-                            'HỌC TẬP MỖI NGÀY',
-                            style: TextStyle(
-                              color: AppTheme.gold,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.5,
-                              fontSize: 11,
+                          Image.asset(AppTheme.logo, width: 48, height: 48),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'HỌC TẬP SỐ E09',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  nguoiDung['name'] as String? ??
+                                      widget.args.userName,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Bồi dưỡng kiến thức.\nVững vàng nghiệp vụ.',
-                            style: TextStyle(
+                          IconButton(
+                            tooltip: 'Thông báo',
+                            onPressed: () => widget.onSelect(3),
+                            icon: const Icon(
+                              Icons.notifications_outlined,
                               color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 26,
-                              height: 1.3,
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Tiếp nối hành trình học tập của bạn với tài liệu và bài kiểm tra được cập nhật.',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              height: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: AppTheme.red,
-                            ),
-                            onPressed: () => widget.onSelect(1),
-                            icon: const Icon(Icons.arrow_forward),
-                            label: const Text('KHÁM PHÁ KHÓA HỌC'),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    HomeNewsBanner(
+                      service: NewsService(service.db),
+                      uid: widget.args.userId,
+                      onStudy: () => widget.onSelect(1),
+                    ),
+                    const SizedBox(height: 20),
+                    UserNews(
+                      service: service,
+                      uid: widget.args.userId,
+                      onViewAll: () => widget.onSelect(5),
+                    ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Hoạt động học tập',
+                      'Tiến độ học tập',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -156,57 +139,19 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                     const SizedBox(height: 10),
                     LearningList(
                       stream: learning,
-                      builder: (records) => Row(
+                      builder: (cacMauTin) => LearnerMetrics(
                         children: [
-                          Expanded(
-                            child: _stat(
-                              '${courses.length}',
-                              'Khóa học',
-                              Icons.menu_book_outlined,
-                            ),
+                          _thongKe(
+                            '${cacKhoaHoc.length}',
+                            'Khóa học',
+                            Icons.menu_book_outlined,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _stat(
-                              '${records.where((r) => r.data()['completed'] == true).length}',
-                              'Bài đã học',
-                              Icons.check_circle_outline,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _stat(
-                              '${records.where((r) => r.data()['favorite'] == true).length}',
-                              'Yêu thích',
-                              Icons.favorite_outline,
-                            ),
+                          _thongKe(
+                            '${cacMauTin.where((r) => r.data()['completed'] == true).length}',
+                            'Bài đã học',
+                            Icons.check_circle_outline,
                           ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Card(
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(16),
-                        leading: const Icon(
-                          Icons.calendar_month_outlined,
-                          color: AppTheme.red,
-                        ),
-                        title: const Text(
-                          'Lịch học và lịch thi',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: const Text(
-                          'Chủ động sắp xếp thời gian học tập',
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) =>
-                                UserScheduleScreen(uid: widget.args.userId),
-                          ),
-                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -227,7 +172,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                         ),
                       ],
                     ),
-                    if (courses.isEmpty)
+                    if (cacKhoaHoc.isEmpty)
                       const Card(
                         child: Padding(
                           padding: EdgeInsets.all(24),
@@ -236,33 +181,27 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                           ),
                         ),
                       ),
-                    for (final course in courses.take(4))
+                    for (final khoaHoc in cacKhoaHoc.take(4))
                       Card(
                         child: ListTile(
                           contentPadding: const EdgeInsets.all(16),
-                          leading: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF9ECE7),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.auto_stories_outlined,
-                              color: AppTheme.red,
-                            ),
+                          leading: CourseCover(
+                            url: khoaHoc.data()['coverUrl'] ?? '',
+                            width: 56,
+                            height: 56,
                           ),
                           title: Text(
-                            course.data()['title'] ?? '',
+                            khoaHoc.data()['title'] ?? '',
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
-                          subtitle: Text(course.data()['subject'] ?? ''),
+                          subtitle: Text(khoaHoc.data()['subject'] ?? ''),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute<void>(
                               builder: (_) => UserLessonsScreen(
                                 uid: widget.args.userId,
-                                course: course,
+                                course: khoaHoc,
                                 service: service,
                               ),
                             ),
@@ -280,20 +219,20 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     ),
   );
 
-  Widget _stat(String value, String label, IconData icon) => Card(
+  Widget _thongKe(String giaTri, String nhan, IconData bieuTuong) => Card(
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
       child: Column(
         children: [
-          Icon(icon, color: AppTheme.red, size: 20),
+          Icon(bieuTuong, color: AppTheme.red, size: 20),
           const SizedBox(height: 10),
           Text(
-            value,
+            giaTri,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           Text(
-            label,
+            nhan,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
           ),

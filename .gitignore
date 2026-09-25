@@ -33,6 +33,8 @@ migrate_working_dir/
 /build/
 /coverage/
 /.tmp/
+/.tmp_appdata/
+/.tmp_localappdata/
 /.gradle-cache/
 /functions/node_modules/
 /functions/firebase-export-*/
@@ -56,6 +58,19 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/.gradle/
+/android/build/
+*.apk
+*.aab
+*.ipa
+
+# Khóa/chứng chỉ ký phát hành cho Google Play và App Store.
+**/key.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.mobileprovision
 
 # Widget Preview related
 .widget_preview/

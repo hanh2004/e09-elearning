@@ -4,7 +4,8 @@ Mã nguồn hiện dùng **Firebase Authentication + Firestore Rules trên gói 
 Không cần Gmail cá nhân cho User và không dùng Cloud Functions. Việc tạo tài khoản chạy
 trong phiên Auth phụ ở Web Admin; phù hợp thử nghiệm với dữ liệu không quan trọng.
 Không còn đăng nhập bằng cách đọc mật khẩu trong collection `users`. Không có 2FA.
-**Chưa triển khai cấu hình này lên project thật `e09-elearning`.** Không chạy bản mới
+**Cấu hình Blaze hiện đã được triển khai lên project `e09-elearning`; các lệnh bên dưới
+chỉ dành cho emulator thử nghiệm.** Không chạy bản mới
 với dữ liệu cũ trước khi hoàn thành chuyển đổi; không tự thêm `role` để cấp quyền.
 
 ## Quyền
@@ -45,7 +46,7 @@ Các bước thủ công tương đương:
 cd functions
 npm ci
 cd ..
-node functions/node_modules/firebase-tools/lib/bin/firebase.js emulators:start --config firebase.secure.json --project demo-e09 --only auth,firestore,functions --import .tmp/firebase-local --export-on-exit .tmp/firebase-local
+node functions/node_modules/firebase-tools/lib/bin/firebase.js emulators:start --config firebase.json --project demo-e09 --only auth,firestore,functions --import .tmp/firebase-local --export-on-exit .tmp/firebase-local
 ```
 
 Terminal 2, tại thư mục `functions`, khởi tạo hai admin tổng:
@@ -106,7 +107,7 @@ không có phiên Firebase Auth. Sau khi bật Rules mới, các bản User cũ 
    ```powershell
    node scripts/migrate.js --project e09-elearning --apply
    node scripts/bootstrap.js --project e09-elearning --apply
-   npx firebase deploy --config ../firebase.secure.json --project e09-elearning --only functions:accounts,firestore:rules
+npx firebase deploy --config ../firebase.json --project e09-elearning --only functions:accounts,firestore:rules
    ```
 
 7. Kiểm thử bằng hai admin tổng, một admin phụ và một User; chỉ mở lại dịch vụ khi tất cả đạt.
@@ -134,7 +135,7 @@ flutter test
 cd functions
 npm test
 npm run test:rules
-npx firebase emulators:exec --config ../firebase.secure.json --project demo-e09 --only firestore,auth,functions "node --test test/bootstrap.emulator.js"
+npx firebase emulators:exec --config ../firebase.json --project demo-e09 --only firestore,auth,functions "node --test test/bootstrap.emulator.js"
 ```
 
 Các kiểm thử `*.emulator.js` từ chối chạy nếu thiếu emulator; không dùng tài khoản hoặc dữ liệu thật.

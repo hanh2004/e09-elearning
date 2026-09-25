@@ -1,36 +1,43 @@
+// APP HỌC VIÊN: Lịch sử các lần thi và điểm số của học viên.
+// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+
+import '../../widgets/learner_header.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/exam_history_arguments.dart';
 import '../../models/exam_outcome.dart';
-import '../../services/firestore_service.dart';
+import '../../services/du_lieu/firestore_service.dart';
+import '../../widgets/learner_card.dart';
 
+/// Lịch sử các lần thi và điểm số của học viên.
 class ExamHistoryScreen extends StatefulWidget {
   final ExamHistoryArguments args;
 
   const ExamHistoryScreen({super.key, required this.args});
 
   @override
-  State<ExamHistoryScreen> createState() => _ExamHistoryScreenState();
+  State<ExamHistoryScreen> createState() => _TrangThaiLichSuThi();
 }
 
-class _ExamHistoryScreenState extends State<ExamHistoryScreen> {
+class _TrangThaiLichSuThi extends State<ExamHistoryScreen> {
   final Color primaryColor = const Color(0xFFB51F24);
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  final FirestoreService _firestoreService = FirestoreService();
+  final TextEditingController _oNhapTimKiem = TextEditingController();
+  String _tuKhoaTimKiem = '';
+  final FirestoreService _dichVuFirestore = FirestoreService();
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _oNhapTimKiem.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
+      backgroundColor: Colors.transparent,
+      appBar: LearnerHeader(
         backgroundColor: primaryColor,
         elevation: 0,
         foregroundColor: Colors.white,
@@ -57,10 +64,10 @@ class _ExamHistoryScreenState extends State<ExamHistoryScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
-                      controller: _searchController,
+                      controller: _oNhapTimKiem,
                       onChanged: (val) {
                         setState(() {
-                          _searchQuery = val.trim().toLowerCase();
+                          _tuKhoaTimKiem = val.trim().toLowerCase();
                         });
                       },
                       decoration: const InputDecoration(
@@ -70,13 +77,13 @@ class _ExamHistoryScreenState extends State<ExamHistoryScreen> {
                       ),
                     ),
                   ),
-                  if (_searchQuery.isNotEmpty)
+                  if (_tuKhoaTimKiem.isNotEmpty)
                     IconButton(
                       icon: const Icon(Icons.clear, size: 18),
                       onPressed: () {
                         setState(() {
-                          _searchController.clear();
-                          _searchQuery = '';
+                          _oNhapTimKiem.clear();
+                          _tuKhoaTimKiem = '';
                         });
                       },
                     ),
@@ -88,64 +95,64 @@ class _ExamHistoryScreenState extends State<ExamHistoryScreen> {
           // 2. Danh sách lượt làm bài từ Firebase Server
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _firestoreService.getUserAttemptsStream(
+              stream: _dichVuFirestore.getUserAttemptsStream(
                 widget.args.maNguoiDung,
               ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+              builder: (context, duLieuNhan) {
+                if (duLieuNhan.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (snapshot.hasError) {
+                if (duLieuNhan.hasError) {
                   return Center(
-                    child: Text('Đã xảy ra lỗi: ${snapshot.error}'),
+                    child: Text('Đã xảy ra lỗi: ${duLieuNhan.error}'),
                   );
                 }
 
                 final grouped = <String, Map<String, dynamic>>{};
-                for (final doc in snapshot.data?.docs ?? const []) {
-                  final data = doc.data();
-                  final count =
-                      (data['attemptCount'] as num?)?.toInt() ??
-                      (data['status'] == 'completed' ? 1 : 0);
-                  if (count == 0) continue;
-                  final examId = data['examId']?.toString() ?? doc.id;
-                  final score =
-                      (data['bestScore'] as num?)?.toDouble() ??
-                      (data['diemSo'] as num?)?.toDouble() ??
+                for (final banGhi in duLieuNhan.data?.docs ?? const []) {
+                  final duLieu = banGhi.data();
+                  final soLuong =
+                      (duLieu['attemptCount'] as num?)?.toInt() ??
+                      (duLieu['status'] == 'completed' ? 1 : 0);
+                  if (soLuong == 0) continue;
+                  final examId = duLieu['examId']?.toString() ?? banGhi.id;
+                  final diem =
+                      (duLieu['bestScore'] as num?)?.toDouble() ??
+                      (duLieu['diemSo'] as num?)?.toDouble() ??
                       0;
-                  final current = grouped[examId];
-                  if (current == null) {
+                  final hienHanh = grouped[examId];
+                  if (hienHanh == null) {
                     grouped[examId] = {
-                      ...data,
-                      'displayScore': score,
-                      'displayAttemptCount': count,
+                      ...duLieu,
+                      'displayScore': diem,
+                      'displayAttemptCount': soLuong,
                     };
                   } else {
-                    current['displayAttemptCount'] =
-                        (current['displayAttemptCount'] as int) + count;
-                    if (score > (current['displayScore'] as double)) {
+                    hienHanh['displayAttemptCount'] =
+                        (hienHanh['displayAttemptCount'] as int) + soLuong;
+                    if (diem > (hienHanh['displayScore'] as double)) {
                       grouped[examId] = {
-                        ...data,
-                        'displayScore': score,
-                        'displayAttemptCount': current['displayAttemptCount'],
+                        ...duLieu,
+                        'displayScore': diem,
+                        'displayAttemptCount': hienHanh['displayAttemptCount'],
                       };
                     }
                   }
                 }
-                final items = grouped.values.toList();
-                if (items.isEmpty) {
+                final cacMuc = grouped.values.toList();
+                if (cacMuc.isEmpty) {
                   return const Center(
                     child: Text('Chưa có lịch sử làm bài nào.'),
                   );
                 }
 
                 // Lọc danh sách theo từ khóa tìm kiếm
-                final filteredItems = items.where((data) {
-                  final tieuDe = (data['examTitle'] ?? 'Bài kiểm tra')
+                final filteredItems = cacMuc.where((duLieu) {
+                  final tieuDe = (duLieu['examTitle'] ?? 'Bài kiểm tra')
                       .toString()
                       .toLowerCase();
-                  return tieuDe.contains(_searchQuery);
+                  return tieuDe.contains(_tuKhoaTimKiem);
                 }).toList();
 
                 if (filteredItems.isEmpty) {
@@ -157,26 +164,22 @@ class _ExamHistoryScreenState extends State<ExamHistoryScreen> {
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: filteredItems.length,
-                  itemBuilder: (context, index) {
-                    final item = filteredItems[index];
-                    final double diemSo = item['displayScore'] as double;
-                    final bool isPassed = ExamOutcome.passed(item);
+                  itemBuilder: (context, viTri) {
+                    final muc = filteredItems[viTri];
+                    final double diemSo = muc['displayScore'] as double;
+                    final bool isPassed = ExamOutcome.passed(muc);
 
                     final Timestamp? nopBaiLuc =
-                        (item['bestCompletedAt'] ?? item['completedAt'])
+                        (muc['bestCompletedAt'] ?? muc['completedAt'])
                             as Timestamp?;
                     final String dateStr = nopBaiLuc != null
                         ? "${nopBaiLuc.toDate().day}/${nopBaiLuc.toDate().month}/${nopBaiLuc.toDate().year} ${nopBaiLuc.toDate().hour}:${nopBaiLuc.toDate().minute}"
                         : 'N/A';
 
-                    return Container(
+                    return LearnerCard(
+                      accentColor: isPassed ? Colors.green : primaryColor,
                       margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(14.0),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[200]!),
-                      ),
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -185,7 +188,7 @@ class _ExamHistoryScreenState extends State<ExamHistoryScreen> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  item['examTitle'] ?? 'Bài kiểm tra',
+                                  muc['examTitle'] ?? 'Bài kiểm tra',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 15,
@@ -242,7 +245,7 @@ class _ExamHistoryScreenState extends State<ExamHistoryScreen> {
                           ),
                           const Divider(height: 20),
                           Text(
-                            'Đã làm ${item['displayAttemptCount']} lần',
+                            'Đã làm ${muc['displayAttemptCount']} lần',
                             style: const TextStyle(
                               color: Colors.grey,
                               fontSize: 13,

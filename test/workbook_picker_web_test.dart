@@ -4,8 +4,8 @@ library;
 import 'dart:js_interop';
 import 'dart:typed_data';
 
-import 'package:e09_elearning/services/workbook_picker_web.dart';
-import 'package:e09_elearning/services/workbook_picker_error.dart';
+import 'package:e09_elearning/services/tep/workbook_picker_web.dart';
+import 'package:e09_elearning/services/tep/workbook_picker_error.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:web/web.dart' as web;
 
