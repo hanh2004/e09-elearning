@@ -1,0 +1,352 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+
+import '../services/du_lieu/dich_vu_firestore.dart';
+
+/// Shows the learner password-reset request dialog.
+///
+/// The login screen supplies the account actions; this file owns the dialog UI.
+Future<void> showPasswordResetDialog({
+  required BuildContext context,
+  required String initialUsername,
+  required bool canRecoverRootAccount,
+  required Future<bool> Function({
+    required String username,
+    required String codeSuffix,
+  })
+  submitRequest,
+  required Future<void> Function(String username) recoverRootAccount,
+}) async {
+  final username = TextEditingController(text: initialUsername);
+  final codeSuffix = TextEditingController();
+  var busy = false;
+  String? error;
+
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, update) => AlertDialog(
+        title: const Text('Quên mật khẩu?'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Nhập tên đăng nhập và mã đuôi. Học viên nhập phần sau dấu gạch trong mã người dùng (ví dụ E09-123 thì nhập 123); admin phụ nhập mã đơn vị được gán.',
+              ),
+              if (canRecoverRootAccount) ...[
+                const SizedBox(height: 6),
+                TextButton.icon(
+                  onPressed: busy
+                      ? null
+                      : () {
+                          Navigator.pop(dialogContext);
+                          recoverRootAccount(username.text.trim());
+                        },
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text('Admin tổng: nhờ admin tổng còn lại duyệt'),
+                ),
+              ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: username,
+                enabled: !busy,
+                autofocus: username.text.isEmpty,
+                decoration: const InputDecoration(
+                  labelText: 'Tên đăng nhập',
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: codeSuffix,
+                enabled: !busy,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Mã đuôi / mã đơn vị',
+                  prefixIcon: Icon(Icons.badge_outlined),
+                ),
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 10),
+                Text(error!, style: const TextStyle(color: Colors.red)),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: busy ? null : () => Navigator.pop(dialogContext),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: busy
+                ? null
+                : () async {
+                    final value = username.text.trim();
+                    if (!RegExp(r'^[A-Za-z0-9_.@-]{3,64}$').hasMatch(value)) {
+                      update(() => error = 'Nhập tên đăng nhập hợp lệ.');
+                      return;
+                    }
+                    final suffix = codeSuffix.text.trim();
+                    if (suffix.isEmpty || suffix.length > 100) {
+                      update(() => error = 'Nhập mã đuôi hợp lệ.');
+                      return;
+                    }
+
+                    update(() {
+                      busy = true;
+                      error = null;
+                    });
+                    try {
+                      final matched = await submitRequest(
+                        username: value,
+                        codeSuffix: suffix,
+                      );
+                      if (!matched) {
+                        update(() {
+                          busy = false;
+                          error = 'Bạn nhập sai tài khoản hoặc mã người dùng';
+                        });
+                        return;
+                      }
+                      if (!dialogContext.mounted) return;
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Yêu cầu đã được gửi đến quản lý phụ trách.',
+                          ),
+                        ),
+                      );
+                    } catch (_) {
+                      update(() {
+                        busy = false;
+                        error = 'Không thể gửi yêu cầu. Vui lòng thử lại.';
+                      });
+                    }
+                  },
+            child: Text(busy ? 'Đang gửi…' : 'Gửi yêu cầu'),
+          ),
+        ],
+      ),
+    ),
+  );
+  username.dispose();
+  codeSuffix.dispose();
+}
+
+/// Runs the two-admin recovery flow for a root administrator account.
+Future<void> showRootPasswordRecoveryDialog({
+  required BuildContext screenContext,
+  required String initialUsername,
+}) async {
+  final username = TextEditingController(text: initialUsername);
+  final password = TextEditingController();
+  final confirm = TextEditingController();
+  String? proof;
+  var sent = false;
+  var approved = false;
+  var busy = false;
+  String? error;
+  String? notice;
+
+  await showDialog<void>(
+    context: screenContext,
+    barrierDismissible: false,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, update) => AlertDialog(
+        title: const Text('Khôi phục tài khoản admin tổng'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                !sent
+                    ? 'Nhập tên đăng nhập của admin tổng cần khôi phục. Admin tổng còn lại phải duyệt yêu cầu.'
+                    : approved
+                    ? 'Admin tổng còn lại đã duyệt. Nhập mật khẩu mới để hoàn tất.'
+                    : 'Yêu cầu đã gửi. Hãy báo admin tổng còn lại đăng nhập và duyệt. Giữ cửa sổ này mở trong lúc chờ.',
+              ),
+              if (!sent) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: username,
+                  enabled: !busy,
+                  decoration: const InputDecoration(
+                    labelText: 'Tên đăng nhập admin tổng',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                ),
+              ],
+              if (approved) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: password,
+                  enabled: !busy,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Mật khẩu mới (8 ký tự trở lên)',
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: confirm,
+                  enabled: !busy,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Nhập lại mật khẩu mới',
+                    prefixIcon: Icon(Icons.lock_reset_outlined),
+                  ),
+                ),
+              ],
+              if (error != null) ...[
+                const SizedBox(height: 10),
+                Text(error!, style: const TextStyle(color: Colors.red)),
+              ],
+              if (notice != null) ...[
+                const SizedBox(height: 10),
+                Text(notice!, style: const TextStyle(color: Colors.orange)),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: busy ? null : () => Navigator.pop(dialogContext),
+            child: const Text('Hủy'),
+          ),
+          if (sent && !approved)
+            TextButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      update(() {
+                        busy = true;
+                        error = null;
+                        notice = null;
+                      });
+                      try {
+                        final status = await FirestoreService()
+                            .rootPasswordResetStatus(
+                              username: username.text.trim(),
+                              proof: proof!,
+                            );
+                        update(() {
+                          approved = status == 'approved';
+                          if (status == 'expired' || status == 'not_found') {
+                            sent = false;
+                            proof = null;
+                          }
+                          notice = switch (status) {
+                            'pending' => 'Yêu cầu vẫn đang chờ duyệt.',
+                            'expired' || 'not_found' => 'Yêu cầu hết hạn hoặc không hợp lệ. Bạn có thể gửi yêu cầu mới.',
+                            'approved' => null,
+                            _ => 'Chưa kiểm tra được trạng thái. Hãy thử lại.',
+                          };
+                        });
+                      } catch (_) {
+                        update(
+                          () => error = 'Không kiểm tra được. Hãy thử lại.',
+                        );
+                      } finally {
+                        update(() => busy = false);
+                      }
+                    },
+              child: const Text('Kiểm tra duyệt'),
+            ),
+          FilledButton(
+            onPressed: busy || (sent && !approved)
+                ? null
+                : () async {
+                    if (!sent &&
+                        !RegExp(r'^[A-Za-z0-9_.@-]{3,64}$')
+                            .hasMatch(username.text.trim())) {
+                      update(() => error = 'Nhập tên đăng nhập hợp lệ.');
+                      return;
+                    }
+                    if (approved &&
+                        (password.text.length < 8 ||
+                            password.text.length > 128 ||
+                            password.text != confirm.text)) {
+                      update(
+                        () => error = 'Mật khẩu cần 8–128 ký tự và hai ô phải giống nhau.',
+                      );
+                      return;
+                    }
+                    update(() {
+                      busy = true;
+                      error = null;
+                      notice = null;
+                    });
+                    try {
+                      if (!sent) {
+                        final random = Random.secure();
+                        proof = base64Url
+                            .encode(
+                              List<int>.generate(
+                                32,
+                                (_) => random.nextInt(256),
+                              ),
+                            )
+                            .replaceAll('=', '');
+                        await FirestoreService().requestRootPasswordReset(
+                          username: username.text.trim(),
+                          proof: proof!,
+                        );
+                        update(() {
+                          sent = true;
+                          busy = false;
+                          notice = 'Hãy liên hệ admin tổng còn lại để duyệt yêu cầu.';
+                        });
+                        return;
+                      }
+                      await FirestoreService().finishRootPasswordReset(
+                        username: username.text.trim(),
+                        proof: proof!,
+                        password: password.text,
+                      );
+                      if (!dialogContext.mounted) return;
+                      Navigator.pop(dialogContext);
+                      if (!screenContext.mounted) return;
+                      ScaffoldMessenger.of(screenContext).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Đã đổi mật khẩu admin tổng. Hãy đăng nhập lại.',
+                          ),
+                        ),
+                      );
+                    } catch (_) {
+                      update(() {
+                        busy = false;
+                        error = approved
+                            ? 'Không thể đổi mật khẩu. Hãy thử lại.'
+                            : 'Không thể gửi yêu cầu. Hãy kiểm tra tên đăng nhập hoặc thử lại sau.';
+                      });
+                    }
+                  },
+            child: Text(
+              busy
+                  ? 'Đang xử lý…'
+                  : approved
+                  ? 'Đặt mật khẩu mới'
+                  : sent
+                  ? 'Đã gửi yêu cầu'
+                  : 'Gửi yêu cầu duyệt',
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+  username.dispose();
+  password.dispose();
+  confirm.dispose();
+}

@@ -18,7 +18,7 @@ try {
   $env:PATH = (Split-Path -Parent $nodePath) + ';' + $javaBin + ';' + $env:PATH
   Push-Location $projectDir
   try {
-    & $nodePath $firebaseCli emulators:exec --config firebase.json --project demo-e09 --only auth,firestore,functions,storage --import .tmp/firebase-local --export-on-exit .tmp/firebase-local 'node functions/scripts/local-session.js'
+    & $nodePath $firebaseCli emulators:exec --config firebase.json --project demo-e09 --only auth,firestore,functions,storage --import .tmp/firebase-local --export-on-exit .tmp/firebase-local 'node functions/scripts/phien_dang_nhap_cuc_bo.js'
     if ($LASTEXITCODE -ne 0) { throw 'Local backend stopped with an error. Check the output above.' }
   } finally { Pop-Location }
 } finally { $env:PATH = $previousPath }

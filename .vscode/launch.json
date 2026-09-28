@@ -5,7 +5,7 @@
             "name": "Admin Web (Local demo)",
             "request": "launch",
             "type": "dart",
-            "program": "lib/main_admin.dart",
+            "program": "lib/diem_vao_quan_tri.dart",
             "deviceId": "chrome",
             "args": ["--dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1", "--web-port", "8091"]
         },
@@ -13,13 +13,13 @@
             "name": "User App",
             "request": "launch",
             "type": "dart",
-            "program": "lib/main_user.dart"
+            "program": "lib/diem_vao_hoc_vien.dart"
         },
         {
             "name": "Admin Web",
             "request": "launch",
             "type": "dart",
-            "program": "lib/main_admin.dart",
+            "program": "lib/diem_vao_quan_tri.dart",
             "deviceId": "chrome",
             "args": ["--web-port", "8081"]
         }

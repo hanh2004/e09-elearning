@@ -1,8 +1,9 @@
 # Admin tổng và admin phụ
 
-Mã nguồn hiện dùng **Firebase Authentication + Firestore Rules trên gói Spark miễn phí**.
-Không cần Gmail cá nhân cho User và không dùng Cloud Functions. Việc tạo tài khoản chạy
-trong phiên Auth phụ ở Web Admin; phù hợp thử nghiệm với dữ liệu không quan trọng.
+Mã nguồn hiện dùng Firebase Authentication, Firestore Rules và Cloud Functions cho
+các thao tác quản lý tài khoản. Người dùng nhập username; ứng dụng ánh xạ nội bộ
+sang email kỹ thuật, không cần Gmail cá nhân. Chạy thử bằng emulator theo hướng dẫn
+bên dưới; không tắt backend để giả lập luồng phát hành.
 Không còn đăng nhập bằng cách đọc mật khẩu trong collection `users`. Không có 2FA.
 **Cấu hình Blaze hiện đã được triển khai lên project `e09-elearning`; các lệnh bên dưới
 chỉ dành cho emulator thử nghiệm.** Không chạy bản mới
@@ -24,8 +25,17 @@ với dữ liệu cũ trước khi hoàn thành chuyển đổi; không tự th�
 - `createdBy` và `approvedBy` chỉ server ghi. Web Admin hiện tên người tạo dưới mỗi User;
   app User không hiển thị thông tin này. User cũ không rõ người tạo giữ `createdBy: null`.
 - Chỉ Admin tổng thấy công tắc cập nhật ứng dụng. Trạng thái được lưu tại
-  `system/app_status`; khi bật, đăng nhập User bị chặn nhưng Admin vẫn đăng nhập được.
-- Xóa là **thu hồi quyền đăng nhập**, giữ hồ sơ/lịch sử và giữ chỗ tên đăng nhập để đối chiếu.
+  `system/app_status`; khi bật, app học viên đang chạy sẽ nhận thông báo, đăng xuất
+  học viên và chặn mọi màn hình. Nút “Xác nhận và thoát” đóng ứng dụng Android;
+  mở lại khi đang cập nhật vẫn bị chặn. Admin vẫn đăng nhập được.
+  Khi kết thúc cập nhật, học viên phải đăng nhập lại. Cần cài bản học viên mới để
+  nhận bộ chặn toàn ứng dụng; chỉ cập nhật web không thay đổi APK đã cài.
+  Thao tác bật/tắt đi qua `maintenanceSet`. Triển khai cùng `examHeartbeat` và
+  `examExpireRuns`; tác vụ sau kiểm tra mỗi phút để chấm lượt hết giờ bằng đáp án
+  đã lưu, kể cả học viên không mở lại app. Lượt đang làm bị hủy do cập nhật được
+  hoàn lại; lượt đã rời bài hoặc đã hết giờ trước cập nhật được giữ lại.
+- Xóa User là **xóa vĩnh viễn**: Cloud Function xóa Firebase Auth, hồ sơ, tên đăng nhập,
+  tiến độ, bài làm và dữ liệu con đã biết. Không thể khôi phục nếu không có bản sao lưu.
 - Mật khẩu không lưu trong Firestore hoặc hồ sơ yêu cầu; Firebase Auth quản lý mật khẩu.
 - Mật khẩu tạm giống nhau chỉ dành cho thử nghiệm. Firebase Authentication không cho xem
   lại mật khẩu và Firestore không lưu mật khẩu.
@@ -35,6 +45,9 @@ với dữ liệu cũ trước khi hoàn thành chuyển đổi; không tự th�
 Cần Node 22, Java 17 trở lên cho Firebase CLI 14 (khuyến nghị Java 21), Flutter.
 Trên máy hiện tại Node 22 đã tải ở `.tmp/node22/node.exe`; đây là công cụ tạm,
 không đưa vào Git. Máy khác cài Node 22 và npm bình thường.
+Kiểm tra `node --version` ngay trong terminal chạy Firebase CLI: Node 22 phải
+đứng trước các phiên bản Node cũ trong `PATH`, vì CLI tạo thêm tiến trình Node
+để đọc mã Functions. Chỉ gọi CLI bằng đường dẫn tới Node 22 là chưa đủ.
 
 Terminal 1, tại thư mục dự án:
 
@@ -54,7 +67,7 @@ Terminal 2, tại thư mục `functions`, khởi tạo hai admin tổng:
 ```powershell
 $env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080'
 $env:FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099'
-node scripts/bootstrap.js --project demo-e09 --apply
+node scripts/khoi_dong.js --project demo-e09 --apply
 ```
 
 Hai tài khoản `admintong1`, `admintong2` có mật khẩu thử nghiệm `123456`.
@@ -63,13 +76,13 @@ Script chạy lại không đặt lại mật khẩu. Chỉ bật lại tài kho
 Terminal 3, tại thư mục dự án:
 
 ```powershell
-flutter run -d chrome -t lib/main_admin.dart --dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1
+flutter run -d chrome -t lib/diem_vao_quan_tri.dart --dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1
 ```
 
 App User thử nghiệm dùng cùng emulator:
 
 ```powershell
-flutter run -d chrome -t lib/main_user.dart --dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1
+flutter run -d chrome -t lib/diem_vao_hoc_vien.dart --dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1
 ```
 
 Dùng hai trình duyệt hoặc cửa sổ riêng tư để đăng nhập hai admin đồng thời. Trong Admin tổng:
@@ -92,8 +105,8 @@ không có phiên Firebase Auth. Sau khi bật Rules mới, các bản User cũ 
 4. Trong thời gian bảo trì, chặn các client cũ ghi dữ liệu. Chạy dry-run:
 
    ```powershell
-   node scripts/migrate.js --project e09-elearning
-   node scripts/bootstrap.js --project e09-elearning
+   node scripts/chuyen_doi_du_lieu.js --project e09-elearning
+   node scripts/khoi_dong.js --project e09-elearning
    ```
 
    Sửa các lỗi trùng tên, UID không hợp lệ hoặc dữ liệu cũ thiếu trường trước khi tiếp tục.
@@ -102,13 +115,18 @@ không có phiên Firebase Auth. Sau khi bật Rules mới, các bản User cũ 
    trong môi trường của tiến trình triển khai. Đặt `ROOT_PASSWORD_1`, `ROOT_PASSWORD_2` bằng
    hai mật khẩu riêng. Script **không nhận `123456` cho project thật** và không in mật khẩu.
 6. Chạy migration `--apply`, bootstrap `--apply`, triển khai backend/Rules và bản ứng dụng mới
-   trong cùng đợt bảo trì:
+trong cùng đợt bảo trì:
 
    ```powershell
-   node scripts/migrate.js --project e09-elearning --apply
-   node scripts/bootstrap.js --project e09-elearning --apply
+   node scripts/chuyen_doi_du_lieu.js --project e09-elearning --apply
+   node scripts/khoi_dong.js --project e09-elearning --apply
+   node scripts/bo_sung_ma_hoc_vien.js --project e09-elearning
+   node scripts/bo_sung_ma_hoc_vien.js --project e09-elearning --apply
 npx firebase deploy --config ../firebase.json --project e09-elearning --only functions:accounts,firestore:rules
    ```
+
+   Backfill cần hoàn tất trước khi triển khai backend mới. Nếu bị gián đoạn, chạy lại
+   cùng lệnh `--apply`; script tiếp tục từ cursor đã lưu.
 
 7. Kiểm thử bằng hai admin tổng, một admin phụ và một User; chỉ mở lại dịch vụ khi tất cả đạt.
    Xóa các biến mật khẩu khỏi terminal sau khi dùng. Không bỏ `--project` trong các lệnh thao tác dữ liệu.
@@ -135,7 +153,7 @@ flutter test
 cd functions
 npm test
 npm run test:rules
-npx firebase emulators:exec --config ../firebase.json --project demo-e09 --only firestore,auth,functions "node --test test/bootstrap.emulator.js"
+npx firebase emulators:exec --config ../firebase.json --project demo-e09 --only firestore,auth,functions "node --test test/khoi_dong.emulator.js"
 ```
 
 Các kiểm thử `*.emulator.js` từ chối chạy nếu thiếu emulator; không dùng tài khoản hoặc dữ liệu thật.

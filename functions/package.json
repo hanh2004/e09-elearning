@@ -2,23 +2,29 @@
   "name": "e09-account-backend",
   "private": true,
   "type": "module",
-  "main": "src/index.js",
-  "engines": { "node": "22" },
+  "main": "src/diem_vao.js",
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
-    "test": "node scripts/run-tests.mjs unit",
-    "test:all-emulators": "firebase emulators:exec --config ../firebase.full.test.json --project demo-e09 --only firestore,auth,storage,functions \"node scripts/run-tests.mjs emulator\"",
-    "test:rules": "firebase emulators:exec --config ../firebase.json --project demo-e09 --only firestore,auth \"node --test test/security.emulator.js\"",
-    "test:audit": "firebase emulators:exec --config ../firebase.json --project demo-e09 --only firestore,auth,storage \"node --test --test-concurrency=1 test/account_changes.emulator.js test/images.emulator.js\"",
-    "bootstrap": "node scripts/bootstrap.js",
-    "migrate": "node scripts/migrate.js"
+    "test": "node scripts/chay_kiem_thu.mjs unit",
+    "test:all-emulators": "firebase emulators:exec --config ../firebase.full.test.json --project demo-e09 --only firestore,auth,storage,functions \"node scripts/chay_kiem_thu.mjs emulator\"",
+    "test:rules": "firebase emulators:exec --config ../firebase.json --project demo-e09 --only firestore,auth \"node --test test/bao_mat.emulator.js\"",
+    "test:audit": "firebase emulators:exec --config ../firebase.json --project demo-e09 --only firestore,auth,storage \"node --test --test-concurrency=1 test/thay_doi_tai_khoan.emulator.js test/hinh_anh.emulator.js\"",
+    "bootstrap": "node scripts/khoi_dong.js",
+    "migrate": "node scripts/chuyen_doi_du_lieu.js"
   },
   "dependencies": {
-    "firebase-admin": "^13.0.0",
-    "firebase-functions": "^6.0.0"
+    "firebase-admin": "^14.5.0",
+    "firebase-functions": "^7.4.0"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.0",
     "firebase": "^11.0.0",
-    "firebase-tools": "^14.0.0"
+    "firebase-tools": "^14.0.0",
+    "picomatch": "^4.0.7"
   }
 }

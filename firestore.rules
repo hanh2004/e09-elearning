@@ -20,7 +20,9 @@ service cloud.firestore {
     function canManageUser(uid) { let user = get(/databases/$(database)/documents/users/$(uid)).data;
       return admin() && (root() || (user.role == 'user' && user.createdBy == request.auth.uid)); }
     function courseReadable(courseId) { let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
-      return active() && course.published == true; }
+      return active() && course.published == true &&
+        (!(course.get('publishedAt', null) is timestamp) || request.time >= course.publishedAt) &&
+        (!(course.get('startsAt', null) is timestamp) || request.time >= course.startsAt); }
     function courseEnded(data) {
       return data.get('endsAt', null) is timestamp && request.time >= data.endsAt;
     }
@@ -39,12 +41,17 @@ service cloud.firestore {
     function courseEditable(courseId) {
       return !courseEnded(get(/databases/$(database)/documents/courses/$(courseId)).data);
     }
-    function validLessonMode(data) {
-      return (data.get('learningMode', 'study_only') == 'study_only' && data.get('examId', '') == '') ||
-        (data.get('learningMode', '') == 'study_exam' && data.get('examId', '') is string &&
-         data.examId.size() > 0 && data.examId.size() <= 128 &&
-         exists(/databases/$(database)/documents/exams/$(data.examId)) &&
-         get(/databases/$(database)/documents/exams/$(data.examId)).data.get('deleting', false) == false);
+    function validLessonMode(courseId, data) {
+      let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
+      let examId = data.get('examId', '');
+      return (data.get('learningMode', 'study_only') == 'study_only' && examId == '') ||
+        (data.get('learningMode', '') == 'study_exam' && examId is string &&
+         examId.size() <= 128 &&
+         ((examId == '' && course.get('learningMode', '') == 'study_exam' &&
+           course.get('examId', '') == '') ||
+          (examId.size() > 0 &&
+           exists(/databases/$(database)/documents/exams/$(examId)) &&
+           get(/databases/$(database)/documents/exams/$(examId)).data.get('deleting', false) == false)));
     }
     function validNewsCategory(data) {
       let category = data.get('category', 'Điểm tin');
@@ -57,6 +64,58 @@ service cloud.firestore {
         (examId is string && examId.size() <= 128 &&
          exists(/databases/$(database)/documents/exams/$(examId)) &&
          get(/databases/$(database)/documents/exams/$(examId)).data.get('courseId', '') in ['', courseId]);
+    }
+    function validCourseSchedule(data) {
+      let startsAt = data.get('startsAt', null);
+      let endsAt = data.get('endsAt', null);
+      return data.get('deploymentMode', 'manual') != 'scheduled' ||
+        (startsAt is timestamp && endsAt is timestamp && endsAt > startsAt);
+    }
+    function validNewCourseSchedule(data) {
+      return validCourseSchedule(data) &&
+        (data.get('deploymentMode', 'manual') != 'scheduled' ||
+          (data.startsAt > request.time && data.endsAt > request.time));
+    }
+    function changedCourseTimeIsFuture(field) {
+      let next = request.resource.data.get(field, null);
+      let previous = resource.data.get(field, null);
+      return next == previous || next == null || (next is timestamp && next > request.time);
+    }
+    function validCourseReleaseOnCreate(data) {
+      let releaseAt = data.get('publishedAt', null);
+      return (releaseAt == null || releaseAt is timestamp) &&
+        (data.published != true || (releaseAt is timestamp && releaseAt > request.time));
+    }
+    function validCourseReleaseOnUpdate(data) {
+      let releaseAt = data.get('publishedAt', null);
+      let previousReleaseAt = resource.data.get('publishedAt', null);
+      return (releaseAt == null || releaseAt is timestamp) &&
+        (resource.data.get('published', false) == true
+          ? releaseAt == previousReleaseAt
+          : data.published != true || (releaseAt is timestamp && releaseAt > request.time));
+    }
+    function validExamSchedule(data) {
+      let opensAt = data.get('opensAt', null);
+      let closesAt = data.get('closesAt', null);
+      return (opensAt == null || opensAt is timestamp) &&
+        (closesAt == null || closesAt is timestamp) &&
+        (opensAt == null || closesAt == null || closesAt > opensAt);
+    }
+    function validNewExamSchedule(data) {
+      let opensAt = data.get('opensAt', null);
+      let closesAt = data.get('closesAt', null);
+      return validExamSchedule(data) &&
+        (opensAt == null || opensAt > request.time) &&
+        (closesAt == null || closesAt > request.time);
+    }
+    function changedExamTimeIsFuture(field) {
+      let next = request.resource.data.get(field, null);
+      let previous = resource.data.get(field, null);
+      return next == previous || next == null || (next is timestamp && next > request.time);
+    }
+    function validEventTimes(data) {
+      return data.startsAt is timestamp && data.endsAt is timestamp &&
+        data.endsAt > data.startsAt && data.type in ['lesson','exam'];
     }
     match /users/{uid} {
       allow get: if admin() || (active() && request.auth.uid == uid) ||
@@ -146,14 +205,22 @@ service cloud.firestore {
     }
     match /usernames/{id} { allow read: if admin(); }
     match /admin_requests/{id} { allow read: if root(); }
+    match /admin_delete_requests/{id} {
+      allow read: if root();
+      match /learners/{uid} { allow read: if root(); }
+    }
     match /password_reset_requests/{id} {
       allow read: if admin() && (root() ||
-        (resource.data.get('managerId', '') == request.auth.uid && resource.data.status == 'approved'));
+        (resource.data.get('managerId', '') == request.auth.uid &&
+          resource.data.status in ['pending', 'approved_once', 'approved', 'processing']));
     }
     // Answer keys and grading snapshots never leave the trusted backend.
     match /exams/{id} {
       allow read: if admin();
-      allow create, update, delete: if root();
+      allow create: if root() && validNewExamSchedule(request.resource.data);
+      allow update: if root() && validExamSchedule(request.resource.data) &&
+        changedExamTimeIsFuture('opensAt') && changedExamTimeIsFuture('closesAt');
+      allow delete: if root();
       match /questions/{qid} { allow read: if admin(); allow write: if root(); }
     }
     match /questions/{id} { allow read: if admin(); allow write: if root(); }
@@ -172,8 +239,16 @@ service cloud.firestore {
     }
     match /courses/{id} {
       allow read: if admin() || (active() && resource.data.published == true);
-      allow create, update: if root() &&
-        (!exists(/databases/$(database)/documents/courses/$(id)) || !courseEnded(resource.data)) &&
+      allow create: if root() && validNewCourseSchedule(request.resource.data) &&
+        validCourseReleaseOnCreate(request.resource.data) &&
+        request.resource.data.title is string && request.resource.data.title.size() > 0 &&
+        request.resource.data.published is bool && (!request.resource.data.published || hasCover(request.resource.data)) &&
+        validCourseExam(id, request.resource.data) &&
+        request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
+      allow update: if root() && !courseEnded(resource.data) &&
+        validCourseSchedule(request.resource.data) &&
+        changedCourseTimeIsFuture('startsAt') && changedCourseTimeIsFuture('endsAt') &&
+        validCourseReleaseOnUpdate(request.resource.data) &&
         request.resource.data.title is string && request.resource.data.title.size() > 0 &&
         request.resource.data.published is bool && (!request.resource.data.published || hasCover(request.resource.data)) &&
         validCourseExam(id, request.resource.data) &&
@@ -190,7 +265,7 @@ service cloud.firestore {
           hasCover(request.resource.data) && request.resource.data.order is int && request.resource.data.order >= 0 &&
           request.resource.data.get('minimumStudySeconds',300) is int &&
           request.resource.data.get('minimumStudySeconds',300) >= 1 && request.resource.data.get('minimumStudySeconds',300) <= 86400 &&
-          validLessonMode(request.resource.data) &&
+          validLessonMode(id, request.resource.data) &&
           request.resource.data.type in ['text','pdf','image','video'] && request.resource.data.updatedBy == request.auth.uid;
         allow delete: if root();
       }
@@ -223,15 +298,26 @@ service cloud.firestore {
     }
     match /learning_notifications/{id} {
       allow read: if admin() || (active() && resource.data.sendAt <= request.time && resource.data.audience in ['all','class:' + profile().get('classId',''),'user:' + request.auth.uid]);
-      allow create, update: if root() && request.resource.data.title is string && request.resource.data.body is string &&
-        request.resource.data.sendAt is timestamp && request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
+      allow create: if root() && request.resource.data.title is string && request.resource.data.body is string &&
+        request.resource.data.sendAt is timestamp &&
+        (request.resource.data.sendAt > request.time ||
+          (request.resource.data.get('deliveryMode', '') == 'immediate' && request.resource.data.sendAt == request.time)) &&
+        request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
+      allow update: if root() && request.resource.data.title is string && request.resource.data.body is string &&
+        request.resource.data.sendAt is timestamp && request.resource.data.sendAt == resource.data.sendAt &&
+        request.resource.data.get('deliveryMode', null) == resource.data.get('deliveryMode', null) &&
+        request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
       allow delete: if root();
     }
     match /learning_events/{id} {
       allow read: if admin() || (active() && resource.data.audience in ['all','class:' + profile().get('classId','')]);
-      allow create, update: if root() && request.resource.data.title is string && request.resource.data.audience is string &&
-        request.resource.data.startsAt is timestamp && request.resource.data.endsAt is timestamp && request.resource.data.endsAt > request.resource.data.startsAt &&
-        request.resource.data.type in ['lesson','exam'];
+      allow create: if root() && request.resource.data.title is string && request.resource.data.audience is string &&
+        validEventTimes(request.resource.data) &&
+        request.resource.data.startsAt > request.time && request.resource.data.endsAt > request.time;
+      allow update: if root() && request.resource.data.title is string && request.resource.data.audience is string &&
+        validEventTimes(request.resource.data) &&
+        (request.resource.data.startsAt == resource.data.startsAt || request.resource.data.startsAt > request.time) &&
+        (request.resource.data.endsAt == resource.data.endsAt || request.resource.data.endsAt > request.time);
     }
     match /account_audit/{id} { allow read: if admin(); }
     // Góp ý chỉ admin tổng được đọc; ghi dữ liệu qua Cloud Functions.

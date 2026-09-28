@@ -9,7 +9,7 @@ try {
   $staging = Join-Path $PSScriptRoot ('build\web-verified-' + [guid]::NewGuid().ToString('N'))
   & flutter build web --release --target "lib/main_$Portal.dart" --no-pub --no-web-resources-cdn -o $staging
   if ($LASTEXITCODE -ne 0) { throw 'Flutter build failed. Current published bundle was kept.' }
-  & $Node functions/scripts/verify-web-build.mjs $staging
+  & $Node functions/scripts/xac_minh_ban_web.mjs $staging
   if ($LASTEXITCODE -ne 0) { throw 'Asset verification failed. Do not deploy this build.' }
   $output = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "build\${Portal}_web"))
   $buildRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'build')) + [IO.Path]::DirectorySeparatorChar

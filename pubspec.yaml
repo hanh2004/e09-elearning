@@ -2,7 +2,10 @@ name: e09_elearning
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.1+2
+# Đổi 3 số trước dấu + để app nhắc người dùng khi có phiên bản mới.
+# Tăng số sau dấu + cho mỗi APK; đây là Android versionCode nên không được giảm/reset.
+# Chỉ tăng số sau dấu + để sửa nhỏ thì app không nhắc cập nhật.
+version: 1.0.3+6
 
 environment:
   sdk: ^3.13.1
@@ -20,6 +23,7 @@ dependencies:
   file_picker: ^12.2.0
   web: ^1.1.1
   cloud_functions: ^6.4.0
+  http: ^1.6.0
   crypto: ^3.0.7
   firebase_storage: ^13.5.0
   speech_to_text: ^7.5.0

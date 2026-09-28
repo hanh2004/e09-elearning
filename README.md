@@ -13,13 +13,13 @@ Mỗi lệnh chỉ chạy **một** ứng dụng. Chạy hai lệnh ở hai term
 flutter run
 
 # App User trên điện thoại/emulator
-flutter run -t lib/main_user.dart -d <device-id>
+flutter run -t lib/diem_vao_hoc_vien.dart -d <device-id>
 
 # Web Admin trên Chrome
-flutter run -t lib/main_admin.dart -d chrome --web-port 8081
+flutter run -t lib/diem_vao_quan_tri.dart -d chrome --web-port 8081
 
 # Tùy chọn: xem thử User trên trình duyệt, dùng cổng khác Admin
-flutter run -t lib/main_user.dart -d chrome --web-port 8082
+flutter run -t lib/diem_vao_hoc_vien.dart -d chrome --web-port 8082
 ```
 
 Dùng `flutter devices` để lấy device ID. Trong VS Code có cấu hình **User App**
@@ -35,13 +35,13 @@ Các lệnh sau chỉ dùng sau khi đã hoàn thiện cấu hình ký phát hà
 
 ```powershell
 # Google Play: Android App Bundle
-flutter build appbundle --release -t lib/main_user.dart
+flutter build appbundle --release -t lib/diem_vao_hoc_vien.dart
 
 # App Store: chạy trên macOS có Xcode và cấu hình ký của Apple Developer
-flutter build ipa --release -t lib/main_user.dart
+flutter build ipa --release -t lib/diem_vao_hoc_vien.dart
 
 # Web Admin
-flutter build web --release -t lib/main_admin.dart --output build/admin_web
+flutter build web --release -t lib/diem_vao_quan_tri.dart --output build/admin_web
 ```
 
 Google Play: tệp `.aab` trong `build/app/outputs/bundle/release/`.
@@ -51,30 +51,49 @@ APK chỉ dùng khi cần cài Android trực tiếp để thử nghiệm.
 Web Admin: `build/admin_web/`. Chỉ triển khai thư mục này cho cổng Admin.
 Không dùng bản `build/web` cũ vì nó có thể là ứng dụng gộp trước khi tách.
 
-### Cấu hình phát hành còn cần hoàn thiện
+### Trạng thái phát hành
 
-- Android release đã bỏ fallback sang debug key; task kiểm tra sẽ dừng nếu chưa có
-  upload keystore chính thức trong `android/key.properties`. Cần cấu hình khóa này
-  trước khi tạo AAB để tải lên Google Play.
-- Application ID Android hiện là `com.example.e09_elearning`; Bundle ID iOS
-  hiện là `com.example.e09Elearning`. Chốt mã định danh với chủ dự án và đồng bộ
-  Firebase trước lần phát hành đầu tiên. Không tự đổi mã của app đã phát hành.
-- iOS chưa cấu hình `DEVELOPMENT_TEAM`. Cần tài khoản Apple Developer,
-  chọn Team và hoàn thiện signing trong Xcode.
+- Application ID Android được giữ là `com.example.e09_elearning` theo quyết định
+  của chủ dự án; Firebase đã có cấu hình Android khớp mã này. Không đổi mã sau
+  khi app đã phát hành.
+- Android signing đã được cấu hình cục bộ bằng `android/key.properties` và keystore
+  riêng. Không commit hai tệp này; mỗi máy/CI phát hành phải tự cấu hình khóa.
+- Bundle ID iOS vẫn là `com.example.e09Elearning`, chưa có `DEVELOPMENT_TEAM`.
+  Muốn phát hành App Store cần chốt Bundle ID, chọn Apple Developer Team và ký
+  bản iOS trên macOS/Xcode.
+- Chưa có chính sách quyền riêng tư công khai trong dự án. Trước khi phát hành,
+  cần công bố URL chính sách và khai báo trung thực dữ liệu thu thập/chia sẻ trên
+  từng cửa hàng; nội dung phải được chủ đơn vị xác nhận.
 - Quản lý phiên bản tại `pubspec.yaml`, ví dụ `1.0.0+1`; tăng build number
   cho lần tải bản mới. Cấu hình ký xong vẫn cần kiểm thử trên thiết bị và
   hoàn thiện thông tin ứng dụng trên từng cửa hàng.
 
 Hướng dẫn chính thức: [Android](https://docs.flutter.dev/deployment/android),
 [iOS](https://docs.flutter.dev/deployment/ios).
+Khi mở phát hành công khai, đối chiếu [chính sách dữ liệu Google Play](https://support.google.com/googleplay/android-developer/answer/10144311)
+và [khai báo quyền riêng tư App Store](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy).
 
 Có thể build User Web để kiểm tra bằng:
-`flutter build web -t lib/main_user.dart --output build/user_web`.
+`flutter build web -t lib/diem_vao_hoc_vien.dart --output build/user_web`.
 
 Cập nhật frontend Admin không cần phát hành lại User và ngược lại. Hai bên vẫn
 dùng Firebase project `e09-elearning`, nên thay đổi dữ liệu sẽ phản ánh sang cả
 hai. Khi đổi schema/backend cần tương thích ngược với app đã phát hành.
-Không có bước deploy tự động trong thay đổi này.
+
+### Phát hành APK nội bộ và nhắc cập nhật tự động
+
+Tăng phiên bản/build trong `pubspec.yaml`, rồi chạy:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tooling\publish_internal_release.ps1
+```
+
+Script build APK đã ký và Admin web, lấy mã phiên bản trực tiếp từ metadata APK,
+tạo `web/app-release.json`, lưu APK vào `outputs/internal/` rồi cập nhật Hosting.
+App học viên tự đọc manifest sau khi đăng nhập; không cần Admin nhập phiên bản hay
+gửi thông báo thủ công. Học viên bấm **Đã rõ** vẫn dùng tiếp app cũ. Các APK cũ
+chưa có chức năng kiểm tra này cần được cài bản mới một lần trước khi nhận nhắc
+cập nhật cho các đợt phát hành tiếp theo.
 
 ## Vai trò và bảo mật — trạng thái hiện tại
 
@@ -101,13 +120,20 @@ Không có bước deploy tự động trong thay đổi này.
 - Admin tổng được khóa mọi User và Admin phụ; không được xóa Admin tổng còn lại.
 - Admin phụ xem được mọi User nhưng chỉ sửa hoặc xóa User do chính mình tạo.
   User của admin phụ khác chỉ Admin tổng mới được thay đổi.
-- Admin tổng có công tắc **Cập nhật ứng dụng**. Khi bật, cổng User chặn đăng
-  nhập và báo ứng dụng đang được cập nhật; cổng Admin vẫn hoạt động.
+- Admin tổng có công tắc **Cập nhật ứng dụng**. Khi bật, app User đang mở và
+  kết nối mạng sẽ hiện màn hình bảo trì, đăng xuất học viên và chặn tiếp tục dùng
+  app; người dùng cần tự đóng ứng dụng rồi mở lại sau khi bảo trì kết thúc. Đăng
+  nhập User mới cũng bị chặn. Cổng Admin vẫn hoạt động. Đây là chặn trong ứng dụng,
+  không phải lệnh đóng cưỡng bức hệ điều hành; app cần đang chạy và nhận được
+  cập nhật Firestore để hiện thông báo ngay.
 - Bài thi có thể đặt ngày giờ tự đóng hoặc đóng/mở thủ công. Lượt làm
   không được kéo dài quá hạn đóng.
-- Bản Spark miễn phí tạo tài khoản bằng Firebase Authentication phía client và giới hạn
-  thao tác bằng Firestore Rules; không dùng Cloud Functions/Blaze. Đây là cấu hình thử nghiệm,
-  bảo mật và khả năng khôi phục thao tác kém hơn backend trả phí.
+- Việc tạo user bằng Firebase Authentication phía client và một số giới hạn của
+  Rules còn phụ thuộc gói Firebase đang dùng. Dự án hiện có Cloud Functions trong
+  `functions/` và cấu hình triển khai tại `firebase.json`; các thao tác như xóa
+  khóa học/bài học, quản lý tài khoản và bài thi gọi backend. Xác nhận gói Firebase
+  và Functions đã triển khai trước khi phát hành; không dùng mô tả “Spark, không
+  Functions” để suy ra hành vi môi trường đang chạy.
 - Đăng nhập dùng Firebase Auth, không đọc mật khẩu từ Firestore. Không có 2FA.
 - Đăng nhập sai cổng vẫn báo cùng thông báo sai tài khoản/mật khẩu. Đăng xuất xóa phiên Auth.
 - Học viên bấm **Quên mật khẩu?** ở màn hình đăng nhập để gửi yêu cầu. Một quản lý tổng
@@ -115,7 +141,8 @@ Không có bước deploy tự động trong thay đổi này.
   nhập mật khẩu mới trong mục **Cấp lại mật khẩu**. Mật khẩu không lưu trong Firestore.
 - Firestore Rules chặn User tự xóa lượt làm, ghi cho người khác, nộp sau hạn
   và ghi điểm ngoài miền hợp lệ. Chấm điểm tuyệt đối chống can thiệp vẫn cần
-  backend tin cậy; bản Spark hiện tại chỉ phù hợp dữ liệu thử nghiệm.
+  backend tin cậy; app phát hành phải dùng backend đã triển khai, không tắt
+  `USE_SECURE_BACKEND` để thay thế bằng đường Rules-only thử nghiệm.
 
 Web Admin và Firestore Rules hiện đã được triển khai trên Firebase project thật.
 Khi thay đổi schema hoặc quy tắc quyền, phải kiểm thử bằng emulator trước khi triển khai.
@@ -138,16 +165,19 @@ Trong Web Admin: **Quản lý Tài khoản → Nhập User từ Excel → Tải 
 - Dòng trắng bỏ qua; dòng thiếu dữ liệu hoặc trùng tên (không phân biệt hoa/thường)
   được báo lỗi. Phải sửa hết lỗi trước khi xác nhận.
 - Xem trước không hiện mật khẩu và chưa lưu dữ liệu. Nhấn **Xác nhận thêm** mới lưu.
-- Import luôn tạo `role: user`, không ghi đè tài khoản cũ. Bản Spark tạo Firebase Auth
-  bằng ứng dụng phụ rồi ghi hồ sơ; nếu gián đoạn có thể thử lại với cùng mật khẩu để tiếp tục.
+- Import luôn tạo `role: user`, không ghi đè tài khoản cũ. Cloud Function tạo Firebase
+  Auth và hồ sơ; nếu gián đoạn, có thể thử lại cùng dữ liệu trong cùng phiên để tiếp tục.
+- Backend giữ trước tên đăng nhập và mã người dùng, tạo hồ sơ theo nhóm rồi mới kích hoạt
+  cả nhóm. Nếu thao tác bị gián đoạn, giữ nguyên dữ liệu và thử lại trong cùng phiên;
+  không tạo yêu cầu mới hoặc tự xóa các bản ghi `provisioning`.
 - File chứa mật khẩu: không đưa file đã điền lên GitHub hoặc chia sẻ công khai.
 
 Đã bỏ tùy chọn thêm Giáo viên và gán trực tiếp vai trò Admin. Tạo Admin phải qua đề xuất/duyệt.
 Import dùng Firebase Authentication và lưu người tạo từ phiên Admin đang đăng nhập.
 
-Khi xóa User, hồ sơ, chỉ mục tên đăng nhập và toàn bộ bài làm bị xóa vĩnh viễn.
-Trên bản Spark, bản ghi kỹ thuật trong Firebase Authentication có thể còn nhưng không còn
-hồ sơ hợp lệ nên không thể đăng nhập. Muốn xóa cả Auth cần backend Admin SDK.
+Khi xóa User, Cloud Function xóa Firebase Authentication, hồ sơ, chỉ mục tên đăng nhập,
+tiến độ và các lượt thi/dữ liệu con đã biết. Đây là thao tác vĩnh viễn; cần bản sao lưu
+nếu muốn có khả năng phục hồi.
 
 ## Kiểm thử
 
@@ -178,7 +208,7 @@ không dừng toàn bộ Java hay các ứng dụng khác.
 Test bộ chọn Excel trên trình duyệt phải chạy riêng từ gốc dự án:
 
 ```powershell
-flutter test --platform chrome test/workbook_picker_web_test.dart
+flutter test --platform chrome test/chon_bang_tinh_trinh_duyet_test.dart
 ```
 
 Nếu test dừng ở `loading` và Chrome báo 404 `/canvaskit/chromium/`, đó là lỗi

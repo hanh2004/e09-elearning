@@ -16,13 +16,13 @@ npm test
 cd ..
 
 # web admin
-flutter build web --target lib/main_admin.dart --release --output build/admin_web
+flutter build web --target lib/diem_vao_quan_tri.dart --release --output build/admin_web
 
 # app học viên lên Google Play (sau khi cấu hình ký phát hành)
-flutter build appbundle --target lib/main_user.dart --release
+flutter build appbundle --target lib/diem_vao_hoc_vien.dart --release
 
 # app học viên lên App Store (trên macOS có Xcode và Apple signing)
-flutter build ipa --target lib/main_user.dart --release
+flutter build ipa --target lib/diem_vao_hoc_vien.dart --release
 ```
 
 Các bài test cần emulator không chạy bằng `npm test`. Chạy chúng qua Firebase
@@ -32,32 +32,43 @@ Emulator để không bao giờ chạm dữ liệu thật:
 cd functions
 node node_modules/firebase-tools/lib/bin/firebase.js emulators:exec `
   --config ../firebase.json --project demo-e09 --only firestore,auth `
-  "node --test test/security.emulator.js"
+  "node --test test/bao_mat.emulator.js"
 cd ..
 ```
 
 ## Mã nguồn nằm ở đâu?
 
+Backend dùng Firebase Admin 14 và Functions 7 trên Node 22. Trong
+`functions/package.json`, override `qs` giữ bản đã vá lỗi từ 6.16.0 trở lên.
+Sau khi nâng thư viện, dùng `npm ci` để xác nhận lockfile cài được;
+`npm audit --omit=dev` kiểm tra thư viện chạy trên server, còn `npm audit`
+kiểm tra thêm các công cụ phát triển. Nâng Firebase CLI từ 14 lên 15 cần
+chuẩn bị Java 21 cho emulator và kiểm tra lại các lệnh triển khai.
+
 | Việc cần sửa | Tệp nên bắt đầu |
 | --- | --- |
-| Màu, logo, nền chung | `lib/app/app_theme.dart`, `lib/widgets/admin_ui.dart`, `lib/widgets/brand_logo.dart` |
-| Chọn cổng User/Admin | `lib/main_user.dart`, `lib/main_admin.dart`, `lib/app/elearning_app.dart` |
-| Cấu hình vùng API, cổng emulator, bật backend | `lib/app/app_config.dart` |
-| Thanh menu web admin | `lib/screens/admin/admin_responsive_shell.dart` |
-| Trang chủ admin và tổng quan | `lib/screens/admin/admin_home_screen.dart`, `admin_learning_dashboard.dart` |
-| Tài khoản, đơn vị, quyền tạo User | `lib/screens/admin/admin_account_screen.dart`, `lib/services/firestore_service.dart` |
-| Danh sách, tìm kiếm, xóa khóa học | `lib/screens/admin/admin_courses_screen.dart` |
-| Danh sách chương/bài học, nút triển khai/kết thúc | `lib/screens/admin/admin_lessons_screen.dart` |
-| Form tạo/sửa khóa học và bài học | `lib/screens/admin/forms/course_editor.dart`, `lesson_editor.dart` |
-| Nhãn, dữ liệu ban đầu, kiểm tra dữ liệu trước khi lưu | `lib/models/course_form.dart`, `lesson_form.dart` |
-| Quy tắc khóa học đang mở/đã kết thúc, tính tiến độ | `lib/models/learning_policy.dart` |
-| Đọc/ghi nội dung, tiến độ, thông báo và lịch sử thay đổi | `lib/services/learning_service.dart` |
-| Báo cáo khóa học đã kết thúc | `lib/screens/admin/admin_course_report_screen.dart`, `lib/models/course_completion_report.dart` |
-| Bài thi và ngân hàng câu hỏi | `lib/screens/admin/admin_exam_screen.dart`, `admin_question_bank_screen.dart` |
+| Màu, logo, nền chung | `lib/app/chu_de_ung_dung.dart`, `lib/widgets/giao_dien_quan_tri.dart`, `lib/widgets/bieu_trung_thuong_hieu.dart` |
+| Chọn cổng User/Admin | `lib/diem_vao_hoc_vien.dart`, `lib/diem_vao_quan_tri.dart`, `lib/app/ung_dung_hoc_tap_so.dart` |
+| Cấu hình vùng API, cổng emulator, bật backend | `lib/app/cau_hinh_ung_dung.dart` |
+| Thanh menu web admin | `lib/screens/admin/khung_giao_dien_quan_tri.dart` |
+| Trang chủ admin và tổng quan | `lib/screens/admin/trang_chu_quan_tri.dart`, `tong_quan_hoc_tap.dart` |
+| Tài khoản, đơn vị, quyền tạo User | `lib/screens/admin/quan_ly_tai_khoan.dart`, `lib/services/du_lieu/dich_vu_firestore.dart`, `lib/services/du_lieu/thao_tac_tai_khoan_firestore.dart` |
+| Quên và cấp lại mật khẩu | `functions/src/cap_lai_mat_khau.js` (yêu cầu, hai bước duyệt, đặt mật khẩu), `functions/src/tai_khoan.js` (ghép API) |
+| Nhập học viên từ Excel | `lib/screens/admin/hop_thoai_nhap_hoc_vien.dart`, `functions/src/nhap_hoc_vien.js` (luồng nhập), `functions/src/tai_khoan.js` (ghép API) |
+| Đổi đơn vị quản lý và đồng bộ mã học viên | `functions/src/gan_don_vi.js` (nghiệp vụ), `functions/src/tai_khoan.js` (ghép API), `functions/src/quy_tac.js` |
+| Danh sách, tìm kiếm, xóa khóa học | `lib/screens/admin/quan_ly_khoa_hoc.dart` |
+| Danh sách chương/bài học, nút triển khai/kết thúc | `lib/screens/admin/quan_ly_bai_hoc.dart` |
+| Form tạo/sửa khóa học và bài học | `lib/screens/admin/forms/bieu_mau_khoa_hoc.dart`, `bieu_mau_bai_hoc.dart` |
+| Nhãn, dữ liệu ban đầu, kiểm tra dữ liệu trước khi lưu | `lib/models/bieu_mau_khoa_hoc.dart`, `bieu_mau_bai_hoc.dart` |
+| Quy tắc khóa học đang mở/đã kết thúc, tính tiến độ | `lib/models/quy_tac_hoc_tap.dart` |
+| Đọc/ghi nội dung, tiến độ, thông báo và lịch sử thay đổi | `lib/services/nghiep_vu/dich_vu_hoc_tap.dart` |
+| Báo cáo khóa học đã kết thúc | `lib/screens/admin/bao_cao_khoa_hoc.dart`, `lib/models/bao_cao_hoan_thanh_khoa_hoc.dart` |
+| Bài thi và ngân hàng câu hỏi | `lib/screens/admin/quan_ly_bai_kiem_tra.dart`, `ngan_hang_cau_hoi.dart` |
 | Màn hình học viên | `lib/screens/user/` |
-| Thẻ nội dung học viên | `lib/widgets/learner_card.dart`, `profile_card.dart` |
+| Thẻ nội dung học viên | `lib/widgets/the_hoc_vien.dart`, `the_ho_so_hoc_vien.dart` |
 | Quyền Firebase | `firestore.rules`, `storage.rules` |
-| Backend Blaze | `functions/src/accounts.js`, `functions/src/exams.js`, `functions/src/policy.js` |
+| Backend Cloud Functions | `functions/src/tai_khoan.js`, `functions/src/khoa_hoc.js`, `functions/src/bai_kiem_tra.js`, `functions/src/quy_tac.js` |
+| Bật/tắt bảo trì app User | `lib/screens/admin/cai_dat_quan_tri.dart`, `lib/services/du_lieu/thao_tac_bao_tri_firestore.dart`, `lib/screens/user/cong_bao_tri_hoc_vien.dart`, `lib/screens/man_hinh_dang_nhap.dart`, `firestore.rules` |
 
 ## Chú thích chức năng trong code
 
@@ -65,6 +76,11 @@ Các tệp Dart viết tay trong `lib/` có chú thích tiếng Việt ngay đ�
 chức năng, khu vực Admin/Học viên/dùng chung và nơi cần sửa. Các lớp màn hình
 cũng có chú thích `///`. Firebase options là tệp sinh tự động, giữ nguyên.
 Khi thêm trang mới, viết chú thích cùng cách này; giữ mã trường Firebase bằng tiếng Anh.
+
+Tệp mã nguồn mới nên đặt tên tiếng Việt không dấu, ngắn gọn và nêu đúng vai trò
+(ví dụ `nhap_hoc_vien.js`, `cong_bao_tri_hoc_vien.dart`). Tên lớp, hàm, API,
+trường Firestore và các tệp cũ đang được tham chiếu rộng vẫn giữ ổn định; chỉ
+Việt hóa tệp cũ theo từng nhóm, cập nhật toàn bộ import và kiểm tra build sau đó.
 
 ## Quy tắc dữ liệu dễ nhớ
 
@@ -82,7 +98,7 @@ Khi thêm trang mới, viết chú thích cùng cách này; giữ mã trường 
 
 ## Cách thêm một form nhập liệu
 
-Ưu tiên dùng `editLearningRecord` trong `lib/widgets/learning_widgets.dart`.
+Ưu tiên dùng `editLearningRecord` trong `lib/widgets/tien_ich_giao_dien_hoc_tap.dart`.
 
 - Dùng mã trường ổn định trong `fields`, ví dụ `title`; đặt chữ hiển thị trong
   `labels`, ví dụ `{'title': 'Tên chuyên đề'}`. Đổi nhãn không đổi mã dữ liệu.
@@ -104,15 +120,15 @@ làm mã như trước; không cần chuyển tất cả màn hình cùng lúc.
 Luồng xử lý hiện tại:
 
 ```text
-admin_courses_screen.dart / admin_lessons_screen.dart
-  → forms/course_editor.dart / forms/lesson_editor.dart (mở form)
+quan_ly_khoa_hoc.dart / quan_ly_bai_hoc.dart
+  → forms/bieu_mau_khoa_hoc.dart / forms/bieu_mau_bai_hoc.dart (mở form)
   → CourseForm / LessonForm (kiểm tra và chuyển dữ liệu)
   → LearningService.saveContent (ghi nội dung + lịch sử + thông báo)
 ```
 
 ### Đổi tên một ô nhập
 
-Trong `lib/models/course_form.dart`, sửa giá trị trong `CourseForm.labels`:
+Trong `lib/models/bieu_mau_khoa_hoc.dart`, sửa giá trị trong `CourseForm.labels`:
 
 ```dart
 'title': 'Tên khóa học',
@@ -126,7 +142,7 @@ Giữ nguyên mã `title`. `initialValues` đọc dữ liệu cũ vào form;
 1. Trong `CourseForm.labels`, thêm `'note': 'Ghi chú'`.
 2. Trong `CourseForm.initialValues`, thêm `'note': data['note'] ?? ''`.
 3. Trong `CourseForm.toFirestore`, thêm `'note': values['note']`.
-4. Trong `forms/course_editor.dart`, thêm `note` vào `optional`.
+4. Trong `forms/bieu_mau_khoa_hoc.dart`, thêm `note` vào `optional`.
 5. Kiểm tra Rules có cho phép trường mới và bổ sung nơi hiển thị nếu cần.
 
 Không tạo bản ghi mới khi sửa: form truyền lại reference của khóa học/bài học
@@ -134,7 +150,7 @@ Không tạo bản ghi mới khi sửa: form truyền lại reference của khó
 
 ### Đổi thời lượng học mặc định
 
-Sửa `LessonForm.defaultStudySeconds` trong `lib/models/lesson_form.dart`.
+Sửa `LessonForm.defaultStudySeconds` trong `lib/models/bieu_mau_bai_hoc.dart`.
 Giá trị này dùng cho form và danh sách bài học admin khi bản ghi chưa có thời lượng;
 không thay đổi thời lượng của các bài đã lưu. Nếu đổi giới hạn
 `minStudySeconds`/`maxStudySeconds`, phải cập nhật quy tắc tương ứng trong
@@ -144,7 +160,7 @@ không thay đổi thời lượng của các bài đã lưu. Nếu đổi giớ
 ### Kiểm tra phần vừa sửa
 
 ```powershell
-flutter test test/learning_forms_test.dart test/learning_test.dart test/admin_course_archive_test.dart
+flutter test test/cac_bieu_mau_hoc_tap_test.dart test/hoc_tap_test.dart test/luu_tru_khoa_hoc_quan_tri_test.dart
 ```
 
 Các test này kiểm tra lưu bản ghi cũ, đổi nhãn vẫn lưu đúng mã trường, lịch
@@ -153,10 +169,13 @@ chạy thêm `flutter analyze` và toàn bộ `flutter test`.
 
 ### Phạm vi đã đơn giản hóa
 
-Đã tách phần quản lý khóa học/bài học và giữ các import cũ hoạt động bằng
-`export`. Những màn hình tài khoản, bài thi, báo cáo và `firestore_service.dart`
-vẫn còn dài; có thể áp dụng cách tách này từng phần khi nâng cấp chúng.
-Chưa đưa thêm thư viện quản lý trạng thái hay thay cấu trúc dữ liệu Firebase.
+Phần khóa học/bài học được tách theo màn hình, biểu mẫu, model và service.
+Các thao tác Firestore của tài khoản/bài thi được tách thành các `part` trong
+`lib/services/du_lieu/`; khi sửa dữ liệu tài khoản, bắt đầu từ
+`thao_tac_tai_khoan_firestore.dart`, còn truy vấn và hàm dùng chung nằm trong
+`dich_vu_firestore.dart`. Báo cáo lớn được chia giữa màn hình, bảng, phần lấy
+lượt thi và phần xuất Excel. Giữ thay đổi nhỏ theo từng luồng để không làm đổi
+cấu trúc dữ liệu Firebase ngoài ý muốn.
 
 ## Quy trình thay đổi an toàn
 
@@ -164,12 +183,41 @@ Chưa đưa thêm thư viện quản lý trạng thái hay thay cấu trúc dữ
 2. Chạy `dart format` cho các tệp đã sửa.
 3. Chạy `flutter analyze` và test liên quan; trước khi bàn giao chạy `flutter test`.
 4. Nếu đổi quyền hoặc schema, chạy Rules Emulator rồi mới deploy.
-5. Build đúng cổng: web dùng `main_admin.dart`; AAB cho Google Play và IPA cho
-   App Store đều dùng `main_user.dart`. Xem cấu hình ký còn thiếu trong README.
+5. Build đúng cổng: web dùng `diem_vao_quan_tri.dart`; AAB cho Google Play và IPA cho
+   App Store đều dùng `diem_vao_hoc_vien.dart`. Xem trạng thái mã định danh, ký và quyền
+   riêng tư trong README.
 6. Chỉ deploy web admin bằng `firebase.json` ở thư mục gốc. Chỉ xuất bản đóng gói hoặc
    tải lên cửa hàng khi có yêu cầu; APK dành cho cài trực tiếp khi cần thử nghiệm.
 7. Giữ mã nguồn nền tảng `android/`, `ios/`, cấu hình Firebase và tài nguyên app
    khi dọn dự án. Giữ khóa ký và chứng chỉ phát hành an toàn ngoài Git.
+
+### Phát hành nội bộ và nhắc bản mới
+
+Tăng `version` (cả tên phiên bản và build number) trong `pubspec.yaml`, sau đó chạy:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tooling\publish_internal_release.ps1
+```
+
+Script build APK và Admin web, sinh `web/app-release.json` từ mã build thật của APK,
+lưu APK vào `outputs/internal/` và cập nhật Firebase Hosting. App học viên tự đọc
+manifest này sau đăng nhập thành công; không cần Admin báo bản mới trong trang quản trị.
+Chỉ các APK đã có chức năng kiểm tra phiên bản mới nhận được lời nhắc.
+
+### Thao tác trên nhiều tài khoản
+
+Nhập Excel nhận đến 200 dòng bằng các bước có thể tiếp tục sau lỗi. Đổi đơn vị
+quản lý kiểm tra trùng trước, rồi đồng bộ mỗi đợt 60 hồ sơ; nếu thao tác bị gián
+đoạn, chạy lại cùng mã đơn vị để tiếp tục. Trong lúc chạy, hệ thống tạm khóa các
+thay đổi tài khoản liên quan. Cần hoàn tất backfill trước khi dùng luồng đổi đơn
+vị theo đợt; luồng này dùng reservation để tránh quét toàn bộ hồ sơ.
+
+Backfill chỉ mục mã cũ ở `functions/scripts/bo_sung_ma_hoc_vien.js` xử lý 80 hồ sơ
+mỗi transaction. Nếu bị gián đoạn, chạy lại `--apply` để tiếp tục từ cursor trong
+`system/code_indexes`; chỉ khi hoàn tất mới đặt trạng thái `complete`, cho phép
+thao tác cấp mã dựa vào chỉ mục thay vì quét toàn bộ tài khoản. Chạy preview trước,
+sửa dữ liệu trùng/không hợp lệ nếu được báo lỗi, rồi mới áp dụng. Trên Firebase thật,
+chỉ chạy trong đợt bảo trì sau khi sao lưu và có kế hoạch khôi phục.
 
 ## Trang chủ, Tin tức và Tiện ích học viên
 
@@ -197,8 +245,8 @@ thành thì đề riêng đã gắn với bài mới được mở. Web admin c�
 Micro chỉ được khởi động khi bấm nút; Android/iOS cần quyền nhận dạng giọng
 nói và thiết bị có dịch vụ hỗ trợ. Cần kiểm tra micro trên thiết bị thật.
 
-Kiểm thử liên quan: `news_features_test.dart`, `news_and_lesson_modes_test.dart`,
-`learner_mobile_layout_test.dart` và `functions/test/news-lessons.emulator.js`.
+Kiểm thử liên quan: `tinh_nang_tin_tuc_test.dart`, `tin_tuc_va_che_do_bai_hoc_test.dart`,
+`bo_cuc_di_dong_hoc_vien_test.dart` và `functions/test/tin_tuc_bai_hoc.emulator.js`.
 Khi được yêu cầu phát hành, cần cập nhật `firestore.rules` cùng ứng dụng/admin
 để quyền lưu bài và các trường tin tức mới hoạt động. Sửa nguồn và chạy test
 không cập nhật website đang dùng, không xuất APK.

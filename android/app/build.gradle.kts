@@ -50,7 +50,7 @@ android {
     }
 
     defaultConfig {
-        // Chờ chủ dự án chốt mã chính thức; đổi mã phải đồng bộ Firebase Android.
+        // Giữ mã chủ dự án đã chọn; đổi mã phải đồng bộ Firebase Android.
         applicationId = "com.example.e09_elearning"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
-import 'package:e09_elearning/app/learner_theme.dart';
-import 'package:e09_elearning/screens/user/user_courses_screen.dart';
-import 'package:e09_elearning/services/nghiep_vu/learning_service.dart';
-import 'package:e09_elearning/widgets/course_cover.dart';
-import 'package:e09_elearning/widgets/learning_widgets.dart';
+import 'package:e09_elearning/app/chu_de_hoc_vien.dart';
+import 'package:e09_elearning/screens/user/cac_khoa_hoc.dart';
+import 'package:e09_elearning/services/nghiep_vu/dich_vu_hoc_tap.dart';
+import 'package:e09_elearning/widgets/anh_bia_khoa_hoc.dart';
+import 'package:e09_elearning/widgets/tien_ich_giao_dien_hoc_tap.dart';
 
 void main() {
   for (final width in [320.0, 430.0]) {
@@ -52,10 +52,11 @@ void main() {
       await tester.ensureVisible(find.text('BẮT ĐẦU HỌC NGAY'));
       await tester.tap(find.text('BẮT ĐẦU HỌC NGAY'));
       await tester.pumpAndSettle();
-      expect(find.text('Nội dung chương học'), findsOneWidget);
+      expect(find.text('Tiến độ học tập'), findsOneWidget);
       await tester.tap(find.text('Tiếp tục học'));
       await tester.pumpAndSettle();
       expect(find.byType(CourseCover), findsOneWidget);
+      expect(find.text('Nội dung học tập'), findsOneWidget);
       await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();
       expect(
