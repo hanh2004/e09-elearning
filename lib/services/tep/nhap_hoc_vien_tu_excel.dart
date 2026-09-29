@@ -8,6 +8,7 @@ import 'package:archive/archive.dart';
 import 'package:excel/excel.dart';
 import 'package:xml/xml.dart';
 
+import '../../models/dinh_danh_tai_khoan.dart';
 import '../../models/du_lieu_nhap_hoc_vien.dart';
 
 class UserExcelImport {
@@ -185,7 +186,7 @@ class UserExcelImport {
       }
       if (cacGiaTri[0].length > 100) errors.add('Họ và tên tối đa 100 ký tự.');
       if (cacGiaTri[1].isNotEmpty &&
-          !RegExp(r'^[A-Za-z0-9_.@-]{3,64}$').hasMatch(cacGiaTri[1])) {
+          !AccountIdentity.isValidUsername(cacGiaTri[1])) {
         errors.add(
           'Tên đăng nhập dài 3–64 ký tự: chữ không dấu, số, _, ., @, -.',
         );

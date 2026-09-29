@@ -14,6 +14,14 @@ import 'package:e09_elearning/services/nghiep_vu/dich_vu_hoc_tap.dart';
 
 void main() {
   tearDown(() => AccountSession.current = null);
+  test('account username validation is shared across account forms', () {
+    expect(AccountIdentity.isValidUsername('hocvien01'), isTrue);
+    expect(AccountIdentity.isValidUsername('hv_01-test@example'), isTrue);
+    expect(AccountIdentity.isValidUsername('ab'), isFalse);
+    expect(AccountIdentity.isValidUsername('user/name'), isFalse);
+    expect(AccountIdentity.isValidUsername(' user01 '), isFalse);
+  });
+
   testWidgets('limited admin can list courses without authoring controls', (
     tester,
   ) async {

@@ -172,8 +172,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                           labelText: 'Tên đăng nhập',
                         ),
                         validator: (v) =>
-                            v == null ||
-                                !RegExp(r'^[A-Za-z0-9_.@-]{3,64}$').hasMatch(v)
+                            v == null || !AccountIdentity.isValidUsername(v)
                             ? 'Tên đăng nhập 3–64 ký tự không dấu, không khoảng trắng.'
                             : null,
                       ),

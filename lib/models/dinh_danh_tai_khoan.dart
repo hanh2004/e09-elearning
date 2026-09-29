@@ -3,6 +3,10 @@
 
 class AccountIdentity {
   const AccountIdentity({required this.id, required this.role});
+
+  static final RegExp _usernamePattern = RegExp(r'^[A-Za-z0-9_.@-]{3,64}$');
+  static bool isValidUsername(String value) => _usernamePattern.hasMatch(value);
+
   final String id;
   final String role;
   bool get isRoot => role == 'super_admin';

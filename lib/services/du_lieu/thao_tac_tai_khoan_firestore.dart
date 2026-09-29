@@ -202,7 +202,7 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
       if (dong.errors.isNotEmpty ||
           dong.name.trim().isEmpty ||
           dong.name.length > 100 ||
-          !RegExp(r'^[A-Za-z0-9_.@-]{3,64}$').hasMatch(dong.username) ||
+          !AccountIdentity.isValidUsername(dong.username) ||
           dong.password.trim().length < 6 ||
           dong.password.length > 128 ||
           !seen.add(dong.username.toLowerCase())) {

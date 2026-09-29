@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../models/dinh_danh_tai_khoan.dart';
 import '../services/du_lieu/dich_vu_firestore.dart';
 
 /// Shows the learner password-reset request dialog.
@@ -95,8 +96,7 @@ Future<void> showPasswordResetDialog({
                     ? null
                     : () async {
                         final value = username.text.trim();
-                        if (!RegExp(r'^[A-Za-z0-9_.@-]{3,64}$')
-                            .hasMatch(value)) {
+                        if (!AccountIdentity.isValidUsername(value)) {
                           update(() => error = 'Nhập tên đăng nhập hợp lệ.');
                           return;
                         }
@@ -288,8 +288,9 @@ Future<void> showRootPasswordRecoveryDialog({
                     ? null
                     : () async {
                         if (!sent &&
-                            !RegExp(r'^[A-Za-z0-9_.@-]{3,64}$')
-                                .hasMatch(username.text.trim())) {
+                            !AccountIdentity.isValidUsername(
+                              username.text.trim(),
+                            )) {
                           update(() => error = 'Nhập tên đăng nhập hợp lệ.');
                           return;
                         }
