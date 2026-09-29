@@ -20,7 +20,7 @@ service cloud.firestore {
     function canManageUser(uid) { let user = get(/databases/$(database)/documents/users/$(uid)).data;
       return admin() && (root() || (user.role == 'user' && user.createdBy == request.auth.uid)); }
     function courseReadable(courseId) { let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
-      return active() && course.published == true &&
+      return active() && course.published == true && course.get('deleting', false) != true &&
         (!(course.get('publishedAt', null) is timestamp) || request.time >= course.publishedAt) &&
         (!(course.get('startsAt', null) is timestamp) || request.time >= course.startsAt); }
     function courseEnded(data) {
@@ -39,7 +39,8 @@ service cloud.firestore {
         data.get('subUnit', '') in get(/databases/$(database)/documents/users/$(managerId)).data.get('subUnits', []);
     }
     function courseEditable(courseId) {
-      return !courseEnded(get(/databases/$(database)/documents/courses/$(courseId)).data);
+      let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
+      return !courseEnded(course) && course.get('deleting', false) != true;
     }
     function validLessonMode(courseId, data) {
       let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
@@ -245,7 +246,7 @@ service cloud.firestore {
         request.resource.data.published is bool && (!request.resource.data.published || hasCover(request.resource.data)) &&
         validCourseExam(id, request.resource.data) &&
         request.resource.data.audience is string && request.resource.data.updatedBy == request.auth.uid;
-      allow update: if root() && !courseEnded(resource.data) &&
+      allow update: if root() && !courseEnded(resource.data) && resource.data.get('deleting', false) != true &&
         validCourseSchedule(request.resource.data) &&
         changedCourseTimeIsFuture('startsAt') && changedCourseTimeIsFuture('endsAt') &&
         validCourseReleaseOnUpdate(request.resource.data) &&

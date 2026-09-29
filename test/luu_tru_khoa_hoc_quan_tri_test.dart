@@ -10,6 +10,27 @@ import 'package:e09_elearning/widgets/giao_dien_quan_tri.dart';
 
 void main() {
   tearDown(() => AccountSession.current = null);
+  test('a course being deleted is unavailable to learners', () {
+    expect(
+      LearningPolicy.canRead({'published': true, 'deleting': true}, ''),
+      isFalse,
+    );
+  });
+
+  test('direct course deletion refuses legacy lesson-only exams without removing data', () async {
+    final db = FakeFirebaseFirestore();
+    await db.doc('courses/legacy').set({'published': true});
+    await db.doc('courses/legacy/lessons/l').set({'examId': 'legacy_exam'});
+    await db.doc('exams/legacy_exam').set({'title': 'Đề cũ'});
+    await expectLater(
+      LearningService(db: db).deleteCourse('legacy'),
+      throwsStateError,
+    );
+    expect((await db.doc('courses/legacy').get()).exists, isTrue);
+    expect((await db.doc('courses/legacy/lessons/l').get()).exists, isTrue);
+    expect((await db.doc('exams/legacy_exam').get()).exists, isTrue);
+  });
+
   for (final width in [390.0, 1200.0]) {
     testWidgets(
       'ended course opens locked report and retains desktop menu at $width',

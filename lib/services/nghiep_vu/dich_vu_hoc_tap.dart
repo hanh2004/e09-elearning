@@ -190,13 +190,17 @@ class LearningService {
         .where('courseId', isEqualTo: courseId)
         .limit(1)
         .get();
+    final cacBaiHoc = await khoaHoc.collection('lessons').get();
     if ((courseData['examId']?.toString().isNotEmpty ?? false) ||
-        ownedExams.docs.isNotEmpty) {
+        ownedExams.docs.isNotEmpty ||
+        cacBaiHoc.docs.any(
+          (baiHoc) =>
+              baiHoc.data()['examId']?.toString().trim().isNotEmpty ?? false,
+        )) {
       throw StateError(
         'Khóa học có bài thi liên quan; cần triển khai Cloud Function courseDelete để xóa đầy đủ kết quả thi.',
       );
     }
-    final cacBaiHoc = await khoaHoc.collection('lessons').get();
     final reviews = await khoaHoc.collection('reviews').get();
     final progressRecords = await _tienDoKhoaHoc(courseId);
     final references = <DocumentReference<Map<String, dynamic>>>[

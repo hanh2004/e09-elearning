@@ -146,11 +146,16 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
                 state == 'pending' &&
                 !recoveryExpired &&
                 duLieu['userId'] != danhTinh.id;
-            final canResolveAdmin =
+            final canResolveRequest =
                 !isRootRecovery &&
-                root &&
                 state == 'approved' &&
                 duLieu['managerId'] == danhTinh.id;
+            final canApproveRequest =
+                !isRootRecovery &&
+                root &&
+                (state == 'pending' ||
+                    (state == 'approved_once' &&
+                        duLieu['firstApprovedBy'] != danhTinh.id));
             return Card(
               child: ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.lock_reset)),
@@ -168,9 +173,9 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
                       ? 'Đang cập nhật mật khẩu…'
                       : root
                       ? state == 'approved'
-                            ? canResolveAdmin
+                            ? canResolveRequest
                                   ? 'Đã được duyệt — có thể cấp lại mật khẩu'
-                                  : 'Đã được duyệt — chờ quản lý tổng phụ trách'
+                                  : 'Đã được duyệt — chờ quản lý phụ trách'
                             : state == 'approved_once'
                             ? 'Đã được duyệt lần 1 — chờ quản lý tổng còn lại'
                             : 'Chờ duyệt lần 1'
@@ -192,14 +197,12 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
                               child: const Text('Duyệt yêu cầu'),
                             )
                           : null
-                    : state == 'processing'
-                    ? null
-                    : canResolveAdmin
+                    : canResolveRequest
                     ? FilledButton(
                         onPressed: _dangXuLy ? null : () => _datLai(banGhi),
                         child: const Text('Cấp lại mật khẩu'),
                       )
-                    : root && state != 'approved'
+                    : canApproveRequest
                     ? FilledButton(
                         onPressed: _dangXuLy ? null : () => _duyet(banGhi),
                         child: Text(
@@ -207,11 +210,6 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
                               ? 'Duyệt lần 2'
                               : 'Duyệt lần 1',
                         ),
-                      )
-                    : !root && state == 'approved'
-                    ? FilledButton(
-                        onPressed: _dangXuLy ? null : () => _datLai(banGhi),
-                        child: const Text('Cấp lại mật khẩu'),
                       )
                     : null,
               ),

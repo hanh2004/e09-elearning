@@ -26,34 +26,86 @@ export function courseHandlers(coSoDuLieu) {
     requireRoot(nguoiThaoTac, duLieuCauHinh.data());
     requireThat(duLieuKhoaHoc.exists, 'not-found', 'Không tìm thấy khóa học.');
 
-    const [cacBaiHoc, reviews, baiThiCuaKhoa] = await Promise.all([
-      thamChieuKhoaHoc.collection('lessons').get(),
-      thamChieuKhoaHoc.collection('reviews').get(),
-      coSoDuLieu.collection('exams').where('courseId', '==', dauVao.courseId).get(),
-    ]);
-    const cacThamChieuBaiThi = new Map(baiThiCuaKhoa.docs.map((banGhi) => [banGhi.id, banGhi.ref]));
-    const maLienKet = duLieuKhoaHoc.data()?.examId;
-    if (maHopLe(maLienKet) && !cacThamChieuBaiThi.has(maLienKet)) {
-      const duLieuLienKet = await coSoDuLieu.doc(`exams/${maLienKet}`).get();
-      requireThat(!duLieuLienKet.exists || duLieuLienKet.data()?.courseId === dauVao.courseId,
-        'failed-precondition', 'Bài thi đang thuộc khóa học khác.');
-      if (duLieuLienKet.exists) cacThamChieuBaiThi.set(maLienKet, duLieuLienKet.ref);
+    const maTacVuXoa = randomUUID();
+    const khoaDaKhoa = await coSoDuLieu.runTransaction(async (giaoDich) => {
+      const banGhi = await giaoDich.get(thamChieuKhoaHoc);
+      requireThat(banGhi.exists, 'not-found', 'Không tìm thấy khóa học.');
+      const duLieu = banGhi.data();
+      requireThat(!(Number.isFinite(duLieu.deletingLeaseUntil) && duLieu.deletingLeaseUntil > Date.now()),
+        'failed-precondition', 'Khóa học đang được một thao tác xóa khác xử lý.');
+      giaoDich.update(thamChieuKhoaHoc, {deleting:true, deletingOperationId:maTacVuXoa,
+        deletingLeaseUntil:Date.now() + THOI_HAN_KHOA_XOA_MS});
+      return duLieu;
+    });
+    let daBatDauDon = false;
+    try {
+      const [cacBaiHoc, reviews, baiThiCuaKhoa] = await Promise.all([
+        thamChieuKhoaHoc.collection('lessons').get(),
+        thamChieuKhoaHoc.collection('reviews').get(),
+        coSoDuLieu.collection('exams').where('courseId', '==', dauVao.courseId).get(),
+      ]);
+      // Dữ liệu cũ có thể chỉ gắn examId ở bài học, chưa có courseId trên đề.
+      const cacMaBaiThi = new Set([
+        ...baiThiCuaKhoa.docs.map((banGhi) => banGhi.id),
+        khoaDaKhoa.examId,
+        ...cacBaiHoc.docs.map((banGhi) => banGhi.data().examId),
+      ].filter(maHopLe));
+      const cacBaiThiCanXoa = [];
+      const cacBaiThiDungChung = [];
+      for (const maBaiThi of cacMaBaiThi) {
+        const thamChieu = coSoDuLieu.doc(`exams/${maBaiThi}`);
+        const [banGhi, cacKhoaLienKet, cacBaiLienKet] = await Promise.all([
+          thamChieu.get(),
+          coSoDuLieu.collection('courses').where('examId', '==', maBaiThi).get(),
+          coSoDuLieu.collectionGroup('lessons').where('examId', '==', maBaiThi).get(),
+        ]);
+        const owner = banGhi.data()?.courseId;
+        const dungChung = (owner && owner !== dauVao.courseId) ||
+          cacKhoaLienKet.docs.some((khoa) => khoa.id !== dauVao.courseId) ||
+          cacBaiLienKet.docs.some((bai) => bai.ref.parent.parent?.path !== thamChieuKhoaHoc.path);
+        const muc = {id:maBaiThi, ref:thamChieu, exists:banGhi.exists, owner};
+        (dungChung ? cacBaiThiDungChung : cacBaiThiCanXoa).push(muc);
+      }
+      if (cacBaiThiDungChung.length) {
+        const cacMaDungChung = new Set(cacBaiThiDungChung.map((bai) => bai.id));
+        const cacLuotThi = await coSoDuLieu.collection('exam_private_runs')
+          .where('courseId', '==', dauVao.courseId).get();
+        requireThat(!cacLuotThi.docs.some((banGhi) => banGhi.data().status === 'in_progress' &&
+          cacMaDungChung.has(banGhi.data().examId)), 'failed-precondition',
+        'Có học viên đang làm đề dùng chung qua khóa học này. Hãy hoàn tất lượt thi rồi thử xóa lại.');
+      }
+      daBatDauDon = true;
+      for (const bai of cacBaiThiCanXoa) {
+        if (bai.exists) await bai.ref.update({isOpen:false, deleting:true});
+        await xoaDuLieuBaiThi(coSoDuLieu, bai.id, bai.ref);
+      }
+      for (const bai of cacBaiThiDungChung) {
+        if (bai.exists && bai.owner === dauVao.courseId) {
+          await bai.ref.update({courseId:FieldValue.delete()});
+        }
+      }
+      const boGhi = coSoDuLieu.bulkWriter();
+      try {
+        for (const banGhi of cacBaiHoc.docs) boGhi.delete(banGhi.ref);
+        for (const banGhi of reviews.docs) boGhi.delete(banGhi.ref);
+        await xoaTienDoKhoaHoc(coSoDuLieu, boGhi, dauVao.courseId);
+        await boGhi.flush();
+        await thamChieuKhoaHoc.delete();
+      } finally {
+        await boGhi.close();
+      }
+      return {deleted:true};
+    } catch (loi) {
+      await coSoDuLieu.runTransaction(async (giaoDich) => {
+        const banGhi = await giaoDich.get(thamChieuKhoaHoc);
+        if (!banGhi.exists || banGhi.data().deletingOperationId !== maTacVuXoa) return;
+        giaoDich.update(thamChieuKhoaHoc, {
+          deleting:daBatDauDon || khoaDaKhoa.deleting === true,
+          deletingOperationId:FieldValue.delete(), deletingLeaseUntil:FieldValue.delete(),
+        });
+      });
+      throw loi;
     }
-    // Chặn lượt thi mới trước khi xóa kết quả liên quan.
-    await thamChieuKhoaHoc.update({ deleting: true });
-    for (const thamChieuBaiThi of cacThamChieuBaiThi.values()) {
-      await thamChieuBaiThi.update({ isOpen: false, deleting: true });
-    }
-    for (const [maBaiThi, thamChieuBaiThi] of cacThamChieuBaiThi) {
-      await xoaDuLieuBaiThi(coSoDuLieu, maBaiThi, thamChieuBaiThi);
-    }
-    const boGhi = coSoDuLieu.bulkWriter();
-    for (const banGhi of cacBaiHoc.docs) boGhi.delete(banGhi.ref);
-    for (const banGhi of reviews.docs) boGhi.delete(banGhi.ref);
-    await xoaTienDoKhoaHoc(coSoDuLieu, boGhi, dauVao.courseId);
-    boGhi.delete(thamChieuKhoaHoc);
-    await boGhi.close();
-    return { deleted: true };
   }
 
   async function xoaBaiHoc(maNguoiDung, dauVao) {

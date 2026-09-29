@@ -57,6 +57,8 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
     'failed-precondition', 'Quản lý đang đổi đơn vị. Hãy thử lại sau.');
     if (dich.createdBy && dich.createdBy !== managerId) {
       const sourceManager = (await giaoDich.get(userRef(dich.createdBy))).data();
+      requireThat(sourceManager?.adminDeletionPending !== true, 'failed-precondition',
+        'Quản lý hiện tại đã được duyệt xóa và đang được xử lý. Không thể chuyển học viên lúc này.');
       requireThat(sourceManager?.unitChangePending !== true ||
         sourceManager.unitChangeOperationId === unitChangeOperationId,
       'failed-precondition', 'Đơn vị hiện tại đang được đổi. Hãy thử chuyển học viên sau.');

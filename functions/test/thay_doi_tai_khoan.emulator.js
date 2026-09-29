@@ -94,6 +94,55 @@ test('failed Auth reset remains retryable and rules isolate reset requests', asy
   assert.equal((await db.doc(path).get()).data().status, 'completed');
 });
 
+test('owning root can reset its learner only after both roots approve', async () => {
+  const learner = await create('root1', 'root_learner');
+  const reset = {requestId:learner.id,userId:learner.id,password:'replacement-password'};
+  assert.deepEqual(await handlers.requestPasswordReset(null,
+    {username:'root_learner',codeSuffix:'001'}), {matched:true,submitted:true});
+  await denied(handlers.resolvePasswordReset('root1', reset), 'failed-precondition');
+  await handlers.approvePasswordReset('root1', reset);
+  await handlers.approvePasswordReset('root2', reset);
+  await denied(handlers.resolvePasswordReset('root2', reset));
+  await handlers.resolvePasswordReset('root1', reset);
+  assert.equal((await db.doc(`password_reset_requests/${learner.id}`).get()).data().status, 'completed');
+  const response = await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key`, {
+    method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({email:loginEmail('root_learner'),password:reset.password,returnSecureToken:true}),
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).localId, learner.id);
+});
+
+test('pending admin deletion allows work and transfer; second root deletes only remaining learners', async () => {
+  await db.doc('users/m1').update({username:'manager1'});
+  const moved = await create('m1', 'moved_learner', '001');
+  const retained = await create('m1', 'retained_learner', '002');
+  const incoming = await create('m2', 'incoming_learner', '003');
+  await handlers.reassignUser('root1', {userId:incoming.id,managerId:'m1'});
+  await handlers.requestAdminDeletion('root1', {userId:'m1'});
+  assert.equal((await db.doc('users/m1').get()).data().adminDeletionPending, undefined);
+  const createdWhilePending = await create('m1', 'pending_learner', '004');
+  await handlers.reassignUser('root1', {userId:moved.id,managerId:'m2'});
+  await denied(handlers.decideAdminDeletion('root1', {requestId:'m1',approve:true}));
+  await handlers.decideAdminDeletion('root2', {requestId:'m1',approve:true});
+  for (const userId of ['m1', retained.id, incoming.id, createdWhilePending.id]) {
+    assert.equal((await db.doc(`users/${userId}`).get()).exists, false);
+    await assert.rejects(auth.getUser(userId), {code:'auth/user-not-found'});
+  }
+  assert.equal((await moved.ref.get()).data().createdBy, 'm2');
+  assert.equal((await auth.getUser(moved.id)).disabled, false);
+  assert.equal((await db.doc('admin_delete_requests/m1').get()).data().status, 'approved');
+});
+
+test('transfer cannot race a manager deletion that has already been approved', async () => {
+  const learner = await create();
+  await db.doc('users/m1').update({adminDeletionPending:true,adminDeletionRequestId:'m1'});
+  await db.doc('admin_delete_requests/m1').set({status:'processing',createdBy:'root1',decidedBy:'root2'});
+  await denied(handlers.reassignUser('root1', {userId:learner.id,managerId:'m2'}), 'failed-precondition');
+  assert.equal((await learner.ref.get()).data().createdBy, 'm1');
+  assert.equal((await learner.ref.get()).data().userCode, 'D1-001');
+});
+
 test('auto prefix, different units, duplicate suffix and concurrent creation', async()=>{
   const first=await create();
   assert.equal(first.data().userCode,'D1-001');

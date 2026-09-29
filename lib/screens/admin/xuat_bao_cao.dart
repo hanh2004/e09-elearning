@@ -143,7 +143,7 @@ extension _AdminReportExport on _TrangThaiBaoCaoQuanTri {
         .where('published', isEqualTo: true)
         .get();
     final khoaHocDaTrienKhai = cacKhoaHoc.docs
-        .where((khoa) => !LearningPolicy.isNotLaunched(khoa.data()))
+        .where((khoa) => LearningPolicy.wasLaunchedBefore(khoa.data(), endsAt))
         .toList();
     final cacBaiHocTheoKhoa = <String, QuerySnapshot<Map<String, dynamic>>>{};
     for (var batDau = 0; batDau < khoaHocDaTrienKhai.length; batDau += 10) {
@@ -159,8 +159,6 @@ extension _AdminReportExport on _TrangThaiBaoCaoQuanTri {
     final khoaHocTrongPhamVi = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
     for (final khoa in khoaHocDaTrienKhai) {
       final duLieuKhoa = khoa.data();
-      final ngayBatDau = LearningPolicy.readDateTime(duLieuKhoa['startsAt']);
-      if (ngayBatDau != null && !ngayBatDau.isBefore(endsAt)) continue;
       final cacBaiHoc = cacBaiHocTheoKhoa[khoa.id]?.docs ?? const [];
       final dungBaiThi =
           examId == null ||

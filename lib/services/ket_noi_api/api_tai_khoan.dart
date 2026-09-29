@@ -19,7 +19,7 @@ class AccountApi {
   final bool useBackend;
   final AccountCall? transport;
   bool get hasTransport => transport != null || useBackend;
-  final Map<String, String> _cacThaoTac = {};
+  final Map<String, _AccountOperation> _cacThaoTac = {};
 
   Future<Map<String, dynamic>> call(
     String method,
@@ -41,15 +41,41 @@ class AccountApi {
   Future<Map<String, dynamic>> idempotent(
     String method,
     Map<String, dynamic> duLieu,
-  ) {
+  ) async {
     final digest = '$method:${sha256.convert(utf8.encode(jsonEncode(duLieu)))}';
-    final operationId = _cacThaoTac.putIfAbsent(digest, () {
+    final operation = _cacThaoTac.putIfAbsent(digest, () {
       final random = Random.secure();
-      return List.generate(
+      final operationId = List.generate(
         16,
         (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
       ).join();
+      return _AccountOperation(operationId);
     });
-    return call(method, {...duLieu, 'operationId': operationId});
+    operation.inFlight++;
+    try {
+      final result = await call(method, {
+        ...duLieu,
+        'operationId': operation.id,
+      });
+      operation.succeeded = true;
+      return result;
+    } finally {
+      operation.inFlight--;
+      // Retain failed operations for retry. Retire successful IDs only after
+      // every overlapping call using that ID has completed.
+      if (operation.inFlight == 0 &&
+          operation.succeeded &&
+          identical(_cacThaoTac[digest], operation)) {
+        _cacThaoTac.remove(digest);
+      }
+    }
   }
+}
+
+class _AccountOperation {
+  _AccountOperation(this.id);
+
+  final String id;
+  int inFlight = 0;
+  bool succeeded = false;
 }

@@ -246,6 +246,80 @@ test('course deletion removes its exam, runs, results and learning progress',asy
   assert.equal((await db.collection('exam_attempts').where('examId','==','course_cleanup').get()).empty,true);
   assert.equal((await db.doc('users/u/learning/exam_course_cleanup_study').get()).exists,false);
 });
+
+for (const linkedAt of ['course', 'lesson']) {
+  test(`course deletion cleans legacy exam linked at ${linkedAt} without an owner field`, async () => {
+    const examId = `legacy_cleanup_${linkedAt}`;
+    const courseId = `exam_${examId}`;
+    await exam(examId);
+    if (linkedAt === 'course') await db.doc(`courses/${courseId}`).update({examId});
+    const run = await startStudiedExam('u', {examId});
+    await handlers.submit('u', {runId:run.runId,revision:0,selectedAnswers:{q:1}});
+    await courseHandlers(db).deleteCourse('root1', {courseId});
+    assert.equal((await db.doc(`courses/${courseId}`).get()).exists, false);
+    assert.equal((await db.doc(`exams/${examId}`).get()).exists, false);
+    assert.equal((await db.doc(`exam_private_runs/${run.runId}`).get()).exists, false);
+    assert.equal((await db.collection('exam_attempts').where('examId','==',examId).get()).empty, true);
+  });
+}
+
+test('course deletion preserves a shared exam and lets an active learner finish before retry', async () => {
+  const examId = 'shared_course_cleanup';
+  const courseId = `exam_${examId}`;
+  await exam(examId);
+  await db.doc(`exams/${examId}`).update({courseId});
+  await db.doc(`courses/${courseId}`).update({examId});
+  await db.doc('courses/keep_shared_course').set({examId});
+  const run = await startStudiedExam('u', {examId});
+  const courses = courseHandlers(db);
+  await assert.rejects(courses.deleteCourse('root1', {courseId}), {code:'failed-precondition'});
+  assert.equal((await db.doc(`courses/${courseId}`).get()).data().deleting, false);
+  await handlers.submit('u', {runId:run.runId,revision:0,selectedAnswers:{q:1}});
+  await courses.deleteCourse('root1', {courseId});
+  assert.equal((await db.doc(`courses/${courseId}`).get()).exists, false);
+  const retainedExam = (await db.doc(`exams/${examId}`).get()).data();
+  assert.equal(retainedExam.isOpen, true);
+  assert.equal(retainedExam.courseId, undefined);
+  assert.equal((await db.doc('courses/keep_shared_course').get()).data().examId, examId);
+  assert.equal((await db.doc(`exams/${examId}/questions/q`).get()).exists, true);
+});
+
+test('course deletion respects live locks and recovers an expired deletion', async () => {
+  await exam('course_lock');
+  const courseId = 'exam_course_lock';
+  const ref = db.doc(`courses/${courseId}`);
+  await ref.update({deleting:true,deletingOperationId:'first',deletingLeaseUntil:Date.now()+60000});
+  await assert.rejects(courseHandlers(db).deleteCourse('root1', {courseId}), {code:'failed-precondition'});
+  await ref.update({deletingLeaseUntil:Date.now()-1});
+  await courseHandlers(db).deleteCourse('root1', {courseId});
+  assert.equal((await ref.get()).exists, false);
+});
+
+test('course deletion locks new study, exam starts and lesson edits before cleanup', async () => {
+  const examId = 'locked_course_cleanup';
+  const courseId = `exam_${examId}`;
+  await exam(examId);
+  await db.doc('courses/another_locked_course').set({examId});
+  const paused = pausePrivateRunsQuery(db);
+  const deletion = courseHandlers(paused.coSoDuLieuTamDung).deleteCourse('root1', {courseId});
+  await paused.truyVanDaBatDau;
+  try {
+    await assert.rejects(startStudiedExam('u', {examId}), {code:'failed-precondition'});
+    const root = env.authenticatedContext('root1').firestore();
+    await assertFails(setDoc(doc(root, `courses/${courseId}/lessons/new`), {
+      title:'Bài mới',order:1,type:'text',updatedBy:'root1',coverUrl:'icon:book',
+    }));
+    const learner = env.authenticatedContext('v').firestore();
+    await assertFails(setDoc(doc(learner, `users/v/learning/${courseId}_study`), {
+      courseId,lessonId:'study',completed:false,startedAt:serverTimestamp(),updatedAt:serverTimestamp(),
+    }));
+  } finally {
+    paused.mo();
+    await deletion;
+  }
+  assert.equal((await db.doc(`courses/${courseId}`).get()).exists, false);
+  assert.equal((await db.doc(`courses/${courseId}/lessons/new`).get()).exists, false);
+});
 test('lesson deletion removes its exclusive exam and invalidates active runs',async()=>{
   await db.doc('users/root1').set({role:'super_admin',status:'active',name:'Root'});
   await exam('lesson_cleanup');

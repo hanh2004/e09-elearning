@@ -61,6 +61,21 @@ class LearningPolicy {
     return batDau != null && (now ?? DateTime.now()).isBefore(batDau);
   }
 
+  /// Whether a published course was available before an exclusive cutoff.
+  static bool wasLaunchedBefore(
+    Map<String, dynamic> khoaHoc,
+    DateTime exclusiveCutoff,
+  ) {
+    if (khoaHoc['published'] != true || khoaHoc['deleting'] == true) {
+      return false;
+    }
+    for (final field in ['publishedAt', 'startsAt']) {
+      final date = readDateTime(khoaHoc[field]);
+      if (date != null && !date.isBefore(exclusiveCutoff)) return false;
+    }
+    return true;
+  }
+
   static String classIdFromAudience(String? audience) =>
       audience != null && audience.startsWith('class:')
       ? audience.substring(6)
@@ -143,7 +158,9 @@ class LearningPolicy {
     Map<String, dynamic> khoaHoc,
     String classId, {
     DateTime? now,
-  }) => deploymentLabel(khoaHoc, now: now) == 'Đang triển khai';
+  }) =>
+      khoaHoc['deleting'] != true &&
+      deploymentLabel(khoaHoc, now: now) == 'Đang triển khai';
 
   static double completion(
     Iterable<String> cacBaiHoc,

@@ -152,7 +152,7 @@ export function createPasswordResetHandlers({ coSoDuLieu, xacThuc, userRef, nguC
         'permission-denied', 'Chỉ quản lý tổng đã tạo tài khoản mới được cấp lại mật khẩu.');
       } else {
         requireUpdate(actor, config, { ...user, id: input.userId });
-        requireThat(!isRoot(actor, config) && request.managerId === actor.id &&
+        requireThat(request.managerId === actor.id &&
           request.managerId === user.createdBy,
         'permission-denied', 'Chỉ quản lý phụ trách mới được cấp lại mật khẩu.');
       }

@@ -222,7 +222,7 @@ void main() {
 
   group('account backend boundary', () {
     test(
-      'imports use the authenticated API and stable retry operation ID',
+      'completed imports use a fresh operation ID for the next import',
       () async {
         final calls = <Map<String, dynamic>>[];
         final db = FakeFirebaseFirestore();
@@ -239,7 +239,7 @@ void main() {
         await service.importUsers([account('user01')]);
         await service.importUsers([account('user01')]);
         expect(calls.length, 2);
-        expect(calls.first['operationId'], calls.last['operationId']);
+        expect(calls.first['operationId'], isNot(calls.last['operationId']));
         final row = (calls.first['rows'] as List).single as Map;
         expect(row.containsKey('role'), isFalse);
         expect(row.containsKey('createdBy'), isFalse);

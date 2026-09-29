@@ -4,19 +4,69 @@ import 'package:e09_elearning/services/nghiep_vu/dich_vu_hoc_tap.dart';
 
 void main() {
   final end = DateTime(2026, 9, 11, 12);
+  test('historical course export respects the exclusive report cutoff', () {
+    final cutoff = DateTime(2026, 4, 10);
+    expect(
+      LearningPolicy.wasLaunchedBefore({
+        'published': true,
+        'publishedAt': cutoff.subtract(const Duration(seconds: 1)),
+        'startsAt': cutoff.subtract(const Duration(hours: 1)),
+      }, cutoff),
+      true,
+    );
+    expect(
+      LearningPolicy.wasLaunchedBefore({
+        'published': true,
+        'publishedAt': cutoff,
+      }, cutoff),
+      false,
+    );
+    expect(
+      LearningPolicy.wasLaunchedBefore({
+        'published': true,
+        'startsAt': cutoff,
+      }, cutoff),
+      false,
+    );
+    expect(
+      LearningPolicy.wasLaunchedBefore({
+        'published': true,
+        'deleting': true,
+      }, cutoff),
+      false,
+    );
+    expect(
+      LearningPolicy.wasLaunchedBefore({'published': false}, cutoff),
+      false,
+    );
+  });
+
   test('server-finalized exams at the exact deadline count, late completion does not', () {
     final report = CourseCompletionReport.build(
-      users: {'onTime': {'role':'user'}, 'late': {'role':'user'}, 'readOnly': {'role':'user'}},
+      users: {
+        'onTime': {'role': 'user'},
+        'late': {'role': 'user'},
+        'readOnly': {'role': 'user'},
+      },
       lessonIds: {'l'},
       progress: {
-        for (final uid in ['onTime', 'late', 'readOnly']) uid: [{
-          'courseId':'c', 'lessonId':'l', 'completed':true,
-          'examCompleted': uid != 'readOnly', 'completedExamId':'e',
-          'completedAt': uid == 'late' ? end.add(const Duration(milliseconds: 1)) : end,
-        }],
+        for (final uid in ['onTime', 'late', 'readOnly'])
+          uid: [
+            {
+              'courseId': 'c',
+              'lessonId': 'l',
+              'completed': true,
+              'examCompleted': uid != 'readOnly',
+              'completedExamId': 'e',
+              'completedAt': uid == 'late'
+                  ? end.add(const Duration(milliseconds: 1))
+                  : end,
+            },
+          ],
       },
-      courseId: 'c', endsAt: end,
-      course: {'learningMode':'study_exam', 'examId':'e'},
+      courseId: 'c',
+      endsAt: end,
+      course: {'learningMode': 'study_exam', 'examId': 'e'},
     );
     expect(report.rows.singleWhere((row) => row.id == 'onTime').done, true);
     expect(report.rows.singleWhere((row) => row.id == 'late').done, false);
