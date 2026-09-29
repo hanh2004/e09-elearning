@@ -17,6 +17,7 @@ class LessonForm {
 
   static const labels = {
     'title': 'Tên bài học',
+    'order': 'Số thứ tự bài học',
     'learningMode': 'Loại bài học',
     'examId': 'Bài kiểm tra sau khi học',
     'minimumStudySeconds': 'Thời gian học tối thiểu từng bài (giây)',
@@ -26,6 +27,7 @@ class LessonForm {
 
   static Map<String, String> initialValues(Map<String, dynamic> duLieu) => {
     'title': duLieu['title'] ?? '',
+    'order': '${duLieu['order'] ?? 1}',
     'learningMode': modeLabel(duLieu),
     'examId': duLieu['examId'] ?? '',
     'minimumStudySeconds':

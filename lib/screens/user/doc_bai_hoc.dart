@@ -259,11 +259,13 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
         });
         if (elapsed >= requiredSeconds && !hasExam) finish();
       });
-    } catch (_) {
+    } catch (loi) {
       if (mounted) {
         setState(() {
           saving = false;
-          error = 'Chưa bắt đầu được bộ đếm. Kiểm tra kết nối rồi thử lại.';
+          error = loi is StateError
+              ? loi.message
+              : 'Chưa bắt đầu được bộ đếm. Kiểm tra kết nối rồi thử lại.';
         });
       }
     }

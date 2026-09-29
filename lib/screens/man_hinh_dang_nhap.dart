@@ -43,6 +43,7 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
 
   bool _hienMatKhau = false;
   bool _dangTai = false;
+  String? _loiDangNhap;
 
   @override
   void dispose() {
@@ -55,7 +56,10 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
     if (_dangTai) return;
     if (!_khoaBieuMau.currentState!.validate()) return;
     final scope = PortalScope.of(context);
-    setState(() => _dangTai = true);
+    setState(() {
+      _dangTai = true;
+      _loiDangNhap = null;
+    });
 
     final tenDangNhap = _oNhapTenDangNhap.text.trim();
     final matKhau = _oNhapMatKhau.text;
@@ -125,20 +129,15 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
         if (!mounted) return;
         // Dùng cùng một thông báo cho thông tin đăng nhập sai và vai trò bị từ chối.
         // Không tiết lộ tài khoản này thuộc cổng còn lại.
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tên đăng nhập hoặc mật khẩu không chính xác!'),
-            backgroundColor: Colors.red,
-          ),
+        setState(
+          () => _loiDangNhap =
+              'Tên đăng nhập hoặc mật khẩu không chính xác!',
         );
       }
-    } catch (_) {
+    } catch (loi) {
+      debugPrint('[Đăng nhập] ${accountLoginErrorCode(loi)}');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể đăng nhập. Vui lòng thử lại.'),
-          ),
-        );
+        setState(() => _loiDangNhap = accountLoginErrorMessage(loi));
       }
     } finally {
       if (mounted) setState(() => _dangTai = false);
@@ -455,6 +454,26 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
               ),
             ),
           ),
+
+          if (_loiDangNhap != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEEEE),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE5A5A5)),
+              ),
+              child: Text(
+                _loiDangNhap!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF9B1C1C),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
 
           // Nút Đăng nhập
           SizedBox(

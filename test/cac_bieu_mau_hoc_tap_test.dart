@@ -101,6 +101,48 @@ void main() {
     });
   }
 
+  testWidgets('new lesson receives the next available order number', (
+    tester,
+  ) async {
+    AccountSession.current = const AccountIdentity(
+      id: 'root',
+      role: 'super_admin',
+    );
+    addTearDown(() => AccountSession.current = null);
+    final db = FakeFirebaseFirestore();
+    final service = LearningService(db: db);
+    await db.doc('courses/c').set({
+      'title': 'Khóa học',
+      'published': false,
+      'learningMode': 'study_only',
+    });
+    await db.doc('courses/c/lessons/first').set({'title': 'Bài 1', 'order': 1});
+    await db.doc('courses/c/lessons/fourth').set({'title': 'Bài 4', 'order': 4});
+    final course = (await db.collection('courses').get()).docs.single;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showLessonEditor(
+                context,
+                service: service,
+                course: course,
+              ),
+              child: const Text('Thêm bài'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Thêm bài'));
+    await tester.pumpAndSettle();
+    final fields = tester.widgetList<TextFormField>(find.byType(TextFormField));
+    expect(fields.elementAt(1).controller?.text, '5');
+    expect(find.text('Số thứ tự bài học'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('editing a scheduled course retains dates and publication state', () {
     final start = DateTime(2026, 10, 1, 8, 30);
     final end = DateTime(2026, 10, 2, 17);
@@ -225,6 +267,21 @@ void main() {
         throwsArgumentError,
       );
     }
+  });
+
+  test('lesson order can be edited and new lessons start at one', () {
+    expect(LessonForm.labels['order'], 'Số thứ tự bài học');
+    expect(LessonForm.initialValues({})['order'], '1');
+    expect(LessonForm.initialValues({'order': 4})['order'], '4');
+    final saved = LessonForm.toFirestore(
+      {
+        ...LessonForm.initialValues({'order': 4}),
+        'content': 'Nội dung bài học',
+        'order': '2',
+      },
+      previous: {'order': 4},
+    );
+    expect(saved['order'], 2);
   });
 
   test('text lessons need content or a cover image', () {

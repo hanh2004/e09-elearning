@@ -626,46 +626,51 @@ class _CacNhomBaiHoc extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       children: [
-        for (final banGhi in docs)
-          Card(
-            child: ListTile(
-              leading: CourseCover(
-                url:
-                    banGhi.data()['coverUrl'] ??
-                    (banGhi.data()['type'] == 'image'
-                        ? banGhi.data()['url'] ?? ''
-                        : ''),
-                width: 72,
-                height: 64,
-              ),
-              title: Text(
-                '${banGhi.data()['order']}. ${banGhi.data()['title']}',
-              ),
-              subtitle: Text(
-                '${courseModeLabel ?? LessonForm.modeLabel(banGhi.data())} • ${(banGhi.data()['minimumStudySeconds'] as num? ?? LessonForm.defaultStudySeconds).toInt()} giây/bài',
-              ),
-              trailing: canEdit
-                  ? Wrap(
-                      spacing: 2,
-                      children: [
-                        IconButton(
-                          tooltip: 'Sửa bài học',
-                          icon: const Icon(Icons.edit),
-                          onPressed: () => onEdit(banGhi),
-                        ),
-                        if (canDelete)
-                          IconButton(
-                            tooltip: 'Xóa bài học',
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => onDelete(banGhi),
-                          ),
-                      ],
-                    )
-                  : null,
-              onTap: canEdit ? () => onEdit(banGhi) : null,
-            ),
-          ),
+        for (var index = 0; index < docs.length; index++)
+          _lessonTile(context, docs[index], index),
       ],
+    );
+  }
+
+  Widget _lessonTile(
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> banGhi,
+    int index,
+  ) {
+    final data = banGhi.data();
+    return Card(
+      child: ListTile(
+        leading: CourseCover(
+          url:
+              data['coverUrl'] ??
+              (data['type'] == 'image' ? data['url'] ?? '' : ''),
+          width: 72,
+          height: 64,
+        ),
+        title: Text('${data['order'] ?? index + 1}. ${data['title']}'),
+        subtitle: Text(
+          '${courseModeLabel ?? LessonForm.modeLabel(data)} • ${(data['minimumStudySeconds'] as num? ?? LessonForm.defaultStudySeconds).toInt()} giây/bài',
+        ),
+        trailing: canEdit
+            ? Wrap(
+                spacing: 2,
+                children: [
+                  IconButton(
+                    tooltip: 'Sửa bài học',
+                    icon: const Icon(Icons.edit),
+                    onPressed: () => onEdit(banGhi),
+                  ),
+                  if (canDelete)
+                    IconButton(
+                      tooltip: 'Xóa bài học',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => onDelete(banGhi),
+                    ),
+                ],
+              )
+            : null,
+        onTap: canEdit ? () => onEdit(banGhi) : null,
+      ),
     );
   }
 }

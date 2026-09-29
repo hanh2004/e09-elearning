@@ -128,3 +128,26 @@ test('questions require completed study for the current learner and matching les
   assert.equal(expired.expired,true);
   assert.equal(expired.score,0);
 });
+
+test('lesson exam does not wait for an earlier lesson', async () => {
+  const course = db.doc('courses/independent-lessons');
+  await course.set({published:true});
+  await course.collection('lessons').doc('first').set({
+    order:1, learningMode:'study_only',
+  });
+  await course.collection('lessons').doc('second').set({
+    order:2, learningMode:'study_exam', examId:'independent-exam',
+  });
+  await db.doc('exams/independent-exam').set({isOpen:true,durationMinutes:10});
+  await db.doc('exams/independent-exam/questions/q').set({
+    questionText:'Q',options:['A','B'],correctAnswerIndex:0,
+  });
+  await db.doc('users/study-user/learning/independent-lessons_second').set({
+    courseId:'independent-lessons',lessonId:'second',studyCompleted:true,completed:false,
+  });
+
+  const run = await api.start('study-user',{
+    examId:'independent-exam',courseId:'independent-lessons',lessonId:'second',
+  });
+  assert.equal(run.questions.length,1);
+});

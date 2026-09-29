@@ -139,6 +139,9 @@ class _TrangThaiKiemTraKhoaHoc extends State<_KiemTraKhoaHoc> {
           duLieu['publishedAt'],
         );
         final coBaiHoc = baiHocCoKiemTra.isNotEmpty;
+        final status = courseExam
+            ? '${orderedLessons.length} bài học'
+            : '${baiHocCoKiemTra.length} bài có kiểm tra';
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
@@ -153,7 +156,7 @@ class _TrangThaiKiemTraKhoaHoc extends State<_KiemTraKhoaHoc> {
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
-              '${coBaiHoc ? '${baiHocCoKiemTra.length} bài học • Học hết bài để mở bài kiểm tra' : 'Chưa có bài học để mở bài kiểm tra'}${releaseDate.isEmpty ? '' : ' • Phát hành: $releaseDate'}',
+              '${coBaiHoc ? status : 'Chưa có bài học để mở bài kiểm tra'}${releaseDate.isEmpty ? '' : ' • Phát hành: $releaseDate'}',
             ),
             trailing: Icon(coBaiHoc ? Icons.chevron_right : Icons.lock_outline),
             onTap: !coBaiHoc
@@ -205,6 +208,7 @@ class _TrangThaiChiTietKiemTraKhoaHoc extends State<_ChiTietKiemTraKhoaHoc> {
     body: LearningList(
       stream: progress,
       builder: (cacMauTin) {
+        final courseData = widget.course.data();
         final doneIds = cacMauTin
             .where((mauTin) => LearningPolicy.hasCompletedStudy(mauTin.data()))
             .map((mauTin) => mauTin.data()['lessonId']?.toString())
@@ -230,7 +234,7 @@ class _TrangThaiChiTietKiemTraKhoaHoc extends State<_ChiTietKiemTraKhoaHoc> {
         final examComplete = widget.lessons.every(
           (baiHoc) => finishedIds.contains(baiHoc.id),
         );
-        final open = LearningPolicy.canRead(widget.course.data(), '');
+        final open = LearningPolicy.canRead(courseData, '');
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -242,83 +246,109 @@ class _TrangThaiChiTietKiemTraKhoaHoc extends State<_ChiTietKiemTraKhoaHoc> {
             Text(
               examComplete
                   ? 'Bạn đã hoàn thành khóa học và bài kiểm tra.'
-                  : allComplete
+                  : courseData['learningMode'] == 'study_exam' && allComplete
                   ? 'Đã học xong nội dung. Làm xong bài kiểm tra để hoàn thành khóa học.'
-                  : 'Học hết ${widget.lessons.length} bài để mở bài kiểm tra.',
+                  : 'Chọn bài học để tiếp tục học hoặc ôn tập.',
             ),
             const SizedBox(height: 12),
-            for (final baiHoc in widget.lessons)
-              Card(
-                child: ListTile(
-                  leading: CourseCover(
-                    url: baiHoc.data()['coverUrl'] ?? '',
-                    width: 52,
-                    height: 56,
-                  ),
-                  title: Text(
-                    baiHoc.data()['title'] ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    !open
-                        ? 'Khóa học chưa mở hoặc đã kết thúc'
-                        : finishedIds.contains(baiHoc.id)
-                        ? 'Đã hoàn thành'
-                        : doneIds.contains(baiHoc.id)
-                        ? 'Đã học xong • Chưa xong kiểm tra'
-                        : 'Bấm để học bài',
-                  ),
-                  trailing: Icon(
-                    !open
-                        ? Icons.lock_outline
-                        : doneIds.contains(baiHoc.id)
-                        ? Icons.check_circle_outline
-                        : Icons.chevron_right,
-                  ),
-                  onTap: !open
-                      ? null
-                      : () => Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => LessonReaderScreen(
-                              uid: widget.uid,
-                              courseId: widget.course.id,
-                              lessonId: baiHoc.id,
-                              lesson: baiHoc.data(),
-                              service: widget.service,
-                              examService: widget.examService,
-                              courseData: widget.course.data(),
-                            ),
-                          ),
-                        ),
-                ),
+            for (var index = 0; index < widget.lessons.length; index++)
+              _lessonCard(
+                context,
+                widget.lessons[index],
+                index,
+                open: open,
+                done: doneIds.contains(widget.lessons[index].id),
+                finished: finishedIds.contains(widget.lessons[index].id),
+                courseExam: courseData['learningMode'] == 'study_exam',
               ),
             const SizedBox(height: 8),
             FilledButton.icon(
-              onPressed: !open || !allComplete
-                  ? null
-                  : () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => LessonReaderScreen(
-                          uid: widget.uid,
-                          courseId: widget.course.id,
-                          lessonId: widget.lessons.last.id,
-                          lesson: widget.lessons.last.data(),
-                          service: widget.service,
-                          examService: widget.examService,
-                          courseData: widget.course.data(),
-                          autoOpenExam: true,
+                onPressed: !open || !allComplete
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => LessonReaderScreen(
+                            uid: widget.uid,
+                            courseId: widget.course.id,
+                            lessonId: widget.lessons.last.id,
+                            lesson: widget.lessons.last.data(),
+                            service: widget.service,
+                            examService: widget.examService,
+                            courseData: widget.course.data(),
+                            autoOpenExam: true,
+                          ),
                         ),
                       ),
-                    ),
-              icon: const Icon(Icons.assignment_outlined),
-              label: const Text('Làm bài kiểm tra'),
-            ),
+                icon: const Icon(Icons.assignment_outlined),
+                label: const Text('Làm bài kiểm tra'),
+              ),
           ],
         );
       },
     ),
   );
+
+  Widget _lessonCard(
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> lesson,
+    int index, {
+    required bool open,
+    required bool done,
+    required bool finished,
+    required bool courseExam,
+  }) {
+    final data = lesson.data();
+    final status = !open
+        ? 'Khóa học chưa mở hoặc đã kết thúc'
+        : finished
+        ? 'Đã hoàn thành'
+        : done
+        ? courseExam
+              ? 'Đã học xong nội dung'
+              : LearningPolicy.requiresExam(widget.course.data(), data)
+              ? 'Đã học xong • Chưa xong kiểm tra'
+              : 'Đã học xong'
+        : 'Bấm để học bài';
+    final order = data['order'] ?? index + 1;
+    return Card(
+      child: ListTile(
+        leading: CourseCover(
+          url: data['coverUrl'] ?? '',
+          width: 52,
+          height: 56,
+        ),
+        title: Text(
+          data['title'] ?? '',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text('Bài $order • $status'),
+        trailing: Icon(
+          !open
+              ? Icons.lock_outline
+              : finished
+              ? Icons.check_circle_outline
+              : Icons.chevron_right,
+        ),
+        onTap: !open
+            ? null
+            : () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => LessonReaderScreen(
+                    uid: widget.uid,
+                    courseId: widget.course.id,
+                    lessonId: lesson.id,
+                    lesson: data,
+                    service: widget.service,
+                    siblings: widget.lessons,
+                    examService: widget.examService,
+                    courseData: widget.course.data(),
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
 }

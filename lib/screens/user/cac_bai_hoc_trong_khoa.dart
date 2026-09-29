@@ -62,71 +62,86 @@ class _TrangThaiDanhSachChuong extends State<CourseChapterList> {
     stream: lessons,
     builder: (allDocs) {
       final courseData = widget.course.data();
+      final records = LearningPolicy.sortLessons(allDocs);
       final explicitCourseMode =
           courseData['learningMode'] == 'study_only' ||
           courseData['learningMode'] == 'study_exam';
-      final records = LearningPolicy.sortLessons(allDocs)
+      final visibleRecords = records
           .where(
             (record) => explicitCourseMode
                 ? !CourseForm.hasExam(courseData)
                 : !LessonForm.hasExam(record.data()),
           )
           .toList();
-      return _progress(records);
+      return _progress(visibleRecords);
     },
   );
 
-  Widget _progress(List<LessonDoc> records) => LearningList(
-    stream: progress,
-    builder: (progressDocs) {
-      final completed = progressDocs
-          .where((record) => record.data()['completed'] == true)
-          .map((record) => record.data()['lessonId'])
-          .toSet();
-      final completion = LearningPolicy.completion(
-        records.map((record) => record.id),
-        completed.cast<String>(),
-      );
-      final nextIndex = records.indexWhere(
-        (record) => !completed.contains(record.id),
-      );
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            spacing: 12,
+  Widget _progress(List<LessonDoc> records) =>
+      LearningList(
+        stream: progress,
+        builder: (progressDocs) {
+          final completed = progressDocs
+              .where(
+                (record) =>
+                    LearningPolicy.hasCompletedStudy(record.data()),
+              )
+              .map((record) => record.data()['lessonId']?.toString())
+              .whereType<String>()
+              .toSet();
+          final completion = LearningPolicy.completion(
+            records.map((record) => record.id),
+            completed,
+          );
+          final nextIndex = records.indexWhere(
+            (record) => !completed.contains(record.id),
+          );
+          return ListView(
+            padding: const EdgeInsets.all(16),
             children: [
-              const Text(
-                'Tiến độ học tập',
-                style: TextStyle(fontWeight: FontWeight.w700),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 12,
+                children: [
+                  const Text(
+                    'Tiến độ học tập',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    '${(completion * 100).round()}% Hoàn thành',
+                    style: const TextStyle(color: AppTheme.red),
+                  ),
+                ],
               ),
-              Text(
-                '${(completion * 100).round()}% Hoàn thành',
-                style: const TextStyle(color: AppTheme.red),
-              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: completion),
+              const SizedBox(height: 16),
+              if (records.isEmpty) const Text('Chưa có bài học.'),
+              if (records.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: FilledButton.icon(
+                    onPressed: nextIndex < 0
+                        ? null
+                        : () => open(context, records, nextIndex),
+                    icon: const Icon(Icons.play_arrow),
+                    label: Text(
+                      completion == 1 ? 'Ôn tập lại' : 'Tiếp tục học',
+                    ),
+                  ),
+                ),
+              for (final lesson in records)
+                Card(
+                  child: _lessonTile(
+                    lesson,
+                    records,
+                    completed,
+                  ),
+                ),
             ],
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(value: completion),
-          const SizedBox(height: 16),
-          if (records.isEmpty) const Text('Chưa có bài học.'),
-          if (records.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: FilledButton.icon(
-                onPressed: () =>
-                    open(context, records, nextIndex < 0 ? 0 : nextIndex),
-                icon: const Icon(Icons.play_arrow),
-                label: Text(completion == 1 ? 'Ôn tập lại' : 'Tiếp tục học'),
-              ),
-            ),
-          for (final lesson in records)
-            Card(child: _lessonTile(lesson, records, completed)),
-        ],
+          );
+        },
       );
-    },
-  );
 
   Widget _lessonTile(
     LessonDoc lesson,
@@ -137,6 +152,7 @@ class _TrangThaiDanhSachChuong extends State<CourseChapterList> {
     final done = completed.contains(lesson.id);
     final courseMode = widget.course.data()['learningMode'] == 'study_only';
     final seconds = (data['minimumStudySeconds'] as num? ?? 300).toInt();
+    final order = data['order'] ?? records.indexOf(lesson) + 1;
     return ListTile(
       leading: CourseCover(
         url:
@@ -157,7 +173,7 @@ class _TrangThaiDanhSachChuong extends State<CourseChapterList> {
         style: const TextStyle(fontSize: 13),
       ),
       subtitle: Text(
-        '${courseMode ? CourseForm.studyOnlyLabel : LessonForm.modeLabel(data)} • ${done ? 'Đã học' : '$seconds giây • Chưa học'}',
+        'Bài $order • ${courseMode ? CourseForm.studyOnlyLabel : LessonForm.modeLabel(data)} • ${done ? 'Đã học' : '$seconds giây • Chưa học'}',
       ),
       onTap: () => open(context, records, records.indexOf(lesson)),
     );
