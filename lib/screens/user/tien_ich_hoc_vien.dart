@@ -66,7 +66,6 @@ class UserUtilitiesScreen extends StatelessWidget {
                 UserProfileScreen(
                   args: args,
                   service: service,
-                  examService: examService,
                 ),
               ),
             ),

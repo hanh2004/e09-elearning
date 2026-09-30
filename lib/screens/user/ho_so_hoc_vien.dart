@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/tham_so_nguoi_dung.dart';
-import '../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../services/tai_khoan/thao_tac_tai_khoan_hoc_vien.dart';
 import '../../services/tai_khoan/xac_thuc_tai_khoan.dart';
@@ -22,12 +21,10 @@ class UserProfileScreen extends StatefulWidget {
     super.key,
     required this.args,
     this.service,
-    this.examService,
     this.active = true,
   });
 
   final LearningService? service;
-  final SecureExamService? examService;
   final bool active;
 
   @override

@@ -65,23 +65,6 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
   String _khoaTenDangNhap(String tenDangNhap) =>
       accountLoginEmail(tenDangNhap).split('@').first;
 
-  Future<void> _taoTaiKhoanSpark({
-    required String name,
-    required String username,
-    required String password,
-    required String role,
-    required String status,
-    required String createdBy,
-    required String unit,
-    required String userCode,
-    required String userCodeSuffix,
-  }) async {
-    // Mã duy nhất phải được máy chủ giữ trong cùng transaction với tài khoản.
-    throw const AccountProvisioningException(
-      'Tạo học viên cần kết nối dịch vụ quản lý tài khoản. Vui lòng dùng bản cập nhật mới.',
-    );
-  }
-
   Future<Map<String, dynamic>?> loginWithUsername(
     String tenDangNhap,
     String matKhau,
@@ -129,16 +112,10 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
         'Mã người dùng gồm 1–64 ký tự không dấu, số, _, ., @ hoặc -.',
       );
     }
-    await _taoTaiKhoanSpark(
-      name: name,
-      username: username,
-      password: password,
-      role: 'user',
-      status: 'active',
-      createdBy: nguoiThaoTac!.id,
-      unit: resolvedUnit,
-      userCode: '$resolvedUnit-$suffix',
-      userCodeSuffix: suffix,
+    // Không còn đường ghi trực tiếp: mã học viên phải được máy chủ kiểm tra
+    // và tạo cùng hồ sơ trong một transaction.
+    throw const AccountProvisioningException(
+      'Tạo học viên cần kết nối dịch vụ quản lý tài khoản. Vui lòng dùng bản cập nhật mới.',
     );
   }
 
@@ -241,20 +218,10 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     if (importUnit.isEmpty) {
       throw StateError('Quản lý chưa được phân mã đơn vị.');
     }
-    for (final dong in cacDong) {
-      final suffix = (dong.userCodeSuffix ?? dong.username).trim();
-      await _taoTaiKhoanSpark(
-        name: dong.name.trim(),
-        username: dong.username,
-        password: dong.password,
-        role: 'user',
-        status: 'active',
-        createdBy: currentActor.id,
-        unit: importUnit,
-        userCode: '$importUnit-$suffix',
-        userCodeSuffix: suffix,
-      );
-    }
+    // Không còn đường ghi trực tiếp: toàn bộ lô phải qua API để cấp mã an toàn.
+    throw const AccountProvisioningException(
+      'Tạo học viên cần kết nối dịch vụ quản lý tài khoản. Vui lòng dùng bản cập nhật mới.',
+    );
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getUsersStream() {
