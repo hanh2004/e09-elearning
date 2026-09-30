@@ -381,10 +381,8 @@ class _TrangThaiBaiThiHocVien extends State<UserExamScreen>
 
       cacDapAn.add(
         CauTraLoiModel(
-          maCauTraLoi: '',
           maCauHoi: cauHoi.maCauHoi,
           maLuaChon: selectedOption?.maLuaChon,
-          noiDungTraLoi: null,
           traLoiDung: isCorrect,
           diemDatDuoc: isCorrect && cacCauHoi.isNotEmpty
               ? 10.0 / cacCauHoi.length

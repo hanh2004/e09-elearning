@@ -1,5 +1,5 @@
-// WEB ADMIN: Danh sách bài học thuộc một khóa học để quản lý tổng chỉnh sửa.
-// Form: forms/bieu_mau_bai_hoc.dart; dữ liệu nhập: ../../models/bieu_mau_bai_hoc.dart.
+// WEB ADMIN: Quản lý bài học của khóa học đang chọn: thêm, sửa và xóa.
+// Form: forms/bieu_mau_bai_hoc.dart; cấu trúc dữ liệu: ../../models/bieu_mau_bai_hoc.dart.
 
 import 'dart:async';
 
@@ -304,7 +304,7 @@ class _TrangThaiBaiHocQuanTri extends State<AdminLessonsScreen> {
         {
           'published': true,
           'deploymentMode': 'manual',
-          'endsAt': Timestamp.now(),
+          'endsAt': FieldValue.serverTimestamp(),
           'audience': 'all',
         },
       );
@@ -463,7 +463,6 @@ class _TrangThaiBaiHocQuanTri extends State<AdminLessonsScreen> {
       final examId = await FirestoreService(firestore: service.db).addExam(
         title: examTitle,
         durationMinutes: 45,
-        isOpen: true,
         maxAttempts: 1,
         courseId: widget.course.id,
       );
@@ -482,10 +481,6 @@ class _TrangThaiBaiHocQuanTri extends State<AdminLessonsScreen> {
           'audience': 'all',
         },
       );
-      await service.db.doc('exams/$examId').set({
-        'courseId': widget.course.id,
-        'courseEndsAt': widget.course.data()['endsAt'],
-      }, SetOptions(merge: true));
       if (mounted) {
         setState(() {
           linkedExamId = examId;

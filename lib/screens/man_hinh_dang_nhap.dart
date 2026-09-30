@@ -8,8 +8,10 @@ import '../services/du_lieu/dich_vu_firestore.dart';
 import '../app/cong_ung_dung.dart';
 import '../models/dinh_danh_tai_khoan.dart';
 import '../services/tai_khoan/xac_thuc_tai_khoan.dart';
+import '../services/tai_khoan/phien_dang_nhap_quan_tri_web.dart';
 import '../services/kiem_tra_phien_ban_ung_dung.dart';
 import 'hop_thoai_dat_lai_mat_khau.dart';
+import '../widgets/hop_thoai_phien_dang_nhap.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -63,6 +65,7 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
 
     final tenDangNhap = _oNhapTenDangNhap.text.trim();
     final matKhau = _oNhapMatKhau.text;
+    var canCleanupUnclaimedLogin = false;
 
     try {
       if (scope.portal == AppPortal.user) {
@@ -111,6 +114,33 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
             // Nếu kiểm tra thông báo lỗi, vẫn cho phép người dùng đăng nhập.
           }
         }
+        if (widget.authenticate == null) {
+          canCleanupUnclaimedLogin = true;
+          final claimResult = await AdminWebSession.claimWithConfirmation(
+            userData['id'].toString(),
+            canContinue: () => mounted,
+            confirmTakeover: () => confirmAccountSessionTakeover(context),
+          );
+          if (claimResult != AdminWebSessionClaimResult.claimed) {
+            await AccountAuth.signOut();
+            canCleanupUnclaimedLogin = false;
+            if (mounted &&
+                claimResult != AdminWebSessionClaimResult.cancelled) {
+              setState(() {
+                _loiDangNhap =
+                    claimResult == AdminWebSessionClaimResult.keptExisting
+                    ? 'Đã giữ phiên đang hoạt động. Lần đăng nhập này đã hủy.'
+                    : 'Không thể nhận phiên đăng nhập. Vui lòng thử lại.';
+              });
+            }
+            return;
+          }
+          canCleanupUnclaimedLogin = false;
+        }
+        if (!mounted) {
+          if (widget.authenticate == null) await AccountAuth.signOut();
+          return;
+        }
         AccountSession.current = AccountIdentity(
           id: userData['id'].toString(),
           role: userData['role'].toString(),
@@ -130,11 +160,13 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
         // Dùng cùng một thông báo cho thông tin đăng nhập sai và vai trò bị từ chối.
         // Không tiết lộ tài khoản này thuộc cổng còn lại.
         setState(
-          () => _loiDangNhap =
-              'Tên đăng nhập hoặc mật khẩu không chính xác!',
+          () => _loiDangNhap = 'Tên đăng nhập hoặc mật khẩu không chính xác!',
         );
       }
     } catch (loi) {
+      if (canCleanupUnclaimedLogin) {
+        await AccountAuth.signOut();
+      }
       debugPrint('[Đăng nhập] ${accountLoginErrorCode(loi)}');
       if (mounted) {
         setState(() => _loiDangNhap = accountLoginErrorMessage(loi));

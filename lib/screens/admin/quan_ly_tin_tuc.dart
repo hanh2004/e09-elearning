@@ -1,3 +1,5 @@
+// WEB ADMIN: Tạo, sửa, đăng/ẩn và xóa tin tức; form chi tiết nằm ở forms/truong_tin_tuc.dart.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -70,7 +72,6 @@ class _TrangThaiTinTucQuanTri extends State<AdminNewsScreen> {
       body: LearningList(
         stream: stream,
         builder: (cacBanGhi) {
-          final daLoc = cacBanGhi;
           final published = cacBanGhi
               .where((banGhi) => banGhi.data()['published'] == true)
               .length;
@@ -115,16 +116,6 @@ class _TrangThaiTinTucQuanTri extends State<AdminNewsScreen> {
                         color: AppTheme.red,
                       ),
                     ];
-                    if (constraints.maxWidth < 720) {
-                      return Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          for (final card in cards)
-                            SizedBox(width: 220, child: card),
-                        ],
-                      );
-                    }
                     return Row(
                       children: [
                         for (var i = 0; i < cards.length; i++) ...[
@@ -138,18 +129,16 @@ class _TrangThaiTinTucQuanTri extends State<AdminNewsScreen> {
               ),
               const SizedBox(height: 18),
               Expanded(
-                child: daLoc.isEmpty
+                child: cacBanGhi.isEmpty
                     ? Center(
                         child: Text(
-                          cacBanGhi.isEmpty
-                              ? 'Chưa có tin tức. Thêm tin mới để gửi tới học viên.'
-                              : 'Không tìm thấy tin tức phù hợp.',
+                          'Chưa có tin tức. Thêm tin mới để gửi tới học viên.',
                         ),
                       )
                     : ListView(
                         padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
                         children: [
-                          for (final banGhi in daLoc)
+                          for (final banGhi in cacBanGhi)
                             AdminCard(
                               child: _DongTinTuc(doc: banGhi, onEdit: edit),
                             ),

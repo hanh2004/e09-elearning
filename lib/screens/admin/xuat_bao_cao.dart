@@ -1,3 +1,5 @@
+// Hộp thoại chọn dữ liệu và xuất báo cáo thống kê quản trị.
+// Đây là phần xử lý tách riêng của bao_cao_thong_ke.dart.
 part of "bao_cao_thong_ke.dart";
 
 extension _AdminReportExport on _TrangThaiBaoCaoQuanTri {

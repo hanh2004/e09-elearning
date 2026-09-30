@@ -57,34 +57,6 @@ void main() {
     expect(activeStates, [true, false, true, false]);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('secure catalog renders without fetching answer keys', (
-    tester,
-  ) async {
-    final calls = <String>[];
-    final service = SecureExamService(
-      transport: (name, data) async {
-        calls.add(name);
-        return {
-          'exams': [
-            {
-              'id': 'e',
-              'title': 'Đề thi máy chủ',
-              'durationMinutes': 15,
-              'usedAttempts': 0,
-              'maxAttempts': 2,
-              'active': false,
-            },
-          ],
-        };
-      },
-    );
-    await tester.pumpWidget(
-      MaterialApp(home: SecureExamHomeScreen(service: service)),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Đề thi máy chủ'), findsOneWidget);
-    expect(calls, ['examList']);
-  });
   for (final width in [390.0, 1440.0]) {
     testWidgets('secure exam fits $width and displays server result', (
       tester,

@@ -18,5 +18,5 @@ console.log(JSON.stringify({learners:learners.length,missingCodes:missing.length
   missingUnits:missing.filter(doc=>!doc.fields?.unit?.stringValue?.trim()).length,
   units:[...new Set(missing.map(doc=>doc.fields?.unit?.stringValue||''))],
   courses:(await get('courses',['title','published'])).map(doc=>({id:doc.name.split('/').pop(),title:doc.fields?.title?.stringValue,published:doc.fields?.published?.booleanValue})),
-  exams:(await get('exams',['title','isOpen'])).map(doc=>({id:doc.name.split('/').pop(),title:doc.fields?.title?.stringValue,isOpen:doc.fields?.isOpen?.booleanValue})),
+  exams:(await get('exams',['title','courseId','maxAttempts'])).map(doc=>({id:doc.name.split('/').pop(),title:doc.fields?.title?.stringValue,courseId:doc.fields?.courseId?.stringValue,maxAttempts:doc.fields?.maxAttempts?.integerValue})),
 },null,2));

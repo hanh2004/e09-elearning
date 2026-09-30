@@ -77,7 +77,6 @@ class _TrangThaiCaiDatQuanTri extends State<AdminSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final laMayTinh = AdminResponsiveShell.isDesktop(context);
     return AdminResponsiveShell(
       selectedIndex: _viTriDaChon,
       onSelected: _chonMuc,
@@ -243,33 +242,11 @@ class _TrangThaiCaiDatQuanTri extends State<AdminSettingsScreen> {
             ],
           ),
         ),
-        bottomNavigationBar: laMayTinh
-            ? null
-            : BottomNavigationBar(
-                currentIndex: _viTriDaChon,
-                onTap: _chonMuc,
-                type: BottomNavigationBarType.fixed,
-                selectedItemColor: AppTheme.red,
-                unselectedItemColor: Colors.grey,
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home),
-                    label: 'Trang chủ',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.assignment),
-                    label: 'Quản lý khóa học',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.bar_chart),
-                    label: 'Báo cáo',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.settings),
-                    label: 'Cài đặt',
-                  ),
-                ],
-              ),
+        bottomNavigationBar: adminMobileNavigationBar(
+          context,
+          selectedIndex: _viTriDaChon,
+          onSelected: _chonMuc,
+        ),
       ),
     );
   }

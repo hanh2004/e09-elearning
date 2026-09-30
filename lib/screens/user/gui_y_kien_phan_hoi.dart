@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../app/cau_hinh_ung_dung.dart';
 import '../../app/chu_de_ung_dung.dart';
 import '../../services/tai_khoan/xac_thuc_tai_khoan.dart';
+import '../../services/tai_khoan/phien_dang_nhap_quan_tri_web.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
 
 class UserFeedbackScreen extends StatefulWidget {
@@ -76,10 +77,12 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
 
       await FirebaseFunctions.instanceFor(region: AppConfig.functionsRegion)
           .httpsCallable('feedbackSubmit')
-          .call<Map<String, dynamic>>({
-            'category': _category,
-            'message': _message.text.trim(),
-          });
+          .call<Map<String, dynamic>>(
+            AdminWebSession.addToken({
+              'category': _category,
+              'message': _message.text.trim(),
+            }),
+          );
 
       if (!mounted) return;
       _message.clear();

@@ -1,3 +1,5 @@
+// Bảng dữ liệu báo cáo: lọc đề thi/lượt thi và hiển thị kết quả theo học viên, đơn vị.
+// Đây là phần tách riêng của bao_cao_thong_ke.dart.
 part of "bao_cao_thong_ke.dart";
 
 extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
@@ -74,131 +76,39 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
           margin: const EdgeInsets.symmetric(horizontal: 28),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final chieuRong = constraints.maxWidth >= 700
-                    ? (constraints.maxWidth - 24) / 3
-                    : constraints.maxWidth;
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    SizedBox(
-                      width: chieuRong,
-                      child: DropdownButtonFormField<String>(
-                        key: ValueKey('unit:$selectedUnit'),
-                        initialValue: selectedUnit,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Đơn vị',
-                          prefixIcon: Icon(Icons.apartment),
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('Tất cả đơn vị'),
-                          ),
-                          for (final donVi in cacDonVi)
-                            DropdownMenuItem(
-                              value: donVi,
-                              child: Text(
-                                donVi.isEmpty ? 'Chưa phân đơn vị' : donVi,
-                              ),
-                            ),
-                        ],
-                        onChanged: (v) => _setReportState(() {
-                          unitFilter = v;
-                          subUnitFilter = null;
-                          visibleRows = 50;
-                        }),
-                      ),
-                    ),
-                    if (selectedUnit != null)
-                      SizedBox(
-                        width: chieuRong,
-                        child: DropdownButtonFormField<String>(
-                          key: ValueKey(
-                            'sub-unit:$selectedUnit:$selectedSubUnit',
-                          ),
-                          initialValue: selectedSubUnit,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Trực thuộc',
-                            prefixIcon: Icon(Icons.account_tree_outlined),
-                          ),
-                          items: [
-                            const DropdownMenuItem(
-                              value: null,
-                              child: Text('Tất cả trực thuộc'),
-                            ),
-                            for (final giaTri in subUnits)
-                              DropdownMenuItem(
-                                value: giaTri,
-                                child: Text(giaTri),
-                              ),
-                          ],
-                          onChanged: (v) => _setReportState(() {
-                            subUnitFilter = v;
-                            visibleRows = 50;
-                          }),
-                        ),
-                      ),
-                    SizedBox(
-                      width: chieuRong,
-                      child: TextField(
-                        controller: searchController,
-                        decoration: const InputDecoration(
-                          labelText: 'Tìm học viên hoặc đơn vị',
-                          prefixIcon: Icon(Icons.search),
-                        ),
-                        onChanged: (_) =>
-                            _setReportState(() => visibleRows = 50),
-                      ),
-                    ),
-                    SizedBox(
-                      width: chieuRong,
-                      child: DropdownButtonFormField<String>(
-                        key: ValueKey('exam:$selectedExam'),
-                        initialValue: selectedExam,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Bài thi',
-                          prefixIcon: Icon(Icons.assignment_outlined),
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('Tất cả bài thi'),
-                          ),
-                          for (final banGhi in sortedExams)
-                            DropdownMenuItem(
-                              value: banGhi.id,
-                              child: Text(
-                                banGhi.data()['title'] ?? banGhi.id,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                        onChanged: (v) => _setReportState(() {
-                          examFilter = v;
-                          visibleRows = 50;
-                        }),
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => _setReportState(() {
-                        searchController.clear();
-                        examFilter = null;
-                        unitFilter = null;
-                        subUnitFilter = null;
-                        visibleRows = 50;
-                      }),
-                      icon: const Icon(Icons.filter_alt_off_outlined),
-                      label: const Text('Xóa bộ lọc'),
-                    ),
-                  ],
-                );
-              },
+            child: AdminReportFilters(
+              units: cacDonVi,
+              subUnits: subUnits,
+              selectedUnit: selectedUnit,
+              selectedSubUnit: selectedSubUnit,
+              searchController: searchController,
+              searchLabel: 'Tìm học viên hoặc đơn vị',
+              onUnitChanged: (value) => _setReportState(() {
+                unitFilter = value;
+                subUnitFilter = null;
+                visibleRows = 50;
+              }),
+              onSubUnitChanged: (value) => _setReportState(() {
+                subUnitFilter = value;
+                visibleRows = 50;
+              }),
+              onSearchChanged: (_) => _setReportState(() => visibleRows = 50),
+              exams: [
+                for (final exam in sortedExams)
+                  (exam.id, (exam.data()['title'] ?? exam.id).toString()),
+              ],
+              selectedExam: selectedExam,
+              onExamChanged: (value) => _setReportState(() {
+                examFilter = value;
+                visibleRows = 50;
+              }),
+              onClear: () => _setReportState(() {
+                searchController.clear();
+                examFilter = null;
+                unitFilter = null;
+                subUnitFilter = null;
+                visibleRows = 50;
+              }),
             ),
           ),
         ),

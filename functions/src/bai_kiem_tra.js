@@ -8,6 +8,15 @@ const khoa = (maNguoiDung, maBaiThi) => createHash('sha256').update(JSON.stringi
 const ma = (giaTri) => typeof giaTri === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(giaTri);
 const miliGiay = (giaTri) => giaTri?.toMillis?.() ?? null;
 
+function demSoLuotCu(cacBanGhi, maBaiThi) {
+  return cacBanGhi.filter((banGhi) => banGhi.data().examId === maBaiThi)
+    .reduce((soLuong, banGhi) => {
+      const duLieu = banGhi.data();
+      return soLuong + (duLieu.attemptCount ?? (duLieu.status === 'completed' ? 1 : 0)) +
+        (duLieu.status === 'in_progress' ? 1 : 0);
+    }, 0);
+}
+
 function shuffled(items) {
   const ketQua = [...items];
   for (let i = ketQua.length - 1; i > 0; i--) {
@@ -147,10 +156,9 @@ export function examHandlers(coSoDuLieu, dongHo = () => Date.now()) {
       const [cacBaiThi, cacPhien, legacy] = await Promise.all([giaoDich.get(coSoDuLieu.collection('exams')), giaoDich.get(coSoDuLieu.collection('exam_sessions').where('userId','==',maNguoiDung)), giaoDich.get(coSoDuLieu.collection('exam_attempts').where('userId','==',maNguoiDung))]);
       const cacSoLuot = new Map(cacPhien.docs.map((banGhi) => [banGhi.data().examId, banGhi.data()]));
       return {exams:cacBaiThi.docs.filter(banGhi => banGhi.data().deleting !== true).map((banGhi) => { const e = banGhi.data(); const s = cacSoLuot.get(banGhi.id);
-        const soLuotCuDaDung = legacy.docs.filter(d => d.data().examId === banGhi.id).reduce((soLuong,d) => soLuong +
-          (d.data().attemptCount ?? (d.data().status === 'completed' ? 1 : 0)) + (d.data().status === 'in_progress' ? 1 : 0),0);
+        const soLuotCuDaDung = demSoLuotCu(legacy.docs, banGhi.id);
         return {id:banGhi.id, title:e.title ?? 'Bài thi', durationMinutes:e.durationMinutes ?? (parseInt(e.duration,10) || 45),
-          isOpen:e.isOpen === true, closesAt:miliGiay(e.closesAt), opensAt:miliGiay(e.opensAt), maxAttempts:e.maxAttempts ?? null,
+          maxAttempts:e.maxAttempts ?? null,
           usedAttempts:s ? s.issuedCount+s.legacyUsed : soLuotCuDaDung, active:s?.activeRunId != null}; })};
     });
   }
@@ -189,13 +197,11 @@ export function examHandlers(coSoDuLieu, dongHo = () => Date.now()) {
       }
       const thamChieuBaiThi = coSoDuLieu.doc(`exams/${dauVao.examId}`);
       const baiThi = (await giaoDich.get(thamChieuBaiThi)).data();
-      requireThat(baiThi?.isOpen === true && baiThi.deleting !== true && (miliGiay(baiThi.opensAt) == null || miliGiay(baiThi.opensAt) <= dongHo()) &&
-        (miliGiay(baiThi.closesAt) == null || miliGiay(baiThi.closesAt) > dongHo()), 'failed-precondition', 'Bài thi hiện chưa mở hoặc đã đóng.');
+      requireThat(baiThi && baiThi.deleting !== true, 'failed-precondition', 'Không tìm thấy bài kiểm tra.');
       let soLuotCuDaDung = phien?.legacyUsed ?? 0;
       if (!phien) {
         const cu = await giaoDich.get(coSoDuLieu.collection('exam_attempts').where('userId','==',maNguoiDung));
-        soLuotCuDaDung = cu.docs.filter((d) => d.data().examId === dauVao.examId).reduce((soLuong,d) => soLuong +
-          (d.data().attemptCount ?? (d.data().status === 'completed' ? 1 : 0)) + (d.data().status === 'in_progress' ? 1 : 0),0);
+        soLuotCuDaDung = demSoLuotCu(cu.docs, dauVao.examId);
       }
       const soLuotDaCap = phien?.issuedCount ?? 0;
       requireThat(baiThi.maxAttempts == null || soLuotDaCap + soLuotCuDaDung < baiThi.maxAttempts, 'resource-exhausted', 'Bạn đã hết lượt thi.');
@@ -212,7 +218,7 @@ export function examHandlers(coSoDuLieu, dongHo = () => Date.now()) {
       const hanKhoaHoc = duLieuHoc.courseEndsAt;
       const luotThi = {id:maLuotThi, userId:maNguoiDung, examId:dauVao.examId, courseId:dauVao.courseId, lessonId:dauVao.lessonId, courseTitle:duLieuHoc.courseTitle, title:baiThi.title ?? 'Bài thi', status:'in_progress', isActive:true, lastActivityAt:FieldValue.serverTimestamp(), questions: cacCauHoi,
         passScore:typeof baiThi.passScore === 'number' ? baiThi.passScore : 5, showSolutions:baiThi.showSolutions === true,
-        endsAt:Timestamp.fromMillis(Math.min(dongHo()+thoiLuong*60000,miliGiay(baiThi.closesAt) ?? Infinity, hanKhoaHoc ?? Infinity)), selectedAnswers:{}, revision:0};
+        endsAt:Timestamp.fromMillis(Math.min(dongHo()+thoiLuong*60000,hanKhoaHoc ?? Infinity)), selectedAnswers:{}, revision:0};
       giaoDich.set(thamChieuPhien,{userId:maNguoiDung,examId:dauVao.examId,issuedCount:soLuotDaCap+1,legacyUsed: soLuotCuDaDung,activeRunId:maLuotThi,completedCount:phien?.completedCount ?? 0,bestScore:phien?.bestScore ?? -1});
       giaoDich.create(coSoDuLieu.doc(`exam_private_runs/${maLuotThi}`),luotThi);
       return luotThiCongKhai(luotThi);
@@ -353,7 +359,7 @@ export function examHandlers(coSoDuLieu, dongHo = () => Date.now()) {
       const nguoiThaoTac={...(await giaoDich.get(coSoDuLieu.doc(`users/${maNguoiDung}`))).data(),id:maNguoiDung};
       requireRoot(nguoiThaoTac,cauHinh);
       if(!(await giaoDich.get(thamChieu)).exists)return;
-      giaoDich.update(thamChieu,{isOpen:false,deleting:true});
+      giaoDich.update(thamChieu,{deleting:true});
     });
     const cacLuotThiRieng=await coSoDuLieu.collection('exam_private_runs').where('examId','==',dauVao.examId).get();
     for(const luotThi of cacLuotThiRieng.docs)await luotThi.ref.delete();

@@ -1,7 +1,6 @@
 import 'package:e09_elearning/models/dinh_danh_tai_khoan.dart';
 import 'package:e09_elearning/screens/admin/quan_ly_tai_khoan.dart';
 import 'package:e09_elearning/screens/admin/duyet_yeu_cau.dart';
-import 'package:e09_elearning/screens/admin/quan_ly_bai_kiem_tra.dart';
 import 'package:e09_elearning/screens/admin/ngan_hang_cau_hoi.dart';
 import 'package:e09_elearning/models/tham_so_ngan_hang_cau_hoi.dart';
 import 'package:e09_elearning/services/du_lieu/dich_vu_firestore.dart';
@@ -189,7 +188,7 @@ void main() {
     },
   );
 
-  testWidgets('limited admin cannot create exams or questions in UI', (
+  testWidgets('limited admin can view questions but cannot edit the exam', (
     tester,
   ) async {
     AccountSession.current = const AccountIdentity(
@@ -200,7 +199,6 @@ void main() {
     await db.collection('exams').doc('exam1').set({
       'title': 'Test exam',
       'duration': '30 phút',
-      'isOpen': true,
     });
     await db.collection('exams').doc('exam1').collection('questions').add({
       'questionText': 'Câu hỏi thử',
@@ -208,19 +206,6 @@ void main() {
       'correctAnswerIndex': 0,
     });
     final service = FirestoreService(firestore: db);
-    await tester.pumpWidget(
-      MaterialApp(home: AdminExamScreen(service: service)),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Tạo bài thi mới'), findsNothing);
-    expect(find.text('Chỉ quản lý tổng được tạo bài thi'), findsNothing);
-    expect(find.text('Quản lý Kiểm tra'), findsOneWidget);
-    expect(find.text('Xem câu hỏi'), findsOneWidget);
-    expect(find.byIcon(Icons.delete_outline), findsNothing);
-    await tester.tap(find.text('Đang mở'));
-    await tester.pumpAndSettle();
-    expect((await db.collection('exams').doc('exam1').get())['isOpen'], isTrue);
-
     await tester.pumpWidget(
       MaterialApp(
         home: AdminQuestionBankScreen(
@@ -233,8 +218,21 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Yêu cầu bài kiểm tra'), findsOneWidget);
+    expect(find.text('Câu 1: Câu hỏi thử'), findsOneWidget);
+    expect(find.text('Tạo bài thi mới'), findsNothing);
+    expect(find.text('Đang mở'), findsNothing);
+    expect(find.text('Lưu cài đặt'), findsNothing);
+    expect(find.text('Nhập nhiều câu hỏi'), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.byIcon(Icons.delete), findsNothing);
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    expect(
+      (await db.collection('exams').doc('exam1').get()).data()!.containsKey(
+        'isOpen',
+      ),
+      isFalse,
+    );
   });
 
   for (final own in [true, false]) {

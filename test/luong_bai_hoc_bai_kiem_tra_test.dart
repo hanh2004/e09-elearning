@@ -81,7 +81,7 @@ void main() {
     });
   }
 
-  testWidgets('closed exam retains progress and offers manual retry', (
+  testWidgets('closed course retains progress and offers manual retry', (
     tester,
   ) async {
     final db = FakeFirebaseFirestore();
@@ -103,7 +103,7 @@ void main() {
               calls++;
               throw FirebaseFunctionsException(
                 code: 'failed-precondition',
-                message: 'Bài kiểm tra chưa mở.',
+                message: 'Khóa học chưa mở hoặc đã kết thúc.',
               );
             },
           ),
@@ -123,7 +123,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Học xong và làm bài kiểm tra'));
     await tester.pumpAndSettle();
-    expect(find.text('Bài kiểm tra chưa mở.'), findsOneWidget);
+    expect(find.text('Khóa học chưa mở hoặc đã kết thúc.'), findsOneWidget);
     expect(
       (await db.doc('users/u/learning/c_l').get()).data()?['studyCompleted'],
       true,

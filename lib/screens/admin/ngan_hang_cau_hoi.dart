@@ -44,6 +44,8 @@ class _TrangThaiNganHangCauHoiQuanTri extends State<AdminQuestionBankScreen> {
   bool _shuffleQuestions = false;
   bool _shuffleAnswers = false;
   bool _showSolutions = false;
+  bool _courseLinked = false;
+  String? _courseAccessSummary;
   String? _examPolicyError;
 
   @override
@@ -68,6 +70,12 @@ class _TrangThaiNganHangCauHoiQuanTri extends State<AdminQuestionBankScreen> {
           .get();
       final exam = snapshot.data();
       if (exam == null) throw StateError('Không tìm thấy bài kiểm tra.');
+      final courseId = (exam['courseId'] ?? '').toString().trim();
+      Map<String, dynamic>? course;
+      if (courseId.isNotEmpty) {
+        course = (await _dichVuFirestore.db.doc('courses/$courseId').get())
+            .data();
+      }
       if (!mounted) return;
       setState(() {
         _examTitle = (exam['title'] ?? widget.args.examTitle).toString();
@@ -80,6 +88,11 @@ class _TrangThaiNganHangCauHoiQuanTri extends State<AdminQuestionBankScreen> {
         _shuffleQuestions = exam['shuffleQuestions'] == true;
         _shuffleAnswers = exam['shuffleAnswers'] == true;
         _showSolutions = exam['showSolutions'] == true;
+        _courseLinked = courseId.isNotEmpty;
+        _courseAccessSummary = course == null
+            ? null
+            : '${course['title'] ?? 'Khóa học'} · '
+                  '${course['published'] == true ? 'Đang triển khai' : 'Đang đóng'}';
         _examPolicyLoaded = true;
       });
     } catch (_) {
@@ -542,6 +555,17 @@ class _TrangThaiNganHangCauHoiQuanTri extends State<AdminQuestionBankScreen> {
                 style: const TextStyle(color: Colors.red),
               ),
             ],
+            if (_courseLinked) ...[
+              const SizedBox(height: 10),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_available_outlined),
+                title: const Text('Quyền làm bài theo khóa học'),
+                subtitle: Text(
+                  '${_courseAccessSummary ?? 'Đề được quản lý trong khóa học liên kết.'}. Mở và kết thúc khóa học sẽ tự kiểm soát quyền vào làm bài.',
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -639,7 +663,7 @@ class _TrangThaiNganHangCauHoiQuanTri extends State<AdminQuestionBankScreen> {
     final options = List<String>.from(question['options'] ?? []);
     final correctIndex = question['correctAnswerIndex'] ?? 0;
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(12),

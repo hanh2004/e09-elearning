@@ -103,9 +103,10 @@ cập nhật cho các đợt phát hành tiếp theo.
   chọn **Bản nháp** hoặc **Đăng tin**. Tin đã đăng hiển thị ở trang chủ học viên.
 - Admin → **Quản lý khóa học** → bài học → **Loại bài học**:
   **Chỉ học** hiển thị trong mục **Học tập**, hoàn thành sau thời gian học;
-  **Học xong kiểm tra ngay** hiển thị trong mục **Kiểm tra**, học nội dung trước rồi kéo tới cuối bài và bấm hoàn thành để mở đề riêng đi kèm.
-- Tạo đề và câu hỏi trong **Bài thi**, sau đó chọn đề ở bài học loại kiểm tra.
-  Đề chưa gắn nội dung học không có lối vào thi trực tiếp trong ứng dụng học viên.
+  **Học xong kiểm tra ngay** hiển thị trong mục **Kiểm tra**, học nội dung trước rồi hoàn thành để làm đề gắn với khóa học.
+- Đề và câu hỏi được quản lý trong khóa học. Trạng thái và lịch của khóa học
+  quyết định khi nào học viên vào nội dung và đề liên kết; đề không còn lịch hay
+  nút mở/đóng riêng. Giới hạn lượt làm vẫn cài trên đề.
 - Trong web admin, danh sách bài học được tách thành **Học để biết** và **Học để làm bài kiểm tra**.
 - API bắt đầu, tiếp tục và nộp bài kiểm tra xác thực bài học, đề đi kèm và tiến độ của
   chính học viên. Chưa học xong thì không cấp câu hỏi; không tin cờ hoàn thành do client gửi.
@@ -136,9 +137,9 @@ cập nhật cho các đợt phát hành tiếp theo.
   Functions” để suy ra hành vi môi trường đang chạy.
 - Đăng nhập dùng Firebase Auth, không đọc mật khẩu từ Firestore. Không có 2FA.
 - Đăng nhập sai cổng vẫn báo cùng thông báo sai tài khoản/mật khẩu. Đăng xuất xóa phiên Auth.
-- Học viên bấm **Quên mật khẩu?** ở màn hình đăng nhập để gửi yêu cầu. Một quản lý tổng
-  duyệt lần đầu, quản lý tổng còn lại duyệt lần hai; sau đó quản lý phụ trách mới được
-  nhập mật khẩu mới trong mục **Cấp lại mật khẩu**. Mật khẩu không lưu trong Firestore.
+- Học viên bấm **Quên mật khẩu?** ở màn hình đăng nhập để gửi yêu cầu thẳng đến quản lý
+  hiện tại. Quản lý đó cấp lại mật khẩu cho học viên mình phụ trách; admin tổng chỉ xử lý
+  học viên đang được giao cho mình và các tài khoản admin. Mật khẩu không lưu trong Firestore.
 - Firestore Rules chặn User tự xóa lượt làm, ghi cho người khác, nộp sau hạn
   và ghi điểm ngoài miền hợp lệ. Chấm điểm tuyệt đối chống can thiệp vẫn cần
   backend tin cậy; app phát hành phải dùng backend đã triển khai, không tắt

@@ -1,4 +1,10 @@
+// Form thêm/sửa tài khoản quản trị, gồm thông tin đăng nhập, vai trò và đơn vị.
+// Đây là phần xử lý hộp thoại tách riêng của quan_ly_tai_khoan.dart.
 part of "quan_ly_tai_khoan.dart";
+
+bool _maDuoiHopLe(String? value) =>
+    value != null &&
+    RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$').hasMatch(value.trim());
 
 extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
   Future<void> _moHopThoaiTaiKhoan({
@@ -185,10 +191,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                             prefixText: '$actorUnit-',
                             helperText: 'Mã hoàn chỉnh: $actorUnit-mã bạn nhập',
                           ),
-                          validator: (v) =>
-                              v == null ||
-                                  !RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$')
-                                      .hasMatch(v.trim())
+                          validator: (v) => !_maDuoiHopLe(v)
                               ? 'Mã gồm 1–64 ký tự không dấu, số, _, ., @ hoặc -.'
                               : null,
                         ),
@@ -201,10 +204,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                             prefixText: '${user?['unit'] ?? ''}-',
                             helperText: 'Chỉ đổi phần đuôi; mã đơn vị do quản lý tổng đặt.',
                           ),
-                          validator: (v) =>
-                              v == null ||
-                                  !RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$')
-                                      .hasMatch(v.trim())
+                          validator: (v) => !_maDuoiHopLe(v)
                               ? 'Đuôi mã gồm 1–64 ký tự hợp lệ.'
                               : null,
                         ),
@@ -432,16 +432,8 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
     Map<String, dynamic> nguoiDung,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> cacQuanLy,
   ) async {
-    final targetUnit = (nguoiDung['unit'] ?? '')
-        .toString()
-        .trim()
-        .toLowerCase();
     final eligibleManagers = cacQuanLy
-        .where(
-          (manager) =>
-              (manager.data()['unit'] ?? '').toString().trim().toLowerCase() !=
-              targetUnit,
-        )
+        .where((manager) => _coTheChuyenHocVienCho(manager, nguoiDung))
         .toList();
     if (_danhTinh?.isRoot != true || eligibleManagers.isEmpty) return;
     final pageContext = context;
@@ -482,7 +474,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                           DropdownMenuItem(
                             value: manager.id,
                             child: Text(
-                              '${manager.data()['name'] ?? manager.data()['username'] ?? manager.id} • ${manager.data()['unit'] ?? 'Chưa có mã đơn vị'}',
+                              '${manager.data()['name'] ?? manager.data()['username'] ?? manager.id} • ${manager.data()['role'] == 'super_admin' ? 'Quản lý tổng, E09' : manager.data()['unit'] ?? 'Chưa có mã đơn vị'}',
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -497,7 +489,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'Phần đuôi mã hiện tại sẽ được giữ nguyên; chỉ phần mã đơn vị thay đổi.',
+                      'Phần đuôi mã người dùng được giữ nguyên; mã đơn vị sẽ theo quản lý mới.',
                     ),
                     const SizedBox(height: 12),
                     const Text(

@@ -85,7 +85,9 @@ App User thử nghiệm dùng cùng emulator:
 flutter run -d chrome -t lib/diem_vao_hoc_vien.dart --dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1
 ```
 
-Dùng hai trình duyệt hoặc cửa sổ riêng tư để đăng nhập hai admin đồng thời. Trong Admin tổng:
+Dùng hai tab trên cùng website để đăng nhập hai admin đồng thời; mỗi tab giữ một phiên riêng
+và đăng xuất ở tab này không đăng xuất tab kia. Phiên được giữ khi tải lại tab và kết thúc
+khi đóng tab. Trong Admin tổng:
 **Quản lý Tài khoản → Đề xuất Admin phụ**, sau đó tài khoản tổng còn lại vào
 **Duyệt Admin phụ → Đồng ý**. Đổi mật khẩu của chính mình ở **Quản lý Tài khoản → Sửa tài khoản**.
 

@@ -84,13 +84,12 @@ void main() {
         for (final label in [
           'Học tập',
           'Kiểm tra',
-          'Tin tức',
+          'Thông tin',
           'Tiện ích',
-          'Thông báo',
           'Cá nhân',
           'Trang chủ',
         ]) {
-          if (label == 'Thông báo' || label == 'Cá nhân') {
+          if (label == 'Cá nhân') {
             await tester.tap(find.text('Tiện ích').last);
             await tester.pumpAndSettle();
             await tester.scrollUntilVisible(
@@ -108,7 +107,33 @@ void main() {
           await tester.tap(find.text(label).last);
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull, reason: label);
-          if (label == 'Thông báo' || label == 'Cá nhân') {
+          if (label == 'Tiện ích') {
+            expect(find.text('Lịch sử bài kiểm tra'), findsOneWidget);
+            await tester.tap(find.text('Lịch sử bài kiểm tra'));
+            await tester.pumpAndSettle();
+            expect(find.text('Lịch sử bài kiểm tra'), findsOneWidget);
+            expect(tester.takeException(), isNull, reason: 'exam history');
+            await tester.pageBack();
+            await tester.pumpAndSettle();
+            expect(tester.takeException(), isNull, reason: 'history back');
+          }
+          if (label == 'Thông tin') {
+            expect(find.text('Tin tức'), findsOneWidget);
+            expect(find.text('Thông báo'), findsOneWidget);
+            await tester.tap(find.text('Thông báo').last);
+            await tester.pumpAndSettle();
+            expect(find.text('Thông báo hệ thống'), findsOneWidget);
+            expect(find.byTooltip('Back'), findsOneWidget, reason: label);
+            await tester.pageBack();
+            await tester.pumpAndSettle();
+            expect(
+              tester.takeException(),
+              isNull,
+              reason: '$label notification back',
+            );
+          }
+          if (label == 'Cá nhân') {
+            expect(find.text('Lịch sử bài kiểm tra'), findsNothing);
             expect(find.byTooltip('Back'), findsOneWidget, reason: label);
             await tester.pageBack();
             await tester.pumpAndSettle();

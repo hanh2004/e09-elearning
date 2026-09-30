@@ -13,11 +13,9 @@ class HomeNewsBanner extends StatefulWidget {
   const HomeNewsBanner({
     super.key,
     required this.service,
-    required this.uid,
     required this.onStudy,
   });
   final NewsService service;
-  final String uid;
   final VoidCallback onStudy;
   @override
   State<HomeNewsBanner> createState() => _TrangThaiBannerTinTuc();

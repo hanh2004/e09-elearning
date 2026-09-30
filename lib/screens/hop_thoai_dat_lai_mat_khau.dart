@@ -1,3 +1,5 @@
+// Hộp thoại gửi yêu cầu đặt lại mật khẩu từ màn hình đăng nhập học viên.
+
 import 'dart:convert';
 import 'dart:math';
 

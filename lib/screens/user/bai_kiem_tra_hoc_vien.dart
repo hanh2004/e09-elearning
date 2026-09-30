@@ -1,3 +1,5 @@
+// APP HỌC VIÊN: Trang học và kiểm tra theo khóa, điều hướng từ bài học sang bài thi.
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,7 +13,7 @@ import '../../widgets/anh_bia_khoa_hoc.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
 import '../../widgets/tien_ich_giao_dien_hoc_tap.dart';
 import 'doc_bai_hoc.dart';
-import 'lam_bai_kiem_tra_bao_mat.dart';
+import 'lich_su_bai_kiem_tra.dart';
 
 /// Mục Kiểm tra luôn mở nội dung học trước khi cấp câu hỏi kiểm tra.
 class UserLearningTestsScreen extends StatefulWidget {
@@ -33,6 +35,7 @@ class _TrangThaiHocVaKiemTra extends State<UserLearningTestsScreen> {
   late final service = widget.service ?? LearningService();
   late final courses = service.courses(classId: '');
   late final Timer _refreshTimer;
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -45,6 +48,7 @@ class _TrangThaiHocVaKiemTra extends State<UserLearningTestsScreen> {
   @override
   void dispose() {
     _refreshTimer.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -59,7 +63,9 @@ class _TrangThaiHocVaKiemTra extends State<UserLearningTestsScreen> {
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute<void>(
-              builder: (_) => SecureExamHistoryScreen(
+              builder: (_) => ExamHistoryScreen(
+                userId: widget.uid,
+                secureBackend: true,
                 service: widget.examService ?? SecureExamService(),
               ),
             ),
@@ -69,29 +75,58 @@ class _TrangThaiHocVaKiemTra extends State<UserLearningTestsScreen> {
     ),
     body: LearningList(
       stream: courses,
-      builder: (cacBanGhi) => ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text(
-            'Học trước, kiểm tra sau',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Mở nội dung và học đủ thời gian. Câu hỏi kiểm tra chỉ mở sau khi hoàn thành phần học.',
-          ),
-          const SizedBox(height: 16),
-          for (final khoaHoc in cacBanGhi)
-            if (LearningPolicy.canRead(khoaHoc.data(), ''))
-              _KiemTraKhoaHoc(
-                key: ValueKey(khoaHoc.id),
-                uid: widget.uid,
-                course: khoaHoc,
-                service: service,
-                examService: widget.examService,
+      builder: (cacBanGhi) {
+        final tuKhoa = _searchController.text.toLowerCase();
+        final khoaHocPhuHop = cacBanGhi.where((khoaHoc) {
+          final duLieu = khoaHoc.data();
+          return LearningPolicy.canRead(duLieu, '') &&
+              duLieu['learningMode'] != 'study_only' &&
+              '${duLieu['title'] ?? ''} ${duLieu['subject'] ?? ''}'
+                  .toLowerCase()
+                  .contains(tuKhoa);
+        }).toList();
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text(
+              'Học trước, kiểm tra sau',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Mở nội dung và học đủ thời gian. Câu hỏi kiểm tra chỉ mở sau khi hoàn thành phần học.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Tìm khóa học, môn học…',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Xóa nội dung tìm kiếm',
+                        icon: const Icon(Icons.close),
+                        onPressed: () => setState(_searchController.clear),
+                      ),
               ),
-        ],
-      ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 16),
+            if (khoaHocPhuHop.isEmpty)
+              const Center(child: Text('Không tìm thấy khóa học phù hợp.'))
+            else
+              for (final khoaHoc in khoaHocPhuHop)
+                _KiemTraKhoaHoc(
+                  key: ValueKey(khoaHoc.id),
+                  uid: widget.uid,
+                  course: khoaHoc,
+                  service: service,
+                  examService: widget.examService,
+                ),
+          ],
+        );
+      },
     ),
   );
 }
@@ -117,9 +152,6 @@ class _TrangThaiKiemTraKhoaHoc extends State<_KiemTraKhoaHoc> {
   @override
   Widget build(BuildContext context) {
     final duLieu = widget.course.data();
-    if (duLieu['learningMode'] == 'study_only') {
-      return const SizedBox.shrink();
-    }
     return LearningList(
       stream: lessons,
       builder: (cacBanGhi) {
@@ -263,26 +295,26 @@ class _TrangThaiChiTietKiemTraKhoaHoc extends State<_ChiTietKiemTraKhoaHoc> {
               ),
             const SizedBox(height: 8),
             FilledButton.icon(
-                onPressed: !open || !allComplete
-                    ? null
-                    : () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => LessonReaderScreen(
-                            uid: widget.uid,
-                            courseId: widget.course.id,
-                            lessonId: widget.lessons.last.id,
-                            lesson: widget.lessons.last.data(),
-                            service: widget.service,
-                            examService: widget.examService,
-                            courseData: widget.course.data(),
-                            autoOpenExam: true,
-                          ),
+              onPressed: !open || !allComplete
+                  ? null
+                  : () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => LessonReaderScreen(
+                          uid: widget.uid,
+                          courseId: widget.course.id,
+                          lessonId: widget.lessons.last.id,
+                          lesson: widget.lessons.last.data(),
+                          service: widget.service,
+                          examService: widget.examService,
+                          courseData: widget.course.data(),
+                          autoOpenExam: true,
                         ),
                       ),
-                icon: const Icon(Icons.assignment_outlined),
-                label: const Text('Làm bài kiểm tra'),
-              ),
+                    ),
+              icon: const Icon(Icons.assignment_outlined),
+              label: const Text('Làm bài kiểm tra'),
+            ),
           ],
         );
       },

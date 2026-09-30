@@ -53,7 +53,7 @@ chuẩn bị Java 21 cho emulator và kiểm tra lại các lệnh triển khai.
 | Thanh menu web admin | `lib/screens/admin/khung_giao_dien_quan_tri.dart` |
 | Trang chủ admin và tổng quan | `lib/screens/admin/trang_chu_quan_tri.dart`, `tong_quan_hoc_tap.dart` |
 | Tài khoản, đơn vị, quyền tạo User | `lib/screens/admin/quan_ly_tai_khoan.dart`, `lib/services/du_lieu/dich_vu_firestore.dart`, `lib/services/du_lieu/thao_tac_tai_khoan_firestore.dart` |
-| Quên và cấp lại mật khẩu | `functions/src/cap_lai_mat_khau.js` (yêu cầu, hai bước duyệt, đặt mật khẩu), `functions/src/tai_khoan.js` (ghép API) |
+| Quên và cấp lại mật khẩu | `functions/src/cap_lai_mat_khau.js` (yêu cầu và kiểm tra người quản lý hiện tại), `functions/src/tai_khoan.js` (ghép API) |
 | Nhập học viên từ Excel | `lib/screens/admin/hop_thoai_nhap_hoc_vien.dart`, `functions/src/nhap_hoc_vien.js` (luồng nhập), `functions/src/tai_khoan.js` (ghép API) |
 | Đổi đơn vị quản lý và đồng bộ mã học viên | `functions/src/gan_don_vi.js` (nghiệp vụ), `functions/src/tai_khoan.js` (ghép API), `functions/src/quy_tac.js` |
 | Danh sách, tìm kiếm, xóa khóa học | `lib/screens/admin/quan_ly_khoa_hoc.dart` |
@@ -63,7 +63,7 @@ chuẩn bị Java 21 cho emulator và kiểm tra lại các lệnh triển khai.
 | Quy tắc khóa học đang mở/đã kết thúc, tính tiến độ | `lib/models/quy_tac_hoc_tap.dart` |
 | Đọc/ghi nội dung, tiến độ, thông báo và lịch sử thay đổi | `lib/services/nghiep_vu/dich_vu_hoc_tap.dart` |
 | Báo cáo khóa học đã kết thúc | `lib/screens/admin/bao_cao_khoa_hoc.dart`, `lib/models/bao_cao_hoan_thanh_khoa_hoc.dart` |
-| Bài thi và ngân hàng câu hỏi | `lib/screens/admin/quan_ly_bai_kiem_tra.dart`, `ngan_hang_cau_hoi.dart` |
+| Cài đặt bài kiểm tra và ngân hàng câu hỏi | `lib/screens/admin/ngan_hang_cau_hoi.dart` |
 | Màn hình học viên | `lib/screens/user/` |
 | Thẻ nội dung học viên | `lib/widgets/the_hoc_vien.dart`, `the_ho_so_hoc_vien.dart` |
 | Quyền Firebase | `firestore.rules`, `storage.rules` |
@@ -188,6 +188,11 @@ cấu trúc dữ liệu Firebase ngoài ý muốn.
    riêng tư trong README.
 6. Chỉ deploy web admin bằng `firebase.json` ở thư mục gốc. Chỉ xuất bản đóng gói hoặc
    tải lên cửa hàng khi có yêu cầu; APK dành cho cài trực tiếp khi cần thử nghiệm.
+   Không truyền các tệp trong `config/firebase/` trực tiếp cho Firebase CLI: CLI xem
+   thư mục chứa tệp cấu hình là gốc dự án, nên các đường dẫn `functions`, `firestore.rules`
+   và `build/admin_web` trong đó không trỏ tới tài nguyên ở thư mục gốc. Dùng `firebase.json`
+   gốc để triển khai; khi chạy từ `functions/`, dùng `--config ../firebase.json`.
+   Repository không có `.firebaserc`, vì vậy lệnh deploy phải chỉ rõ `--project e09-elearning`.
 7. Giữ mã nguồn nền tảng `android/`, `ios/`, cấu hình Firebase và tài nguyên app
    khi dọn dự án. Giữ khóa ký và chứng chỉ phát hành an toàn ngoài Git.
 

@@ -151,9 +151,9 @@ export function sampleDocuments(actorId) {
         sampleData:true,updatedBy:actorId}}));
     const examId=`${id}_practice`;
     result.push({path:`exams/${examId}`,data:{title:`[Mẫu] Luyện tập: ${data.subject}`,topic:data.subject,
-      courseId:id,duration:'10 phút',durationMinutes:10,questions:questions.length,isOpen:true,
-      maxAttempts:null,opensAt:null,closesAt:null,passScore:6,showSolutions:true,
-      shuffleQuestions:true,shuffleAnswers:true,status:'Đang mở',sampleData:true,updatedBy:actorId}});
+      courseId:id,duration:'10 phút',durationMinutes:10,questions:questions.length,
+      maxAttempts:null,passScore:6,showSolutions:true,
+      shuffleQuestions:true,shuffleAnswers:true,sampleData:true,updatedBy:actorId}});
     questions.forEach((value,index)=>result.push({path:`exams/${examId}/questions/q${index+1}`,
       data:{...value,sampleData:true,updatedBy:actorId}}));
   }

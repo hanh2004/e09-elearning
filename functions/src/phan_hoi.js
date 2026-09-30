@@ -1,11 +1,31 @@
 // API GÓP Ý: chỉ nhận nội dung từ tài khoản học viên đang hoạt động.
 // Mật khẩu chỉ được xác thực lại ở Firebase Auth phía client, không gửi vào đây.
 import { FieldValue } from 'firebase-admin/firestore';
-import { requireThat } from './quy_tac.js';
+import { requireRoot, requireThat } from './quy_tac.js';
 
 const categories = new Set(['bug', 'idea', 'other']);
 
 export function feedbackHandlers(db) {
+  async function deleteFeedback(uid, input) {
+    requireThat(typeof uid === 'string' && uid.length > 0,
+      'unauthenticated', 'Cần đăng nhập.');
+    requireThat(input && typeof input === 'object' &&
+      Object.keys(input).every((key) => key === 'feedbackId') &&
+      typeof input.feedbackId === 'string' &&
+      /^[A-Za-z0-9_-]{1,128}$/.test(input.feedbackId),
+    'invalid-argument', 'Mã góp ý không hợp lệ.');
+
+    const [account, access, feedback] = await Promise.all([
+      db.doc(`users/${uid}`).get(),
+      db.doc('system/access').get(),
+      db.doc(`feedback/${input.feedbackId}`).get(),
+    ]);
+    requireRoot({ ...(account.data() ?? {}), id: uid }, access.data());
+    requireThat(feedback.exists, 'not-found', 'Không tìm thấy góp ý.');
+    await feedback.ref.delete();
+    return { deleted: true };
+  }
+
   async function submitFeedback(uid, input) {
     requireThat(typeof uid === 'string' && uid.length > 0,
       'unauthenticated', 'Cần đăng nhập.');
@@ -56,5 +76,5 @@ export function feedbackHandlers(db) {
     return { submitted: true, feedbackId: feedback.id };
   }
 
-  return { submitFeedback };
+  return { submitFeedback, deleteFeedback };
 }

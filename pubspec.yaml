@@ -5,15 +5,13 @@ publish_to: 'none'
 # Đổi 3 số trước dấu + để app nhắc người dùng khi có phiên bản mới.
 # Tăng số sau dấu + cho mỗi APK; đây là Android versionCode nên không được giảm/reset.
 # Chỉ tăng số sau dấu + để sửa nhỏ thì app không nhắc cập nhật.
-version: 1.0.3+6
-
+version: 1.0.3+7
 environment:
   sdk: ^3.13.1
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
   firebase_core: ^4.14.0
   firebase_auth: ^6.6.1
   cloud_firestore: ^6.9.0
@@ -26,7 +24,6 @@ dependencies:
   http: ^1.6.0
   crypto: ^3.0.7
   firebase_storage: ^13.5.0
-  speech_to_text: ^7.5.0
 
 dev_dependencies:
   flutter_test:
@@ -46,4 +43,3 @@ flutter:
     - lib/assets/templates/users_template.xlsx
     - assets/branding/default-user-avatar.png
     - assets/branding/admin-login-bg.png
-    - assets/branding/app-splash-background.png

@@ -85,7 +85,7 @@ export function resolutionDocuments(actor) {
       importantNote:'Bài học biên soạn theo Nghị quyết 57-NQ/TW ngày 22/12/2024. Đối chiếu văn bản gốc tại liên kết nguồn.',sourceUrl,contentBatch:batch,updatedBy:actor}}));
     if(examId) {
       docs.push({path:`exams/${examId}`,data:{title:'Kiểm tra Nghị quyết 57-NQ/TW',topic:'Học tập nghị quyết',courseId,duration:'15 phút',durationMinutes:15,
-        questions:questions.length,isOpen:true,status:'Đang mở',maxAttempts:null,opensAt:null,closesAt:null,passScore:6,showSolutions:true,shuffleQuestions:true,shuffleAnswers:true,sourceUrl,contentBatch:batch,updatedBy:actor}});
+        questions:questions.length,maxAttempts:null,passScore:6,showSolutions:true,shuffleQuestions:true,shuffleAnswers:true,sourceUrl,contentBatch:batch,updatedBy:actor}});
       questions.forEach((value,i)=>docs.push({path:`exams/${examId}/questions/q${String(i+1).padStart(2,'0')}`,data:{...value,contentBatch:batch,updatedBy:actor}}));
     }
   }

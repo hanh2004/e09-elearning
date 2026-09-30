@@ -11,7 +11,7 @@ export function verifyWebBuild(directory) {
     }
     return readFileSync(path);
   };
-  for(const file of ['index.html','main.dart.js','flutter_khoi_dong.js','assets/AssetManifest.bin',
+  for(const file of ['index.html','main.dart.js','flutter_bootstrap.js','assets/AssetManifest.bin',
     'assets/AssetManifest.bin.json','manifest.json','favicon.png']) required(file);
   const pubspec=readFileSync(new URL('../../pubspec.yaml',import.meta.url),'utf8');
   const portal=root.toLowerCase().endsWith(`${sep}user_web`) ? 'user' : 'admin';

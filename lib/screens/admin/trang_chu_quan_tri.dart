@@ -15,9 +15,7 @@ import 'quan_ly_tai_khoan.dart';
 import 'quan_ly_khoa_hoc.dart';
 import 'quan_ly_thong_bao.dart';
 import 'quan_ly_tin_tuc.dart';
-import 'tong_quan_hoc_tap.dart';
-import 'bao_cao_thong_ke.dart';
-import 'theo_doi_tien_do_hoc_tap.dart';
+import 'bao_cao_hub.dart';
 
 /// Trang tổng quan quản trị với các chỉ số học tập và lối tắt báo cáo.
 class AdminHomeScreen extends StatefulWidget {
@@ -38,7 +36,9 @@ class _TrangThaiTrangChuQuanTri extends State<AdminHomeScreen> {
         'courses',
         'exams',
         'exam_attempts',
-      ].map((c) => db.collection(c).get()),
+      ].map(
+        (c) => db.collection(c).get(const GetOptions(source: Source.server)),
+      ),
     );
   }
 
@@ -60,21 +60,7 @@ class _TrangThaiTrangChuQuanTri extends State<AdminHomeScreen> {
       selectedIndex: 0,
       onSelected: tab,
       child: Scaffold(
-        appBar: AdminUi.appBar(
-          'Trang chủ quản trị',
-          actions: [
-            IconButton(
-              tooltip: 'Làm mới',
-              onPressed: () => setState(() => data = _taiDuLieu()),
-              icon: const Icon(Icons.refresh),
-            ),
-            IconButton(
-              tooltip: 'Cài đặt và đăng xuất',
-              onPressed: () => tab(3),
-              icon: const Icon(Icons.settings_outlined),
-            ),
-          ],
-        ),
+        appBar: AdminUi.appBar('Trang chủ quản trị'),
         body: ListView(
           padding: const EdgeInsets.all(24),
           children: [
@@ -119,14 +105,29 @@ class _TrangThaiTrangChuQuanTri extends State<AdminHomeScreen> {
                       ),
                     ],
                   ),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.gold,
-                      foregroundColor: AppTheme.navy,
-                    ),
-                    onPressed: () => tab(2),
-                    icon: const Icon(Icons.bar_chart),
-                    label: const Text('Xem báo cáo tổng hợp'),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white70),
+                        ),
+                        onPressed: () => setState(() => data = _taiDuLieu()),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Làm mới'),
+                      ),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.gold,
+                          foregroundColor: AppTheme.navy,
+                        ),
+                        onPressed: () => tab(2),
+                        icon: const Icon(Icons.bar_chart),
+                        label: const Text('Mở báo cáo'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -345,9 +346,15 @@ class _TrangThaiTrangChuQuanTri extends State<AdminHomeScreen> {
                     for (final e in <(String, String, IconData, Widget)>[
                       (
                         'Tin tức',
-                        'Thêm tin và quản lý nội dung đã đăng',
+                        'Bài viết và nội dung đã đăng',
                         Icons.newspaper_outlined,
                         const AdminNewsScreen(),
+                      ),
+                      (
+                        'Thông báo',
+                        'Gửi thông báo cho học viên',
+                        Icons.notifications_outlined,
+                        const AdminNotificationsScreen(),
                       ),
                       (
                         'Quản lý Tài khoản',
@@ -364,28 +371,18 @@ class _TrangThaiTrangChuQuanTri extends State<AdminHomeScreen> {
                         ),
                       ),
                       (
-                        'Thông báo',
-                        'Thông tin trong hệ thống',
-                        Icons.notifications_outlined,
-                        const AdminNotificationsScreen(),
+                        'Khóa học có kiểm tra',
+                        'Nội dung học tập kèm bài kiểm tra',
+                        Icons.assignment_outlined,
+                        const AdminCoursesScreen(
+                          initialCourseModeFilter: 'study_exam',
+                        ),
                       ),
                       (
-                        'Tổng quan học tập',
-                        'Chi tiết hoàn thành bài học',
-                        Icons.dashboard_outlined,
-                        const AdminLearningDashboard(),
-                      ),
-                      (
-                        'Theo dõi Tiến độ',
-                        'Học viên và lượt làm bài',
-                        Icons.show_chart,
-                        const AdminProgressScreen(),
-                      ),
-                      (
-                        'Báo cáo Tổng hợp',
-                        'Kết quả theo đơn vị',
+                        'Báo cáo',
+                        'Tiến độ học tập, lượt thi và kết quả',
                         Icons.bar_chart,
-                        const AdminReportScreen(),
+                        const AdminReportsHubScreen(),
                       ),
                     ])
                       SizedBox(
@@ -412,31 +409,11 @@ class _TrangThaiTrangChuQuanTri extends State<AdminHomeScreen> {
             ),
           ],
         ),
-        bottomNavigationBar: AdminResponsiveShell.isDesktop(context)
-            ? null
-            : BottomNavigationBar(
-                currentIndex: 0,
-                onTap: tab,
-                type: BottomNavigationBarType.fixed,
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home),
-                    label: 'Trang chủ',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.assignment),
-                    label: 'Quản lý khóa học',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.bar_chart),
-                    label: 'Báo cáo',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.settings),
-                    label: 'Cài đặt',
-                  ),
-                ],
-              ),
+        bottomNavigationBar: adminMobileNavigationBar(
+          context,
+          selectedIndex: 0,
+          onSelected: tab,
+        ),
       ),
     );
   }

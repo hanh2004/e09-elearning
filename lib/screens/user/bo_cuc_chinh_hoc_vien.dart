@@ -2,17 +2,14 @@
 // Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
 
 import 'bang_tien_do_hoc_vien.dart';
-import 'chinh_sua_ho_so.dart';
-import '../../widgets/thong_bao_cap_nhat_don_vi.dart';
 import '../../widgets/dieu_huong_hoc_vien.dart';
 import 'bai_kiem_tra_hoc_vien.dart';
 import 'cac_khoa_hoc.dart';
+import 'thong_tin_hoc_vien.dart';
 import 'thong_bao_hoc_vien.dart';
-import 'danh_sach_tin_tuc.dart';
 import 'tien_ich_hoc_vien.dart';
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'ho_so_hoc_vien.dart';
 import '../../models/tham_so_nguoi_dung.dart';
@@ -39,10 +36,6 @@ class UserMainLayout extends StatefulWidget {
 class _TrangThaiKhungHocVien extends State<UserMainLayout> {
   int _viTriDaChon = 0;
   late final service = widget.learningService ?? LearningService();
-  late final profileStream = service.db
-      .collection('users')
-      .doc(widget.args.userId)
-      .snapshots();
   @override
   void initState() {
     super.initState();
@@ -62,75 +55,42 @@ class _TrangThaiKhungHocVien extends State<UserMainLayout> {
     super.dispose();
   }
 
-  // Danh sách màn hình cho thanh Bottom Navigation
+  // Chỉ số trang khớp với LearnerNavigation.section; một số trang mở từ lối tắt.
   @override
   Widget build(BuildContext context) {
     final pages = [
       UserDashboardScreen(
         args: widget.args,
-        service: widget.learningService,
+        service: service,
         onSelect: (viTri) => LearnerNavigation.section.value = viTri,
       ),
-      UserCoursesScreen(
-        uid: widget.args.userId,
-        service: widget.learningService,
-      ),
+      UserCoursesScreen(uid: widget.args.userId, service: service),
       UserLearningTestsScreen(
         uid: widget.args.userId,
-        service: widget.learningService,
+        service: service,
         examService: widget.examService,
       ),
-      UserNotificationsScreen(
-        uid: widget.args.userId,
-        service: widget.learningService,
-      ),
+      UserNotificationsScreen(uid: widget.args.userId, service: service),
       UserProfileScreen(
         args: widget.args,
-        service: widget.learningService,
+        service: service,
         examService: widget.examService,
+        active: _viTriDaChon == 4,
       ),
-      NewsScreen(service: service, active: _viTriDaChon == 5),
+      UserInformationScreen(uid: widget.args.userId, service: service),
       UserUtilitiesScreen(
         args: widget.args,
         service: service,
         examService: widget.examService,
       ),
     ];
-    final noiDung = Scaffold(
+    return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: profileStream,
-            builder: (context, duLieuNhan) {
-              if (!duLieuNhan.hasData || duLieuNhan.hasError) {
-                return const SizedBox.shrink();
-              }
-              final duLieu = duLieuNhan.data?.data() ?? {};
-              return UnitUpdateNotice(
-                profile: duLieu,
-                onUpdate: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ProfileEditScreen(
-                      uid: widget.args.userId,
-                      firestore: service.db,
-                      openEditor: true,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          Expanded(
-            child: IndexedStack(index: _viTriDaChon, children: pages),
-          ),
-        ],
-      ),
+      body: IndexedStack(index: _viTriDaChon, children: pages),
       bottomNavigationBar: LearnerNavigation(
         selectedIndex: _viTriDaChon,
         onSelected: (viTri) => LearnerNavigation.section.value = viTri,
       ),
     );
-    return noiDung;
   }
 }

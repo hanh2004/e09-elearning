@@ -81,12 +81,17 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Kết quả khóa học'), findsOneWidget);
         expect(find.text('Tổng học viên'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text('Tổng 1 • Đã hoàn thành 0 • Chưa hoàn thành 1'),
+          250,
+          scrollable: find.byType(Scrollable).last,
+        );
         expect(
           find.text('Tổng 1 • Đã hoàn thành 0 • Chưa hoàn thành 1'),
           findsOneWidget,
         );
         if (width >= 1000) {
-          expect(find.byType(NavigationRail), findsOneWidget);
+          expect(find.byType(NavigationRail), findsNothing);
           expect(find.text('Quản lý khóa học'), findsWidgets);
           expect(find.text('Khóa học kết thúc'), findsOneWidget);
         }
@@ -170,7 +175,7 @@ void main() {
       'title': 'Bài 1',
       'examId': 'exam-1',
     });
-    await db.doc('exams/exam-1').set({'isOpen': true});
+    await db.doc('exams/exam-1').set({});
 
     await expectLater(
       LearningService(db: db).deleteLesson('c', 'l'),

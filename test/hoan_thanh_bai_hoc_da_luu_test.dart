@@ -1,7 +1,7 @@
 import 'package:e09_elearning/screens/user/bai_hoc_da_luu.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e09_elearning/screens/user/cac_khoa_hoc.dart';
-import 'package:e09_elearning/screens/user/lam_bai_kiem_tra_bao_mat.dart';
+import 'package:e09_elearning/screens/user/lich_su_bai_kiem_tra.dart';
 import 'package:e09_elearning/services/nghiep_vu/dich_vu_hoc_tap.dart';
 import 'package:e09_elearning/services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
@@ -178,7 +178,13 @@ void main() {
         },
       );
       await tester.pumpWidget(
-        MaterialApp(home: SecureExamHistoryScreen(service: service)),
+        MaterialApp(
+          home: ExamHistoryScreen(
+            userId: 'u',
+            secureBackend: true,
+            service: service,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Khóa c'), findsOneWidget);

@@ -7,7 +7,15 @@ Push-Location $PSScriptRoot
 try {
   # A fresh output avoids reusing incomplete asset copies from the other portal.
   $staging = Join-Path $PSScriptRoot ('build\web-verified-' + [guid]::NewGuid().ToString('N'))
-  & flutter build web --release --target "lib/main_$Portal.dart" --no-pub --no-web-resources-cdn -o $staging
+  $entryPoint = if ($Portal -eq 'admin') {
+    'lib/diem_vao_quan_tri.dart'
+  } else {
+    'lib/diem_vao_hoc_vien.dart'
+  }
+  if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $entryPoint))) {
+    throw "Flutter entrypoint not found: $entryPoint"
+  }
+  & flutter build web --release --target $entryPoint --no-pub --no-web-resources-cdn -o $staging
   if ($LASTEXITCODE -ne 0) { throw 'Flutter build failed. Current published bundle was kept.' }
   & $Node functions/scripts/xac_minh_ban_web.mjs $staging
   if ($LASTEXITCODE -ne 0) { throw 'Asset verification failed. Do not deploy this build.' }

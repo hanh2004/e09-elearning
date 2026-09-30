@@ -9,15 +9,29 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import 'khung_giao_dien_quan_tri.dart';
-import '../../services/tai_khoan/xac_thuc_tai_khoan.dart';
 import '../../services/du_lieu/dich_vu_firestore.dart';
-import '../man_hinh_dang_nhap.dart';
 import 'hop_thoai_nhap_hoc_vien.dart';
 import 'duyet_yeu_cau.dart';
 import 'yeu_cau_dat_lai_mat_khau.dart';
 
 part "hop_thoai_tai_khoan.dart";
 part "xoa_hang_loat_tai_khoan.dart";
+
+bool _coTheChuyenHocVienCho(
+  QueryDocumentSnapshot<Map<String, dynamic>> manager,
+  Map<String, dynamic> learner,
+) {
+  final data = manager.data();
+  if (data['status'] != 'active' ||
+      !['admin', 'super_admin'].contains(data['role']) ||
+      manager.id == learner['createdBy']?.toString()) {
+    return false;
+  }
+  if (data['role'] == 'super_admin') return true;
+  final managerUnit = (data['unit'] ?? '').toString().trim().toLowerCase();
+  final learnerUnit = (learner['unit'] ?? '').toString().trim().toLowerCase();
+  return managerUnit.isNotEmpty && managerUnit != learnerUnit;
+}
 
 /// Quản lý tài khoản: học viên, quản lý, đơn vị và quyền thao tác.
 class AdminAccountScreen extends StatefulWidget {
@@ -293,21 +307,6 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
         backgroundColor: AdminUi.page,
         appBar: AdminUi.appBar(
           root ? 'Quản lý Tài khoản' : 'Học viên do tôi tạo',
-          actions: [
-            IconButton(
-              tooltip: 'Đăng xuất',
-              icon: const Icon(Icons.logout),
-              onPressed: () async {
-                await AccountAuth.signOut();
-                if (!context.mounted) return;
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (_) => false,
-                );
-              },
-            ),
-          ],
         ),
         body: Column(
           children: [
@@ -379,12 +378,24 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                       builder: (context, requests) {
                         final soDangCho =
                             requests.data?.docs
-                                .where(
-                                  (request) => [
-                                    'pending',
-                                    'approved_once',
-                                  ].contains(request.data()['status']),
-                                )
+                                .where((request) {
+                                  final data = request.data();
+                                  final assignedToMe =
+                                      data['managerId'] == _danhTinh!.id;
+                                  final rootRecovery =
+                                      root &&
+                                      data['type'] == 'root_recovery' &&
+                                      data['userId'] != _danhTinh!.id;
+                                  final adminReset =
+                                      root && data['userRole'] == 'admin';
+                                  return (assignedToMe ||
+                                          rootRecovery ||
+                                          adminReset) &&
+                                      [
+                                        'pending',
+                                        'approved_once',
+                                      ].contains(data['status']);
+                                })
                                 .length ??
                             0;
                         return Badge(
@@ -528,13 +539,11 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                             .toSet()
                             .toList()
                           ..sort();
-                    final cacQuanLy = available
-                        .where(
-                          (banGhi) =>
-                              banGhi.data()['role'] == 'admin' &&
-                              banGhi.data()['status'] == 'active',
-                        )
-                        .toList();
+                    final cacQuanLy = duLieuNhan.data!.docs.where((banGhi) {
+                      final role = banGhi.data()['role'];
+                      return ['admin', 'super_admin'].contains(role) &&
+                          banGhi.data()['status'] == 'active';
+                    }).toList();
                     final selectedUnit = cacDonVi.contains(_boLocDonVi)
                         ? _boLocDonVi
                         : null;
@@ -653,15 +662,10 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                                                 nguoiDung['role'] == 'user' &&
                                                 cacQuanLy.any(
                                                   (manager) =>
-                                                      (manager.data()['unit'] ??
-                                                              '')
-                                                          .toString()
-                                                          .trim()
-                                                          .toLowerCase() !=
-                                                      (nguoiDung['unit'] ?? '')
-                                                          .toString()
-                                                          .trim()
-                                                          .toLowerCase(),
+                                                      _coTheChuyenHocVienCho(
+                                                        manager,
+                                                        nguoiDung,
+                                                      ),
                                                 ))
                                               IconButton(
                                                 tooltip:

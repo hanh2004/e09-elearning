@@ -10,9 +10,7 @@ void main() {
   tearDown(() => AccountSession.current = null);
 
   for (final actorId in ['root1', 'root2']) {
-    testWidgets('second approval is offered only to the other root: $actorId', (
-      tester,
-    ) async {
+    testWidgets('both roots can reset an admin account: $actorId', (tester) async {
       AccountSession.current = AccountIdentity(
         id: actorId,
         role: 'super_admin',
@@ -21,10 +19,10 @@ void main() {
       await db.doc('password_reset_requests/u').set({
         'userId': 'u',
         'managerId': 'm1',
+        'userRole': 'admin',
         'name': 'Học viên',
         'username': 'learner',
-        'status': 'approved_once',
-        'firstApprovedBy': 'root1',
+        'status': 'pending',
       });
       await tester.pumpWidget(
         MaterialApp(
@@ -37,10 +35,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.text('Duyệt lần 2'),
-        actorId == 'root2' ? findsOneWidget : findsNothing,
-      );
+      expect(find.text('Cấp lại mật khẩu'), findsOneWidget);
+      expect(find.text('Duyệt lần 2'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   }
@@ -56,11 +52,10 @@ void main() {
       await db.doc('password_reset_requests/u').set({
         'userId': 'u',
         'managerId': 'root1',
+        'userRole': 'user',
         'name': 'Học viên',
         'username': 'learner',
-        'status': 'approved',
-        'firstApprovedBy': 'root1',
-        'secondApprovedBy': 'root2',
+        'status': 'pending',
       });
       Map<String, dynamic>? submitted;
       final service = FirestoreService(

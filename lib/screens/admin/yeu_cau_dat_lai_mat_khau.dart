@@ -1,4 +1,4 @@
-// WEB ADMIN: Danh sách học viên đã gửi yêu cầu cấp lại mật khẩu.
+// WEB ADMIN: Danh sách tài khoản đã gửi yêu cầu cấp lại mật khẩu.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -33,11 +33,7 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
   ) async {
     setState(() => _dangXuLy = true);
     try {
-      if (banGhi.data()['type'] == 'root_recovery') {
-        await _dichVu.approveRootPasswordReset(banGhi.id);
-      } else {
-        await _dichVu.approvePasswordReset(banGhi.id);
-      }
+      await _dichVu.approveRootPasswordReset(banGhi.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đã ghi nhận lượt duyệt.')),
@@ -99,6 +95,7 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
         body: Center(child: Text('Cần đăng nhập quản trị.')),
       );
     }
+    final actor = danhTinh!;
     final noiDung = StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _dichVu.getPasswordResetRequestsStream(),
       builder: (context, duLieuNhan) {
@@ -110,7 +107,14 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
         if (!duLieuNhan.hasData) {
           return const AdminLoading();
         }
-        final cacBanGhi = duLieuNhan.data!.docs.toList()
+        final cacBanGhi = duLieuNhan.data!.docs.where((banGhi) {
+          final request = banGhi.data();
+          if (request['type'] == 'root_recovery') {
+            return actor.isRoot && request['userId'] != actor.id;
+          }
+          return request['managerId'] == actor.id ||
+              (actor.isRoot && request['userRole'] == 'admin');
+        }).toList()
           ..sort(
             (a, b) =>
                 ((b.data()['requestedAt'] as Timestamp?)
@@ -134,7 +138,7 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
             final banGhi = cacBanGhi[viTri];
             final duLieu = banGhi.data();
             final state = duLieu['status']?.toString();
-            final root = danhTinh!.isRoot;
+            final root = actor.isRoot;
             final isRootRecovery = duLieu['type'] == 'root_recovery';
             final expiresAt = duLieu['expiresAt'];
             final recoveryExpired =
@@ -145,17 +149,12 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
                 isRootRecovery &&
                 state == 'pending' &&
                 !recoveryExpired &&
-                duLieu['userId'] != danhTinh.id;
+                duLieu['userId'] != actor.id;
             final canResolveRequest =
                 !isRootRecovery &&
-                state == 'approved' &&
-                duLieu['managerId'] == danhTinh.id;
-            final canApproveRequest =
-                !isRootRecovery &&
-                root &&
-                (state == 'pending' ||
-                    (state == 'approved_once' &&
-                        duLieu['firstApprovedBy'] != danhTinh.id));
+                ['pending', 'approved_once', 'approved'].contains(state) &&
+                (duLieu['managerId'] == actor.id ||
+                    (root && duLieu['userRole'] == 'admin'));
             return Card(
               child: ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.lock_reset)),
@@ -171,22 +170,11 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
                             : 'Chờ admin tổng còn lại duyệt yêu cầu khôi phục'
                       : state == 'processing'
                       ? 'Đang cập nhật mật khẩu…'
+                      : canResolveRequest
+                      ? 'Yêu cầu đang chờ bạn cấp lại mật khẩu'
                       : root
-                      ? state == 'approved'
-                            ? canResolveRequest
-                                  ? 'Đã được duyệt — có thể cấp lại mật khẩu'
-                                  : 'Đã được duyệt — chờ quản lý phụ trách'
-                            : state == 'approved_once'
-                            ? 'Đã được duyệt lần 1 — chờ quản lý tổng còn lại'
-                            : 'Chờ duyệt lần 1'
-                      : switch (state) {
-                          'pending' =>
-                            'Đã nhận yêu cầu — chờ admin tổng duyệt lần 1',
-                          'approved_once' =>
-                            'Đã duyệt lần 1 — chờ admin tổng còn lại duyệt',
-                          'approved' => 'Đã được hai admin tổng duyệt — có thể cấp lại mật khẩu',
-                          _ => 'Đang chờ xử lý',
-                        },
+                      ? 'Đang chờ quản lý phụ trách cấp lại mật khẩu'
+                      : 'Đang chờ quản lý phụ trách xử lý',
                 ),
                 trailing: isRootRecovery
                     ? canApproveRootRecovery
@@ -201,15 +189,6 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
                     ? FilledButton(
                         onPressed: _dangXuLy ? null : () => _datLai(banGhi),
                         child: const Text('Cấp lại mật khẩu'),
-                      )
-                    : canApproveRequest
-                    ? FilledButton(
-                        onPressed: _dangXuLy ? null : () => _duyet(banGhi),
-                        child: Text(
-                          state == 'approved_once'
-                              ? 'Duyệt lần 2'
-                              : 'Duyệt lần 1',
-                        ),
                       )
                     : null,
               ),

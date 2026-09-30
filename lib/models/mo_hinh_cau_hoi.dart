@@ -1,8 +1,6 @@
 // DỮ LIỆU: Chuyển dữ liệu câu hỏi từ Firebase sang đối tượng Dart.
 // Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'mo_hinh_lua_chon_dap_an.dart';
 
 class CauHoiModel {
@@ -29,11 +27,6 @@ class CauHoiModel {
         content != 'Câu hỏi chưa có nội dung' &&
         validOptionCount >= 2 &&
         validOptionCount == dsLuaChon.length;
-  }
-
-  factory CauHoiModel.fromFirestore(DocumentSnapshot banGhi) {
-    Map<String, dynamic> bangAnhXa = banGhi.data() as Map<String, dynamic>;
-    return CauHoiModel.fromMap(bangAnhXa, banGhi.id);
   }
 
   factory CauHoiModel.fromMap(Map<String, dynamic> bangAnhXa, String docId) {

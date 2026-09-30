@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../models/dinh_danh_tai_khoan.dart';
+import 'phien_dang_nhap_quan_tri_web.dart';
 
 String accountLoginEmail(String tenDangNhap) =>
     '${sha256.convert(utf8.encode(tenDangNhap.trim().toLowerCase()))}@accounts.invalid';
@@ -16,17 +17,15 @@ String accountLoginEmail(String tenDangNhap) =>
 String accountLoginErrorMessage(Object error) {
   if (error is FirebaseAuthException) {
     return switch (error.code) {
-      'network-request-failed' =>
-        'Không kết nối được Firebase Authentication. Kiểm tra mạng rồi thử lại.',
+      'network-request-failed' => 'Không kết nối được Firebase Authentication. Kiểm tra mạng rồi thử lại.',
       'unauthorized-domain' =>
         'Tên miền web Admin chưa được cho phép trong Firebase Authentication.',
       'operation-not-allowed' =>
         'Firebase Authentication chưa bật đăng nhập Email/Password.',
-      'invalid-api-key' || 'app-not-authorized' || 'project-not-found' =>
-        'Cấu hình Firebase của web Admin không hợp lệ. Hãy kiểm tra project và API key.',
-      'too-many-requests' =>
-        'Firebase tạm khóa yêu cầu đăng nhập do thử quá nhiều lần. Vui lòng chờ rồi thử lại.',
-      _ => 'Không xác thực được với Firebase (${error.code}). Kiểm tra thông tin đăng nhập và trạng thái tài khoản.',
+      'invalid-api-key' || 'app-not-authorized' || 'project-not-found' => 'Cấu hình Firebase của web Admin không hợp lệ. Hãy kiểm tra project và API key.',
+      'too-many-requests' => 'Firebase tạm khóa yêu cầu đăng nhập do thử quá nhiều lần. Vui lòng chờ rồi thử lại.',
+      _ =>
+        'Không xác thực được với Firebase (${error.code}). Kiểm tra thông tin đăng nhập và trạng thái tài khoản.',
     };
   }
 
@@ -104,6 +103,7 @@ class AccountAuth {
   }
 
   static Future<void> signOut() async {
+    await AdminWebSession.signOut();
     AccountSession.current = null;
     await FirebaseAuth.instance.signOut();
   }

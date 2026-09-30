@@ -1,19 +1,83 @@
 // ADMIN TỔNG: Danh sách góp ý học viên; Firestore Rules cũng giới hạn quyền đọc.
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/cau_hinh_ung_dung.dart';
 import '../../app/chu_de_ung_dung.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
+import '../../services/tai_khoan/phien_dang_nhap_quan_tri_web.dart';
 import 'khung_giao_dien_quan_tri.dart';
 
-class AdminFeedbackScreen extends StatelessWidget {
+class AdminFeedbackScreen extends StatefulWidget {
   const AdminFeedbackScreen({super.key});
+
+  @override
+  State<AdminFeedbackScreen> createState() => _AdminFeedbackScreenState();
+}
+
+class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
+  final Set<String> _deletingFeedback = {};
 
   static const _categoryNames = {
     'bug': 'Báo lỗi',
     'idea': 'Ý tưởng',
     'other': 'Khác',
   };
+
+  Future<void> _confirmAndDelete(String feedbackId, String studentName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa góp ý'),
+        content: Text(
+          'Xóa vĩnh viễn góp ý của $studentName? Không thể khôi phục.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa vĩnh viễn'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || !_deletingFeedback.add(feedbackId)) {
+      return;
+    }
+    setState(() {});
+    try {
+      await FirebaseFunctions.instanceFor(region: AppConfig.functionsRegion)
+          .httpsCallable('feedbackDelete')
+          .call(AdminWebSession.addToken({'feedbackId': feedbackId}));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Đã xóa góp ý.')));
+      }
+    } on FirebaseFunctionsException catch (error) {
+      debugPrint('Xóa góp ý thất bại: ${error.code}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.message ?? 'Không thể xóa góp ý. Hãy thử lại.'),
+          ),
+        );
+      }
+    } catch (error) {
+      debugPrint('Xóa góp ý thất bại: ${error.runtimeType}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể xóa góp ý. Hãy thử lại.')),
+        );
+      }
+    } finally {
+      _deletingFeedback.remove(feedbackId);
+      if (mounted) setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +153,23 @@ class AdminFeedbackScreen extends StatelessWidget {
                               ),
                             ),
                             Chip(label: Text(category)),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              tooltip: 'Xóa góp ý',
+                              onPressed:
+                                  _deletingFeedback.contains(docs[index].id)
+                                  ? null
+                                  : () =>
+                                        _confirmAndDelete(docs[index].id, name),
+                              icon: _deletingFeedback.contains(docs[index].id)
+                                  ? const SizedBox.square(
+                                      dimension: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.delete_outline),
+                            ),
                           ],
                         ),
                         if (username.isNotEmpty) Text('Tài khoản: $username'),

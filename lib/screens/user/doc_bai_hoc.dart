@@ -108,17 +108,17 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
             : SecureExamScreen(run: lanThi, service: dichVu);
       } else {
         final dichVu = FirestoreService(firestore: widget.service.db);
+        final course =
+            (await dichVu.db.doc('courses/${widget.courseId}').get()).data() ??
+            widget.courseData ??
+            const <String, dynamic>{};
+        if (!LearningPolicy.canRead(course, '')) {
+          throw StateError('Khóa học chưa mở hoặc đã kết thúc.');
+        }
         final baiThi = (await dichVu.db.collection('exams').doc(examId).get())
             .data();
-        final hienTai = DateTime.now();
-        final opens = LearningPolicy.readDateTime(baiThi?['opensAt']);
-        final closes = LearningPolicy.readDateTime(baiThi?['closesAt']);
-        if (baiThi == null ||
-            baiThi['isOpen'] != true ||
-            baiThi['deleting'] == true ||
-            (opens != null && hienTai.isBefore(opens)) ||
-            (closes != null && !hienTai.isBefore(closes))) {
-          throw StateError('Bài kiểm tra hiện chưa mở hoặc đã đóng.');
+        if (baiThi == null || baiThi['deleting'] == true) {
+          throw StateError('Không tìm thấy bài kiểm tra.');
         }
         final cacCauHoi = (await dichVu.getQuestionsForExam(examId))
             .where((cauHoi) => cauHoi.isValidForExam)

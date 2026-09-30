@@ -4,6 +4,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../app/cau_hinh_ung_dung.dart';
+import '../tai_khoan/phien_dang_nhap_quan_tri_web.dart';
 
 typedef ExamCall = Future<Map<String, dynamic>> Function(
   String,
@@ -18,9 +19,10 @@ class SecureExamService {
     Map<String, dynamic> duLieu = const {},
   ]) async {
     if (transport != null) return transport!(ten, duLieu);
-    final response = await FirebaseFunctions.instanceFor(
-      region: AppConfig.functionsRegion,
-    ).httpsCallable(ten).call<Map<String, dynamic>>(duLieu);
+    final response =
+        await FirebaseFunctions.instanceFor(region: AppConfig.functionsRegion)
+            .httpsCallable(ten)
+            .call<Map<String, dynamic>>(AdminWebSession.addToken(duLieu));
     return response.data;
   }
 

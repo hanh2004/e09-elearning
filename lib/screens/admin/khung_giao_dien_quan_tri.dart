@@ -1,15 +1,16 @@
+// Khung giao diện web admin: menu, tiêu đề trang và điều hướng giữa các chức năng.
+// Các trang quản trị được gắn vào menu và xử lý chuyển trang tại đây.
+
 import 'package:flutter/material.dart';
 
 import '../../app/chu_de_ung_dung.dart';
 import '../../widgets/bieu_trung_thuong_hieu.dart';
 import 'quan_ly_tai_khoan.dart';
 import 'quan_ly_khoa_hoc.dart';
-import 'trang_chu_quan_tri.dart';
-import 'tong_quan_hoc_tap.dart';
-import 'quan_ly_thong_bao.dart';
 import 'quan_ly_tin_tuc.dart';
-import 'theo_doi_tien_do_hoc_tap.dart';
-import 'bao_cao_thong_ke.dart';
+import 'quan_ly_thong_bao.dart';
+import 'trang_chu_quan_tri.dart';
+import 'bao_cao_hub.dart';
 import 'cai_dat_quan_tri.dart';
 
 const _menuKhoaHoc = {
@@ -21,7 +22,7 @@ const _menuKhoaHoc = {
 Widget adminPrimaryPage(int viTri) => switch (viTri) {
   0 => const AdminHomeScreen(),
   1 => const AdminCoursesScreen(initialCourseModeFilter: 'study_only'),
-  2 => const AdminReportScreen(),
+  2 => const AdminReportsHubScreen(),
   3 => const AdminSettingsScreen(),
   _ => const AdminHomeScreen(),
 };
@@ -29,13 +30,37 @@ Widget adminPrimaryPage(int viTri) => switch (viTri) {
 void pushAdminPrimary(BuildContext context, int viTri) =>
     Navigator.pushReplacement(context, adminTabRoute(adminPrimaryPage(viTri)));
 
+Widget? adminMobileNavigationBar(
+  BuildContext context, {
+  required int selectedIndex,
+  required ValueChanged<int> onSelected,
+}) {
+  if (AdminResponsiveShell.isDesktop(context)) return null;
+  return BottomNavigationBar(
+    currentIndex: selectedIndex,
+    onTap: onSelected,
+    type: BottomNavigationBarType.fixed,
+    selectedItemColor: AppTheme.red,
+    unselectedItemColor: Colors.grey,
+    items: const [
+      BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.assignment),
+        label: 'Quản lý khóa học',
+      ),
+      BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Báo cáo'),
+      BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Cài đặt'),
+    ],
+  );
+}
+
 PageRoute<void> adminTabRoute(Widget page) => PageRouteBuilder<void>(
   pageBuilder: (_, _, _) => page,
   transitionDuration: Duration.zero,
   reverseTransitionDuration: Duration.zero,
 );
 
-class AdminResponsiveShell extends StatefulWidget {
+class AdminResponsiveShell extends StatelessWidget {
   const AdminResponsiveShell({
     super.key,
     required this.selectedIndex,
@@ -53,43 +78,21 @@ class AdminResponsiveShell extends StatefulWidget {
       MediaQuery.sizeOf(context).width >= 600;
 
   @override
-  State<AdminResponsiveShell> createState() => _TrangThaiKhungQuanTri();
-}
-
-class _TrangThaiKhungQuanTri extends State<AdminResponsiveShell> {
-  static const _cacBaoCao = {
-    'Tổng quan học tập',
-    'Theo dõi tiến độ',
-    'Báo cáo tổng hợp',
-  };
-  bool reportsExpanded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    reportsExpanded =
-        _cacBaoCao.contains(widget.activeExtra) || widget.selectedIndex == 2;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (!AdminResponsiveShell.isDesktop(context)) return widget.child;
+    if (!isDesktop(context)) return child;
     final wide = MediaQuery.sizeOf(context).width >= 1000;
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _thanhBen(context, wide),
-          Expanded(child: widget.child),
+          Expanded(child: child),
         ],
       ),
     );
   }
 
   Widget _thanhBen(BuildContext context, bool wide) {
-    final reportActive =
-        _cacBaoCao.contains(widget.activeExtra) || widget.selectedIndex == 2;
-    final settingsActive = widget.selectedIndex == 3;
     return SizedBox(
       width: wide ? 250 : 72,
       height: double.infinity,
@@ -98,65 +101,45 @@ class _TrangThaiKhungQuanTri extends State<AdminResponsiveShell> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Column(
-                      children: [
-                        _thuongHieu(wide),
-                        _muc(
-                          'Trang chủ',
-                          Icons.home_outlined,
-                          wide,
-                          widget.activeExtra == null &&
-                              widget.selectedIndex == 0,
-                          () => widget.onSelected(0),
-                        ),
-                        for (final lienKet in _cacLienKet())
-                          _lienKet(context, lienKet, wide),
-                        _muc(
-                          'Báo cáo',
-                          Icons.bar_chart_outlined,
-                          wide,
-                          reportActive,
-                          () => setState(
-                            () => reportsExpanded = !reportsExpanded,
-                          ),
-                        ),
-                        if (reportsExpanded)
-                          for (final lienKet in _lienKetBaoCao)
-                            _lienKet(context, lienKet, wide),
-                        _muc(
-                          'Cài đặt',
-                          Icons.settings_outlined,
-                          wide,
-                          settingsActive,
-                          () => widget.onSelected(3),
-                        ),
-                        _lienKet(context, (
-                          'Thông báo',
-                          Icons.notifications_outlined,
-                          const AdminNotificationsScreen(),
-                          false,
-                        ), wide),
-                      ],
-                    ),
+            SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                children: [
+                  _thuongHieu(wide),
+                  _muc(
+                    'Trang chủ',
+                    Icons.home_outlined,
+                    wide,
+                    activeExtra == null && selectedIndex == 0,
+                    () => onSelected(0),
                   ),
-                ),
-              ],
-            ),
-            // Kept for tests and integrations that query the admin rail.
-            Positioned(
-              left: -100,
-              top: -100,
-              width: 72,
-              height: 100,
-              child: NavigationRail(
-                labelType: NavigationRailLabelType.none,
-                selectedIndex: null,
-                destinations: const [],
+                  for (final lienKet in _cacLienKet())
+                    _lienKet(context, lienKet, wide),
+                  _muc(
+                    'Báo cáo',
+                    Icons.bar_chart_outlined,
+                    wide,
+                    selectedIndex == 2,
+                    () => onSelected(2),
+                  ),
+                  _muc(
+                    'Cài đặt',
+                    Icons.settings_outlined,
+                    wide,
+                    selectedIndex == 3,
+                    () => onSelected(3),
+                  ),
+                  _lienKet(
+                    context,
+                    (
+                      'Thông báo',
+                      Icons.notifications_outlined,
+                      const AdminNotificationsScreen(),
+                      false,
+                    ),
+                    wide,
+                  ),
+                ],
               ),
             ),
           ],
@@ -188,7 +171,12 @@ class _TrangThaiKhungQuanTri extends State<AdminResponsiveShell> {
   );
 
   List<(String, IconData, Widget, bool)> _cacLienKet() => [
-    ('Tin tức', Icons.newspaper_outlined, const AdminNewsScreen(), false),
+    (
+      'Tin tức',
+      Icons.newspaper_outlined,
+      const AdminNewsScreen(),
+      false,
+    ),
     ('Tài khoản', Icons.people_outline, const AdminAccountScreen(), false),
     (
       'Quản lý khóa học',
@@ -196,7 +184,7 @@ class _TrangThaiKhungQuanTri extends State<AdminResponsiveShell> {
       const AdminCoursesScreen(initialCourseModeFilter: 'study_only'),
       false,
     ),
-    if (_menuKhoaHoc.contains(widget.activeExtra)) ...[
+    if (_menuKhoaHoc.contains(activeExtra)) ...[
       (
         'Khóa học không kiểm tra',
         Icons.library_books_outlined,
@@ -218,22 +206,6 @@ class _TrangThaiKhungQuanTri extends State<AdminResponsiveShell> {
     ],
   ];
 
-  static const _lienKetBaoCao = <(String, IconData, Widget, bool)>[
-    (
-      'Tổng quan học tập',
-      Icons.insights_outlined,
-      AdminLearningDashboard(),
-      true,
-    ),
-    (
-      'Theo dõi tiến độ',
-      Icons.track_changes_outlined,
-      AdminProgressScreen(),
-      true,
-    ),
-    ('Báo cáo tổng hợp', Icons.bar_chart_outlined, AdminReportScreen(), true),
-  ];
-
   Widget _lienKet(
     BuildContext context,
     (String, IconData, Widget, bool) lienKet,
@@ -242,7 +214,7 @@ class _TrangThaiKhungQuanTri extends State<AdminResponsiveShell> {
     lienKet.$1,
     lienKet.$2,
     wide,
-    widget.activeExtra == lienKet.$1,
+    activeExtra == lienKet.$1,
     () => Navigator.pushReplacement(context, adminTabRoute(lienKet.$3)),
     child: lienKet.$4,
   );

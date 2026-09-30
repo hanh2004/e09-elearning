@@ -24,7 +24,7 @@ beforeEach(async () => {
   await db.doc('courses/c').set({published:true,learningMode:'study_exam',examId:'e',endsAt:Timestamp.fromMillis(now+60000)});
   await db.doc('courses/c/lessons/l').set({title:'Lesson'});
   await db.doc('users/u/learning/c_l').set({courseId:'c',lessonId:'l',studyCompleted:true});
-  await db.doc('exams/e').set({isOpen:true,durationMinutes:1,maxAttempts:2});
+  await db.doc('exams/e').set({durationMinutes:1,maxAttempts:2});
   await db.doc('exams/e/questions/q').set({questionText:'Q',options:['A','B'],correctAnswerIndex:1});
 });
 after(async () => {await env?.cleanup(); if (app) await deleteApp(app);});

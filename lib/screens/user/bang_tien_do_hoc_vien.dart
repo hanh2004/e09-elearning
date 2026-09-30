@@ -262,13 +262,11 @@ class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
                       const SizedBox(height: 16),
                       HomeNewsBanner(
                         service: NewsService(service.db),
-                        uid: widget.args.userId,
                         onStudy: () => widget.onSelect(1),
                       ),
                       const SizedBox(height: 20),
                       UserNews(
                         service: service,
-                        uid: widget.args.userId,
                         onViewAll: () => widget.onSelect(5),
                       ),
                       const SizedBox(height: 24),

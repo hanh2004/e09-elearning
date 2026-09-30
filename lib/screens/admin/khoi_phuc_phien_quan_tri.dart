@@ -1,3 +1,6 @@
+// Cổng kiểm tra và khôi phục phiên admin trước khi mở khu vực quản trị.
+// Phiên không hợp lệ sẽ được chuyển về đăng nhập hoặc xử lý theo trạng thái phiên.
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,9 +8,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/dinh_danh_tai_khoan.dart';
+import '../../services/tai_khoan/phien_dang_nhap_quan_tri_web.dart';
+import '../../services/tai_khoan/xac_thuc_tai_khoan.dart';
 import '../man_hinh_dang_nhap.dart';
+import '../../widgets/hop_thoai_phien_dang_nhap.dart';
 
-/// Restores an existing Firebase admin session after a browser reload.
+/// Validates the active Firebase admin session before showing the console.
 class AdminSessionGate extends StatefulWidget {
   const AdminSessionGate({super.key, required this.homeBuilder});
 
@@ -40,6 +46,11 @@ class _AdminSessionGateState extends State<AdminSessionGate> {
   }
 
   Future<void> _restoreSession(User? user) async {
+    // Khi đã hiện form, LoginScreen tự xử lý xác thực và chuyển trang.
+    // Không thay form bằng màn hình chờ khi Auth phát sự kiện đăng nhập:
+    // form bị dispose giữa chừng sẽ tự đăng xuất phiên vừa tạo.
+    if (!_loading && _profile == null) return;
+
     final revision = ++_restoreRevision;
     if (user == null) {
       AccountSession.current = null;
@@ -86,14 +97,35 @@ class _AdminSessionGateState extends State<AdminSessionGate> {
         return;
       }
 
+      final claimResult = await AdminWebSession.claimWithConfirmation(
+        user.uid,
+        canContinue: () => mounted && revision == _restoreRevision,
+        confirmTakeover: () => confirmAccountSessionTakeover(context),
+      );
+      if (claimResult != AdminWebSessionClaimResult.claimed) {
+        await AccountAuth.signOut();
+        if (revision != _restoreRevision || !mounted) return;
+        setState(() {
+          _loading = false;
+          _profile = null;
+        });
+        return;
+      }
+
+      if (revision != _restoreRevision || !mounted) {
+        await AccountAuth.signOut();
+        return;
+      }
+
       AccountSession.current = identity;
       setState(() {
         _loading = false;
         _profile = {...data, 'id': user.uid};
       });
     } catch (_) {
-      if (revision != _restoreRevision || !mounted) return;
+      await AccountAuth.signOut();
       AccountSession.current = null;
+      if (revision != _restoreRevision || !mounted) return;
       setState(() {
         _loading = false;
         _profile = null;

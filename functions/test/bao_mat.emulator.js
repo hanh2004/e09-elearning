@@ -144,15 +144,23 @@ test('legacy User without a creator cannot be deleted by limited admin', async (
 test('student attempts enforce ownership, deadline and no self deletion', async () => {
   const uid = 'student_attempt_rules';
   await db.doc(`users/${uid}`).set({ role: 'user', status: 'active', username: uid });
+  await db.doc('courses/open-course').set({ title: 'Open', published: true, audience: 'all' });
+  await db.doc('courses/closed-course').set({ title: 'Closed', published: false, audience: 'all' });
+  await db.doc('courses/future-course').set({ title: 'Future', published: true, startsAt: new Date(Date.now() + 60 * 60 * 1000), audience: 'all' });
+  await db.doc('courses/ended-course').set({ title: 'Ended', published: true, endsAt: new Date(Date.now() - 60000), audience: 'all' });
   await db.doc('exams/open-exam').set({
-    title: 'Open', isOpen: true, durationMinutes: 30,
-    closesAt: new Date(Date.now() + 60 * 60 * 1000),
+    title: 'Open', durationMinutes: 30, courseId: 'open-course',
   });
   await db.doc('exams/closed-exam').set({
-    title: 'Closed', isOpen: false, durationMinutes: 30,
+    title: 'Closed', durationMinutes: 30, courseId: 'closed-course',
   });
-  await db.doc('exams/legacy-open').set({ title: 'Legacy', isOpen: true });
+  await db.doc('exams/future-exam').set({ title: 'Future', durationMinutes: 30, courseId: 'future-course' });
+  await db.doc('exams/ended-exam').set({ title: 'Ended', durationMinutes: 30, courseId: 'ended-course' });
+  await db.doc('exams/unlinked-exam').set({ title: 'Unlinked', durationMinutes: 30 });
+  await db.doc('exams/legacy-open').set({ title: 'Legacy', courseId: 'open-course' });
   const studentDb = env.authenticatedContext(uid).firestore();
+  await db.doc('exams/open-exam/questions/q').set({ title: 'Question' });
+  await assertSucceeds(getDoc(doc(studentDb, 'exams/open-exam/questions/q')));
   const attempt = doc(studentDb, 'exam_attempts', 'student-open');
   await assertSucceeds(setDoc(attempt, {
     userId: uid,
@@ -194,6 +202,21 @@ test('student attempts enforce ownership, deadline and no self deletion', async 
     selectedAnswers: {},
     currentQuestionIndex: 0,
   }));
+  await assertFails(setDoc(doc(studentDb, 'exam_attempts', 'student-future'), {
+    userId: uid, examId: 'future-exam', startedAt: serverTimestamp(),
+    endsAt: new Date(Date.now() + 20 * 60 * 1000), status: 'in_progress',
+    attemptCount: 0, selectedAnswers: {}, currentQuestionIndex: 0,
+  }));
+  await assertFails(setDoc(doc(studentDb, 'exam_attempts', 'student-ended'), {
+    userId: uid, examId: 'ended-exam', startedAt: serverTimestamp(),
+    endsAt: new Date(Date.now() + 20 * 60 * 1000), status: 'in_progress',
+    attemptCount: 0, selectedAnswers: {}, currentQuestionIndex: 0,
+  }));
+  await assertFails(setDoc(doc(studentDb, 'exam_attempts', 'student-unlinked'), {
+    userId: uid, examId: 'unlinked-exam', startedAt: serverTimestamp(),
+    endsAt: new Date(Date.now() + 20 * 60 * 1000), status: 'in_progress',
+    attemptCount: 0, selectedAnswers: {}, currentQuestionIndex: 0,
+  }));
   await assertSucceeds(setDoc(doc(studentDb, 'exam_attempts', 'student-legacy'), {
     userId: uid,
     examId: 'legacy-open',
@@ -213,9 +236,12 @@ test('learning access respects class, publication, ownership and schedule', asyn
   const b = env.authenticatedContext('learner_b').firestore();
   await db.doc('courses/class_a').set({ title: 'A', published: true, audience: 'class:A' });
   await db.doc('courses/draft_a').set({ title: 'Draft', published: false, audience: 'class:A' });
+  await db.doc('courses/ended_a').set({ title: 'Ended', published: true, endsAt: new Date(Date.now() - 60000), audience: 'class:A' });
   await db.doc('courses/class_a/lessons/one').set({ title: 'One', order: 1, type: 'text' });
+  await db.doc('courses/ended_a/lessons/one').set({ title: 'Ended lesson', order: 1, type: 'text' });
   await assertSucceeds(getDoc(doc(a, 'courses/class_a')));
   await assertFails(getDoc(doc(b, 'courses/class_a')));
+  await assertFails(getDoc(doc(a, 'courses/ended_a/lessons/one')));
   await assertFails(getDoc(doc(a, 'courses/draft_a')));
   await assertSucceeds(getDocs(query(collection(a, 'courses'), where('published', '==', true), where('audience', 'in', ['all', 'class:A']))));
   await assertFails(getDocs(collection(a, 'courses')));
@@ -259,7 +285,7 @@ test('root can delete an ended course and its lessons', async () => {
 
 test('exam run history is atomic, immutable and private', async () => {
   await db.doc('users/run_student').set({ role: 'user', status: 'active', name: 'Run' });
-  await db.doc('exams/run_exam').set({ isOpen: true, durationMinutes: 30 });
+  await db.doc('exams/run_exam').set({ durationMinutes: 30 });
   await db.doc('exam_attempts/run_attempt').set({ userId: 'run_student', examId: 'run_exam', status: 'in_progress', attemptCount: 0, endsAt: new Date(Date.now() + 60000) });
   const client = env.authenticatedContext('run_student').firestore();
   const run = { userId: 'run_student', examId: 'run_exam', examTitle: 'Run', score: 7, correctAnswers: 7, totalQuestions: 10, answers: [], runNumber: 1, completedAt: serverTimestamp() };
@@ -275,7 +301,8 @@ test('exam run history is atomic, immutable and private', async () => {
 
 test('attempt progress cannot extend deadlines or replace best score', async () => {
   await db.doc('users/audit_student').set({ role: 'user', status: 'active', name: 'Audit' });
-  await db.doc('exams/audit_exam').set({ isOpen: true, durationMinutes: 5, maxAttempts: 3 });
+  await db.doc('courses/audit_course').set({ title: 'Audit', published: true, audience: 'all' });
+  await db.doc('exams/audit_exam').set({ durationMinutes: 5, maxAttempts: 3, courseId: 'audit_course' });
   const original = { userId:'audit_student', examId:'audit_exam', status:'in_progress', attemptCount:1, bestScore:7, diemSo:7,
     startedAt: new Date(Date.now()-10000), endsAt:new Date(Date.now()+60000) };
   await db.doc('exam_attempts/audit_attempt').set(original);

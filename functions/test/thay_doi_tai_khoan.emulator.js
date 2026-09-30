@@ -44,19 +44,12 @@ async function create(manager='m1', username='learner', code='001') {
 }
 const denied = (promise, code='permission-denied') => assert.rejects(promise, e=>e.code===code);
 
-test('password reset requires two distinct roots and the owning manager', async () => {
+test('password reset is handled by the current manager, not unrelated admins', async () => {
   const learner = await create();
   const reset = {requestId:learner.id,userId:learner.id,password:'replacement-password'};
   await handlers.requestPasswordReset(null, {username:'LEARNER',codeSuffix:'001'});
   const ref = db.doc(`password_reset_requests/${learner.id}`);
-  await denied(handlers.resolvePasswordReset('m1', reset), 'failed-precondition');
   await denied(handlers.updateUser('m1', {userId:learner.id,name:'Học viên',password:'bypass-password'}), 'failed-precondition');
-  await denied(handlers.approvePasswordReset('m1', reset));
-  await handlers.approvePasswordReset('root1', reset);
-  await denied(handlers.approvePasswordReset('root1', reset));
-  await handlers.requestPasswordReset(null, {username:'learner',codeSuffix:'001'});
-  assert.equal((await ref.get()).data().status, 'approved_once');
-  await handlers.approvePasswordReset('root2', reset);
   await denied(handlers.resolvePasswordReset('m2', reset));
   await denied(handlers.resolvePasswordReset('root1', reset));
   await handlers.resolvePasswordReset('m1', reset);
@@ -70,7 +63,6 @@ test('password reset requires two distinct roots and the owning manager', async 
   assert.equal((await response.json()).localId, learner.id);
   await handlers.requestPasswordReset(null, {username:'learner',codeSuffix:'001'});
   assert.equal((await ref.get()).data().status, 'pending');
-  assert.equal((await ref.get()).data().firstApprovedBy, undefined);
 });
 
 test('failed Auth reset remains retryable and rules isolate reset requests', async () => {
@@ -82,26 +74,21 @@ test('failed Auth reset remains retryable and rules isolate reset requests', asy
   // The owning manager must receive pending password-reset requests.
   await assertSucceeds(getDoc(doc(env.authenticatedContext('m1').firestore(), path)));
   await assertSucceeds(getDoc(doc(env.authenticatedContext('root1').firestore(), path)));
-  await handlers.approvePasswordReset('root1', reset);
-  await handlers.approvePasswordReset('root2', reset);
   await assertSucceeds(getDoc(doc(env.authenticatedContext('m1').firestore(), path)));
   await assertFails(getDoc(doc(env.authenticatedContext('m2').firestore(), path)));
   await assertFails(updateDoc(doc(env.authenticatedContext('m1').firestore(), path), {status:'completed'}));
   const failing = accountHandlers(db, {updateUser:async()=>{throw new Error('Auth temporarily unavailable');}});
   await assert.rejects(failing.resolvePasswordReset('m1', reset));
-  assert.equal((await db.doc(path).get()).data().status, 'approved');
+  assert.equal((await db.doc(path).get()).data().status, 'pending');
   await handlers.resolvePasswordReset('m1', reset);
   assert.equal((await db.doc(path).get()).data().status, 'completed');
 });
 
-test('owning root can reset its learner only after both roots approve', async () => {
+test('root can directly reset only a learner currently assigned to that root', async () => {
   const learner = await create('root1', 'root_learner');
   const reset = {requestId:learner.id,userId:learner.id,password:'replacement-password'};
   assert.deepEqual(await handlers.requestPasswordReset(null,
     {username:'root_learner',codeSuffix:'001'}), {matched:true,submitted:true});
-  await denied(handlers.resolvePasswordReset('root1', reset), 'failed-precondition');
-  await handlers.approvePasswordReset('root1', reset);
-  await handlers.approvePasswordReset('root2', reset);
   await denied(handlers.resolvePasswordReset('root2', reset));
   await handlers.resolvePasswordReset('root1', reset);
   assert.equal((await db.doc(`password_reset_requests/${learner.id}`).get()).data().status, 'completed');

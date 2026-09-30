@@ -114,6 +114,10 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
         (batDauLuc != null && batDauLuc.isAfter(hienTai))) {
       throw StateError('Khóa học chưa đến thời gian phát hành.');
     }
+    final courseEnd = LearningPolicy.readDateTime(khoaHoc?['endsAt']);
+    if (courseEnd != null && !courseEnd.isAfter(hienTai)) {
+      throw StateError('Khóa học đã kết thúc.');
+    }
     if (khoaHoc?['learningMode'] == 'study_only') {
       throw StateError('Khóa học này chỉ dùng để học.');
     }
@@ -156,27 +160,14 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
         .doc(examId)
         .get();
     final baiThi = examSnapshot.data();
-    if (baiThi == null || baiThi['isOpen'] != true) {
-      throw StateError('Bài thi hiện đang đóng.');
+    if (baiThi == null || baiThi['deleting'] == true) {
+      throw StateError('Không tìm thấy bài kiểm tra.');
     }
     durationMinutes =
         (baiThi['durationMinutes'] as num?)?.toInt() ?? durationMinutes;
     maxAttempts = (baiThi['maxAttempts'] as num?)?.toInt();
     if (durationMinutes <= 0) {
       throw StateError('Thời gian bài thi không hợp lệ.');
-    }
-    final closesAt = baiThi['closesAt'];
-    final closingTime = closesAt is Timestamp ? closesAt.toDate() : null;
-    final courseEnd = LearningPolicy.readDateTime(khoaHoc?['endsAt']);
-    final effectiveClosing = [closingTime, courseEnd]
-        .whereType<DateTime>()
-        .fold<DateTime?>(
-          null,
-          (hienHanh, giaTri) =>
-              hienHanh == null || giaTri.isBefore(hienHanh) ? giaTri : hienHanh,
-        );
-    if (effectiveClosing != null && !effectiveClosing.isAfter(DateTime.now())) {
-      throw StateError('Bài thi đã hết hạn nộp bài.');
     }
     final cacLuotThi = await _coSoDuLieu
         .collection('exam_attempts')
@@ -254,8 +245,8 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
 
     final startedAt = DateTime.now();
     final durationEnd = startedAt.add(Duration(minutes: durationMinutes));
-    final endsAt = closingTime != null && closingTime.isBefore(durationEnd)
-        ? closingTime
+    final endsAt = courseEnd != null && courseEnd.isBefore(durationEnd)
+        ? courseEnd
         : durationEnd;
     late final DocumentReference<Map<String, dynamic>> attemptRef;
     if (keeper == null) {
@@ -305,7 +296,7 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
   }
 
   Future<List<CauHoiModel>> getQuestionsByIds(List<String> dsMaCauHoi) async {
-    List<CauHoiModel> dsCauHoi = [];
+    final dsCauHoi = <CauHoiModel>[];
     try {
       for (String ma in dsMaCauHoi) {
         for (final collection in ['questions', 'CAU_HOI']) {
@@ -337,6 +328,7 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
       final duLieu = duLieuNhan.data() ?? <String, dynamic>{};
       if (duLieu['status'] == 'completed') return;
       final runNumber = ((duLieu['attemptCount'] as num?)?.toInt() ?? 0) + 1;
+      final answers = dsCauTraLoi.map((dapAn) => dapAn.toMap()).toList();
       transaction.set(thamChieu.collection('runs').doc(runNumber.toString()), {
         'userId': duLieu['userId'],
         'examId': duLieu['examId'],
@@ -344,7 +336,7 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
         'score': diemSo,
         'correctAnswers': correctAnswers,
         'totalQuestions': totalQuestions,
-        'answers': dsCauTraLoi.map((dapAn) => dapAn.toMap()).toList(),
+        'answers': answers,
         'runNumber': runNumber,
         'completedAt': FieldValue.serverTimestamp(),
       });
@@ -356,7 +348,7 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
       final cacCapNhat = <String, dynamic>{
         'examTitle': examTitle,
         'status': 'completed',
-        'attemptCount': ((duLieu['attemptCount'] as num?)?.toInt() ?? 0) + 1,
+        'attemptCount': runNumber,
         'lastAttemptAt': FieldValue.serverTimestamp(),
         'selectedAnswers': FieldValue.delete(),
         'currentQuestionIndex': FieldValue.delete(),
@@ -370,8 +362,8 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
           'totalQuestions': totalQuestions,
           'bestCompletedAt': FieldValue.serverTimestamp(),
           'completedAt': FieldValue.serverTimestamp(),
-          'bestAnswers': dsCauTraLoi.map((e) => e.toMap()).toList(),
-          'answers': dsCauTraLoi.map((e) => e.toMap()).toList(),
+          'bestAnswers': answers,
+          'answers': answers,
         });
       }
       transaction.update(thamChieu, cacCapNhat);
@@ -386,9 +378,7 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
   Future<String> addExam({
     required String title,
     required int durationMinutes,
-    required bool isOpen,
     int? maxAttempts,
-    DateTime? closesAt,
     String? courseId,
   }) async {
     if (title.trim().isEmpty ||
@@ -397,81 +387,21 @@ mixin _FirestoreExamOperations on _FirestoreServiceCore {
         (maxAttempts != null && maxAttempts < 1)) {
       throw ArgumentError('Thông tin bài thi không hợp lệ.');
     }
-    if (closesAt != null) {
-      LearningPolicy.requireFutureDateTime(closesAt, 'Thời gian đóng đề');
-    }
     final thamChieu = _coSoDuLieu.collection('exams').doc();
     await thamChieu.set({
       'title': title,
       'duration': '$durationMinutes phút',
       'durationMinutes': durationMinutes,
       'questions': 0,
-      'isOpen': isOpen,
       'maxAttempts': maxAttempts,
-      'closesAt': closesAt == null ? null : Timestamp.fromDate(closesAt),
       'courseId': courseId ?? '',
-      'status': isOpen ? 'Đang mở' : 'Đã đóng',
       'createdAt': FieldValue.serverTimestamp(),
     });
     return thamChieu.id;
   }
 
   Future<void> updateExamPolicy(String ma, Map<String, dynamic> policy) async {
-    final reference = _coSoDuLieu.collection('exams').doc(ma);
-    final snapshot = await reference.get();
-    final previous = snapshot.data() ?? <String, dynamic>{};
-    for (final field in ['opensAt', 'closesAt']) {
-      if (!policy.containsKey(field)) continue;
-      final next = LearningPolicy.readDateTime(policy[field]);
-      final old = LearningPolicy.readDateTime(previous[field]);
-      if (next != null && !LearningPolicy.sameMinute(old, next)) {
-        LearningPolicy.requireFutureDateTime(
-          next,
-          field == 'opensAt' ? 'Thời gian mở đề' : 'Thời gian đóng đề',
-        );
-      }
-    }
-    final nextStart = policy.containsKey('opensAt')
-        ? LearningPolicy.readDateTime(policy['opensAt'])
-        : LearningPolicy.readDateTime(previous['opensAt']);
-    final nextEnd = policy.containsKey('closesAt')
-        ? LearningPolicy.readDateTime(policy['closesAt'])
-        : LearningPolicy.readDateTime(previous['closesAt']);
-    if (nextStart != null && nextEnd != null && !nextEnd.isAfter(nextStart)) {
-      throw ArgumentError('Thời gian đóng đề phải sau thời gian mở đề.');
-    }
-    await reference.update(policy);
-  }
-
-  Future<void> updateExamStatus(String docId, bool isOpen) async {
-    await _coSoDuLieu.collection('exams').doc(docId).update({
-      'isOpen': isOpen,
-      'status': isOpen ? 'Đang mở' : 'Đã đóng',
-    });
-  }
-
-  Future<void> deleteExam(String docId) async {
-    if (_apiTaiKhoan.hasTransport) {
-      await _apiTaiKhoan.call('examDelete', {'examId': docId});
-      return;
-    }
-    final cacCauHoi = await _coSoDuLieu
-        .collection('exams')
-        .doc(docId)
-        .collection('questions')
-        .get();
-    final cacLuotThi = await _coSoDuLieu
-        .collection('exam_attempts')
-        .where('examId', isEqualTo: docId)
-        .get();
-    await _xoaCacLuotThi(cacLuotThi.docs);
-    final references = <DocumentReference<Map<String, dynamic>>>[
-      ...cacCauHoi.docs.map((cauHoi) => cauHoi.reference),
-      ...cacLuotThi.docs.map((luotThi) => luotThi.reference),
-      _coSoDuLieu.collection('exams').doc(docId),
-    ];
-
-    await deleteFirestoreDocuments(_coSoDuLieu, references, batchSize: 500);
+    await _coSoDuLieu.collection('exams').doc(ma).update(policy);
   }
 
   // --- 3. QUẢN LÝ CÂU HỎI ---

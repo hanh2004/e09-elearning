@@ -137,7 +137,6 @@ class _TrangThaiThongBaoQuanTri extends State<AdminNotificationsScreen> {
       body: LearningList(
         stream: stream,
         builder: (cacBanGhi) {
-          final daLoc = cacBanGhi;
           final sent = cacBanGhi.length;
           final sentCount = cacBanGhi.where((record) {
             final time = record.data()['sendAt'];
@@ -184,16 +183,6 @@ class _TrangThaiThongBaoQuanTri extends State<AdminNotificationsScreen> {
                         color: AppTheme.red,
                       ),
                     ];
-                    if (constraints.maxWidth < 720) {
-                      return Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          for (final card in cards)
-                            SizedBox(width: 220, child: card),
-                        ],
-                      );
-                    }
                     return Row(
                       children: [
                         for (var i = 0; i < cards.length; i++) ...[
@@ -207,21 +196,15 @@ class _TrangThaiThongBaoQuanTri extends State<AdminNotificationsScreen> {
               ),
               const SizedBox(height: 18),
               Expanded(
-                child: daLoc.isEmpty
-                    ? Center(
-                        child: Text(
-                          cacBanGhi.isEmpty
-                              ? 'Chưa có thông báo.'
-                              : 'Không tìm thấy thông báo phù hợp.',
-                        ),
-                      )
+                child: cacBanGhi.isEmpty
+                    ? Center(child: Text('Chưa có thông báo.'))
                     : ListView(
                         padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
                         children: [
                           AdminCard(
                             child: Column(
                               children: [
-                                for (final banGhi in daLoc)
+                                for (final banGhi in cacBanGhi)
                                   _DongThongBao(
                                     doc: banGhi,
                                     audienceLabel: audienceLabel,

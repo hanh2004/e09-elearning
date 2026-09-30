@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:e09_elearning/models/tham_so_bai_kiem_tra.dart';
-import 'package:e09_elearning/models/tham_so_lich_su_bai_kiem_tra.dart';
 import 'package:e09_elearning/models/tham_so_ket_qua_bai_kiem_tra.dart';
 import 'package:e09_elearning/models/tham_so_ngan_hang_cau_hoi.dart';
 import 'package:e09_elearning/models/tham_so_nguoi_dung.dart';
@@ -39,7 +38,6 @@ void main() {
 
   test('screen arguments keep navigation data', () {
     const user = UserArguments(userId: 'user-1', userName: 'An');
-    const history = ExamHistoryArguments(maNguoiDung: 'user-1');
     const result = ExamResultArguments(
       diemSo: 8,
       tongSoCau: 10,
@@ -52,7 +50,6 @@ void main() {
     );
 
     expect(user.email, isEmpty);
-    expect(history.maNguoiDung, user.userId);
     expect(result.soCauDung, 8);
     expect(questionBank.examTitle, 'Giữa kỳ');
   });

@@ -1,26 +1,22 @@
-// APP HỌC VIÊN: Hồ sơ học viên, lịch sử thi và đăng xuất.
+// APP HỌC VIÊN: Cập nhật đơn vị, đổi mật khẩu, lịch sử thi và đăng xuất.
 // Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+
+import '../../models/tham_so_nguoi_dung.dart';
+import '../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart';
+import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
+import '../../services/tai_khoan/thao_tac_tai_khoan_hoc_vien.dart';
+import '../../services/tai_khoan/xac_thuc_tai_khoan.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
 import '../../widgets/the_ho_so_hoc_vien.dart';
 import '../../widgets/the_hoc_vien.dart';
-import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
-import 'lam_bai_kiem_tra_bao_mat.dart';
-import '../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart';
-import 'luot_lam_bai_kiem_tra.dart';
-import 'chinh_sua_ho_so.dart';
-
-import 'package:flutter/material.dart';
-
-import 'lich_su_bai_kiem_tra.dart';
-import '../../models/tham_so_nguoi_dung.dart';
-import '../../models/tham_so_lich_su_bai_kiem_tra.dart';
 import '../man_hinh_dang_nhap.dart';
-import '../../services/tai_khoan/xac_thuc_tai_khoan.dart';
-import '../../app/cau_hinh_ung_dung.dart';
+import 'gui_y_kien_phan_hoi.dart';
 
-/// Hồ sơ học viên, lịch sử thi và đăng xuất.
-class UserProfileScreen extends StatelessWidget {
+/// Trang tài khoản của học viên.
+class UserProfileScreen extends StatefulWidget {
   final UserArguments args;
 
   const UserProfileScreen({
@@ -28,11 +24,66 @@ class UserProfileScreen extends StatelessWidget {
     required this.args,
     this.service,
     this.examService,
+    this.active = true,
   });
+
   final LearningService? service;
   final SecureExamService? examService;
+  final bool active;
 
+  @override
+  State<UserProfileScreen> createState() => _TrangThaiTaiKhoanHocVien();
+}
+
+class _TrangThaiTaiKhoanHocVien extends State<UserProfileScreen> {
   final Color primaryColor = const Color(0xFFB51F24);
+  bool _noticeOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _kiemTraDonViKhiMoTrang();
+  }
+
+  @override
+  void didUpdateWidget(covariant UserProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.active && widget.active) _kiemTraDonViKhiMoTrang();
+  }
+
+  void _kiemTraDonViKhiMoTrang() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !widget.active || _noticeOpen) return;
+      try {
+        final profile = await (widget.service?.db ?? FirebaseFirestore.instance)
+            .collection('users')
+            .doc(widget.args.userId)
+            .get();
+        if (!mounted || !widget.active || !profile.exists) return;
+        final unit = (profile.data()?['unit'] ?? '').toString().trim();
+        if (unit.isNotEmpty) return;
+        _noticeOpen = true;
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Chưa có đơn vị'),
+            content: const Text(
+              'Tài khoản của bạn chưa được phân đơn vị. Vui lòng liên hệ quản lý.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Đã hiểu'),
+              ),
+            ],
+          ),
+        );
+        _noticeOpen = false;
+      } catch (_) {
+        // Kết nối lỗi không đồng nghĩa với việc học viên chưa được phân đơn vị.
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,65 +99,40 @@ class UserProfileScreen extends StatelessWidget {
         child: Column(
           children: [
             ProfileCard(
-              uid: args.userId,
-              fallbackName: args.userName,
-              email: args.email,
-              service: service,
+              uid: widget.args.userId,
+              fallbackName: widget.args.userName,
+              email: widget.args.email,
+              service: widget.service,
             ),
             const SizedBox(height: 20),
 
             _dungTuyChonCaiDat(
-              icon: Icons.manage_accounts,
-              title: 'Hồ sơ và bảo mật',
-              onTap: () => Navigator.push(
+              icon: Icons.edit_location_alt_outlined,
+              title: 'Cập nhật đơn vị',
+              onTap: () => updateLearnerUnit(
                 context,
-                MaterialPageRoute<void>(
-                  builder: (_) => ProfileEditScreen(
-                    uid: args.userId,
-                    firestore: service?.db,
-                  ),
-                ),
+                uid: widget.args.userId,
+                firestore: widget.service?.db,
               ),
             ),
             _dungTuyChonCaiDat(
-              icon: Icons.receipt_long,
-              title: 'Chi tiết từng lần thi',
+              icon: Icons.lock_reset_outlined,
+              title: 'Đổi mật khẩu',
+              onTap: () => changeLearnerPassword(context),
+            ),
+            _dungTuyChonCaiDat(
+              icon: Icons.feedback_outlined,
+              title: 'Góp ý ứng dụng',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (_) => AppConfig.useSecureBackend
-                      ? SecureExamHistoryScreen(
-                          service: examService ?? SecureExamService(),
-                        )
-                      : ExamRunsScreen(uid: args.userId),
+                  builder: (_) => const UserFeedbackScreen(),
                 ),
               ),
             ),
-            // 2. Chức năng Lịch sử bài kiểm tra
-            _dungTuyChonCaiDat(
-              icon: Icons.history,
-              title: 'Lịch sử bài kiểm tra',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AppConfig.useSecureBackend
-                        ? SecureExamHistoryScreen(
-                            service: examService ?? SecureExamService(),
-                          )
-                        : ExamHistoryScreen(
-                            args: ExamHistoryArguments(
-                              maNguoiDung: args.userId,
-                            ),
-                          ),
-                  ),
-                );
-              },
-            ),
-
             const SizedBox(height: 20),
 
-            // 3. Nút Đăng xuất
+            // Đăng xuất.
             SizedBox(
               width: double.infinity,
               height: 48,

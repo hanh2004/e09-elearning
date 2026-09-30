@@ -46,12 +46,16 @@ class _TrangThaiKhoaHocQuanTri extends State<AdminCoursesScreen> {
   DateTime dateFilterDate = DateTime.now();
   late final Timer refreshTimer;
 
+  String get _courseModeFilter => widget.initialCourseModeFilter == 'all'
+      ? courseModeFilter
+      : widget.initialCourseModeFilter;
+
   String get pageTitle {
     if (widget.ended) return 'Khóa học kết thúc';
-    if (widget.initialCourseModeFilter == 'study_exam') {
+    if (_courseModeFilter == 'study_exam') {
       return 'Khóa học có kiểm tra';
     }
-    if (widget.initialCourseModeFilter == 'study_only') {
+    if (_courseModeFilter == 'study_only') {
       return 'Khóa học không kiểm tra';
     }
     return 'Quản lý khóa học';
@@ -59,10 +63,10 @@ class _TrangThaiKhoaHocQuanTri extends State<AdminCoursesScreen> {
 
   String? get activeMenu {
     if (widget.ended) return 'Khóa học kết thúc';
-    if (widget.initialCourseModeFilter == 'study_exam') {
+    if (_courseModeFilter == 'study_exam') {
       return 'Khóa học có kiểm tra';
     }
-    if (widget.initialCourseModeFilter == 'study_only') {
+    if (_courseModeFilter == 'study_only') {
       return 'Khóa học không kiểm tra';
     }
     return null;
@@ -227,9 +231,9 @@ class _TrangThaiKhoaHocQuanTri extends State<AdminCoursesScreen> {
               )
               .where(
                 (banGhi) =>
-                    courseModeFilter == 'all' ||
+                    _courseModeFilter == 'all' ||
                     CourseForm.hasExam(banGhi.data()) ==
-                        (courseModeFilter == 'study_exam'),
+                        (_courseModeFilter == 'study_exam'),
               )
               .where((banGhi) => _khopNgay(banGhi.data()))
               .toList();
@@ -253,14 +257,14 @@ class _TrangThaiKhoaHocQuanTri extends State<AdminCoursesScreen> {
                   spacing: 10,
                   runSpacing: 8,
                   children: [
-                    if (widget.initialCourseModeFilter != 'study_exam')
+                    if (_courseModeFilter != 'study_exam')
                       FilledButton.icon(
                         onPressed: () =>
                             createCourse(CourseForm.studyOnlyLabel),
                         icon: const Icon(Icons.add),
                         label: const Text('Tạo khóa học không kiểm tra'),
                       ),
-                    if (widget.initialCourseModeFilter != 'study_only')
+                    if (_courseModeFilter != 'study_only')
                       FilledButton.icon(
                         onPressed: () =>
                             createCourse(CourseForm.studyExamLabel),
@@ -446,7 +450,7 @@ class _TrangThaiKhoaHocQuanTri extends State<AdminCoursesScreen> {
                             banGhi.id,
                           );
                           return Card(
-                            margin: const EdgeInsets.only(bottom: 10),
+                            margin: const EdgeInsets.only(bottom: 16),
                             child: ListTile(
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,

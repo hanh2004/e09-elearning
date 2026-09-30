@@ -88,51 +88,31 @@ class LearningService {
 
   /// Xóa vĩnh viễn khóa học và toàn bộ dữ liệu con đã biết của khóa học.
   /// Các lô ghi nhỏ hơn giới hạn Firestore để xử lý khóa học có nhiều học viên.
-  Future<void> deleteCourse(String courseId) async {
-    // Bản production dùng Cloud Function để việc dọn dữ liệu không phụ thuộc
-    // vào quyền đọc/xóa từng collection con của client. Cách trực tiếp vẫn
-    // được giữ cho emulator và các môi trường chưa bật backend.
-    if (_ketNoiApi.hasTransport) {
-      try {
-        await _ketNoiApi.call('courseDelete', {'courseId': courseId});
-        return;
-      } on FirebaseFunctionsException catch (loi) {
-        // Khi function chưa được deploy, tiếp tục bằng đường trực tiếp để
-        // local/emulator vẫn dùng được. Các lỗi quyền hoặc lỗi dữ liệu phải
-        // trả về ngay, không được che bằng lỗi phụ phía client.
-        if (!_maLoiThuTrucTiep.contains(loi.code)) {
-          rethrow;
-        }
-      }
-    }
-    try {
-      await _xoaKhoaHocTrucTiep(courseId);
-      return;
-    } catch (directError) {
-      if (!_ketNoiApi.hasTransport) rethrow;
-      try {
-        await _ketNoiApi.call('courseDelete', {'courseId': courseId});
-        return;
-      } on FirebaseFunctionsException catch (loi) {
-        // Giữ lại lỗi trực tiếp nếu backend chưa được triển khai.
-        if (_maLoiThuTrucTiep.contains(loi.code)) {
-          Error.throwWithStackTrace(directError, StackTrace.current);
-        }
-        rethrow;
-      }
-    }
-  }
+  Future<void> deleteCourse(String courseId) => _xoaVoiDuongDuPhong(
+    'courseDelete',
+    {'courseId': courseId},
+    () => _xoaKhoaHocTrucTiep(courseId),
+  );
 
   /// Xóa vĩnh viễn một bài học và các bản ghi tiến độ của bài đó.
   /// Dùng backend khi có thể; đường trực tiếp giữ cho emulator và bản cài
   /// chưa triển khai Functions vẫn hoạt động như các thao tác quản trị khác.
-  Future<void> deleteLesson(String courseId, String lessonId) async {
+  Future<void> deleteLesson(String courseId, String lessonId) =>
+      _xoaVoiDuongDuPhong(
+        'courseDeleteLesson',
+        {'courseId': courseId, 'lessonId': lessonId},
+        () => _xoaBaiHocTrucTiep(courseId, lessonId),
+      );
+
+  /// Ưu tiên backend; dùng đường trực tiếp khi Functions chưa triển khai.
+  Future<void> _xoaVoiDuongDuPhong(
+    String tenHam,
+    Map<String, dynamic> thamSo,
+    Future<void> Function() xoaTrucTiep,
+  ) async {
     if (_ketNoiApi.hasTransport) {
       try {
-        await _ketNoiApi.call('courseDeleteLesson', {
-          'courseId': courseId,
-          'lessonId': lessonId,
-        });
+        await _ketNoiApi.call(tenHam, thamSo);
         return;
       } on FirebaseFunctionsException catch (loi) {
         if (!_maLoiThuTrucTiep.contains(loi.code)) {
@@ -141,15 +121,12 @@ class LearningService {
       }
     }
     try {
-      await _xoaBaiHocTrucTiep(courseId, lessonId);
+      await xoaTrucTiep();
       return;
     } catch (directError) {
       if (!_ketNoiApi.hasTransport) rethrow;
       try {
-        await _ketNoiApi.call('courseDeleteLesson', {
-          'courseId': courseId,
-          'lessonId': lessonId,
-        });
+        await _ketNoiApi.call(tenHam, thamSo);
         return;
       } on FirebaseFunctionsException catch (loi) {
         if (_maLoiThuTrucTiep.contains(loi.code)) {

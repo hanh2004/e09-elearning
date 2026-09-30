@@ -76,11 +76,6 @@ class LearningPolicy {
     return true;
   }
 
-  static String classIdFromAudience(String? audience) =>
-      audience != null && audience.startsWith('class:')
-      ? audience.substring(6)
-      : '';
-
   static DateTime? readDateTime(dynamic giaTri) {
     if (giaTri is Timestamp) return giaTri.toDate();
     if (giaTri is DateTime) return giaTri;

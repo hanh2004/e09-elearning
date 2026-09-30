@@ -3,7 +3,15 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
-    function active() { return signedIn() && profile().status == 'active'; }
+    function hasCurrentAccountSession() {
+      let sessionPath = /databases/$(database)/documents/admin_web_sessions/$(request.auth.uid);
+      return !exists(sessionPath) ||
+        (get(sessionPath).data.get('status', 'active') == 'active' &&
+          get(sessionPath).data.get('authTime', -1) == request.auth.token.get('auth_time', -2) &&
+          get(sessionPath).data.get('lastSeenAt', null) is timestamp &&
+          get(sessionPath).data.lastSeenAt + duration.value(2, 'm') > request.time);
+    }
+    function active() { return signedIn() && profile().status == 'active' && hasCurrentAccountSession(); }
     function root() { return active() && profile().role == 'super_admin' && request.auth.uid in get(/databases/$(database)/documents/system/access).data.rootUids; }
     function admin() { return root() || (active() && profile().role == 'admin' && profile().createdBy != profile().approvedBy &&
       profile().createdBy in get(/databases/$(database)/documents/system/access).data.rootUids &&
@@ -22,7 +30,8 @@ service cloud.firestore {
     function courseReadable(courseId) { let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
       return active() && course.published == true && course.get('deleting', false) != true &&
         (!(course.get('publishedAt', null) is timestamp) || request.time >= course.publishedAt) &&
-        (!(course.get('startsAt', null) is timestamp) || request.time >= course.startsAt); }
+        (!(course.get('startsAt', null) is timestamp) || request.time >= course.startsAt) &&
+        (!(course.get('endsAt', null) is timestamp) || request.time < course.endsAt); }
     function courseEnded(data) {
       return data.get('endsAt', null) is timestamp && request.time >= data.endsAt;
     }
@@ -80,7 +89,14 @@ service cloud.firestore {
     function changedCourseTimeIsFuture(field) {
       let next = request.resource.data.get(field, null);
       let previous = resource.data.get(field, null);
-      return next == previous || next == null || (next is timestamp && next > request.time);
+      let closingManualCourse = field == 'endsAt' &&
+        resource.data.get('deploymentMode', 'manual') == 'manual' &&
+        request.resource.data.get('deploymentMode', 'manual') == 'manual' &&
+        resource.data.get('published', false) == true &&
+        request.resource.data.get('published', false) == true &&
+        previous == null && next is timestamp && next <= request.time;
+      return next == previous || next == null ||
+        (next is timestamp && next > request.time) || closingManualCourse;
     }
     function validCourseReleaseOnCreate(data) {
       let releaseAt = data.get('publishedAt', null);
@@ -95,31 +111,19 @@ service cloud.firestore {
           ? releaseAt == previousReleaseAt
           : data.published != true || (releaseAt is timestamp && releaseAt > request.time));
     }
-    function validExamSchedule(data) {
-      let opensAt = data.get('opensAt', null);
-      let closesAt = data.get('closesAt', null);
-      return (opensAt == null || opensAt is timestamp) &&
-        (closesAt == null || closesAt is timestamp) &&
-        (opensAt == null || closesAt == null || closesAt > opensAt);
-    }
-    function validNewExamSchedule(data) {
-      let opensAt = data.get('opensAt', null);
-      let closesAt = data.get('closesAt', null);
-      return validExamSchedule(data) &&
-        (opensAt == null || opensAt > request.time) &&
-        (closesAt == null || closesAt > request.time);
-    }
-    function changedExamTimeIsFuture(field) {
-      let next = request.resource.data.get(field, null);
-      let previous = resource.data.get(field, null);
-      return next == previous || next == null || (next is timestamp && next > request.time);
-    }
     function validEventTimes(data) {
       return data.startsAt is timestamp && data.endsAt is timestamp &&
         data.endsAt > data.startsAt && data.type in ['lesson','exam'];
     }
+    // Clients can observe their own session replacement and sign out.
+    // Only Cloud Functions may create, update, or delete session records.
+    match /admin_web_sessions/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
     match /users/{uid} {
-      allow get: if admin() || (active() && request.auth.uid == uid) ||
+      allow get: if admin() ||
+        (signedIn() && request.auth.uid == uid && resource.data.status == 'active') ||
         (active() && resource.data.role == 'admin' &&
           resource.data.status == 'active' &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'user' &&
@@ -218,9 +222,7 @@ service cloud.firestore {
     // Answer keys and grading snapshots never leave the trusted backend.
     match /exams/{id} {
       allow read: if admin();
-      allow create: if root() && validNewExamSchedule(request.resource.data);
-      allow update: if root() && validExamSchedule(request.resource.data) &&
-        changedExamTimeIsFuture('opensAt') && changedExamTimeIsFuture('closesAt');
+      allow create, update: if root();
       allow delete: if root();
       match /questions/{qid} { allow read: if admin(); allow write: if root(); }
     }

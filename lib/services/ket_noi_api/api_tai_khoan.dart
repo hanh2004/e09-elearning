@@ -8,6 +8,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:crypto/crypto.dart';
 
 import '../../app/cau_hinh_ung_dung.dart';
+import '../tai_khoan/phien_dang_nhap_quan_tri_web.dart';
 
 typedef AccountCall = Future<Map<String, dynamic>> Function(
   String,
@@ -34,7 +35,7 @@ class AccountApi {
                 timeout: const Duration(minutes: 9),
               ),
             )
-            .call<Map<String, dynamic>>(duLieu);
+            .call<Map<String, dynamic>>(AdminWebSession.addToken(duLieu));
     return ketQua.data;
   }
 

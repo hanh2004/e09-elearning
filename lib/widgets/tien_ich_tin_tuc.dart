@@ -88,7 +88,7 @@ class NewsTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: EdgeInsets.symmetric(vertical: large ? 8 : 14),
         child: large
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,19 +102,7 @@ class NewsTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   tieuDe,
-                  if (article.summary.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      article.summary,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF596271),
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   ngay,
                 ],
               )

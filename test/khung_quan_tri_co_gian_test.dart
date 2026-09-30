@@ -35,12 +35,13 @@ void main() {
       expect(find.text('1/1 đã làm'),findsOneWidget);
       expect(find.text('Lịch sử chỉnh sửa'),findsNothing);
       if (size.width >= 900) {
-        expect(find.byType(NavigationRail), findsOneWidget);
+        expect(find.text('Trang chủ'), findsWidgets);
+        expect(find.text('Báo cáo'), findsWidgets);
         expect(find.byType(BottomNavigationBar), findsNothing);
       } else {
-        expect(find.byType(NavigationRail), findsNothing);
         expect(find.byType(BottomNavigationBar), findsOneWidget);
       }
+      expect(find.byType(NavigationRail), findsNothing);
       expect(tester.takeException(), isNull);
     });
   }

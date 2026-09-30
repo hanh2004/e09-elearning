@@ -64,13 +64,6 @@ Future<void> showCourseEditor(
         final courseRef =
             course?.reference ?? service.db.collection('courses').doc();
         await service.saveContent(taiKhoan!.id, courseRef, duLieuGui);
-        final linkedExamId = duLieuGui['examId']?.toString() ?? '';
-        if (linkedExamId.isNotEmpty) {
-          await service.db.collection('exams').doc(linkedExamId).set({
-            'courseId': courseRef.id,
-            'courseEndsAt': duLieuGui['endsAt'],
-          }, SetOptions(merge: true));
-        }
       },
     ),
   );
@@ -379,6 +372,20 @@ class _TrangThaiHopThoaiSuaKhoaHoc extends State<_HopThoaiSuaKhoaHoc> {
                         }),
                       ),
                       const SizedBox(height: 10),
+                      if (_coBaiThi) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5FA),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Lịch triển khai và trạng thái khóa học quyết định khi nào học viên được làm bài kiểm tra liên kết. Không cần cài lịch mở/đóng riêng cho đề. Giới hạn lượt thi vẫn đặt trong phần quản lý câu hỏi.',
+                            style: TextStyle(color: Color(0xFF425B7D)),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
                       _CaiDatKhoaHocNangCao(
                         open: _dangMoNangCao,
                         onToggle: () =>

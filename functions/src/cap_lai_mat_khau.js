@@ -1,7 +1,7 @@
-// CẤP LẠI MẬT KHẨU: gửi yêu cầu công khai, duyệt hai bước và đặt mật khẩu mới.
+// CẤP LẠI MẬT KHẨU: gửi yêu cầu công khai để quản lý hiện tại xử lý.
 // Tất cả quyền và trạng thái yêu cầu được kiểm tra phía máy chủ.
 import { FieldValue } from 'firebase-admin/firestore';
-import { isRoot, requireRoot, requireThat, requireUpdate, rootIds, usernameKey } from './quy_tac.js';
+import { isRoot, requireThat, requireUpdate, usernameKey } from './quy_tac.js';
 
 export function createPasswordResetHandlers({ coSoDuLieu, xacThuc, userRef, nguCanh, stamp }) {
   async function requestPasswordReset(_uid, dauVao) {
@@ -61,11 +61,19 @@ export function createPasswordResetHandlers({ coSoDuLieu, xacThuc, userRef, nguC
       if (!currentManager || !['admin', 'super_admin'].includes(currentManager.role) ||
         currentManager.status !== 'active') return false;
       if (currentRequest && ['pending', 'approved_once', 'approved', 'processing']
-        .includes(currentRequest.status)) return true;
+        .includes(currentRequest.status)) {
+        transaction.update(requestRef, {
+          managerId: currentUser.createdBy,
+          userRole: currentUser.role,
+          updatedAt: stamp(),
+        });
+        return true;
+      }
 
       transaction.set(requestRef, {
         userId,
         managerId: currentUser.createdBy,
+        userRole: currentUser.role,
         name: currentUser.name || '',
         username: currentUser.username || username,
         status: 'pending',
@@ -76,48 +84,6 @@ export function createPasswordResetHandlers({ coSoDuLieu, xacThuc, userRef, nguC
     });
 
     return { matched, submitted: matched };
-  }
-
-  async function approvePasswordReset(adminId, input) {
-    requireThat(typeof input.requestId === 'string' &&
-      /^[A-Za-z0-9_=-]{1,128}$/.test(input.requestId),
-    'invalid-argument', 'Yêu cầu cấp lại mật khẩu không hợp lệ.');
-
-    const requestRef = coSoDuLieu.doc(`password_reset_requests/${input.requestId}`);
-    await coSoDuLieu.runTransaction(async (transaction) => {
-      const { actor, config } = await nguCanh(transaction, adminId);
-      requireRoot(actor, config);
-
-      const request = (await transaction.get(requestRef)).data();
-      requireThat(request?.status === 'pending' || request?.status === 'approved_once',
-        'failed-precondition', 'Yêu cầu đã được duyệt đủ hoặc đã hoàn tất.');
-
-      const target = (await transaction.get(userRef(request.userId))).data();
-      requireThat(['user', 'admin'].includes(target?.role) && target.status === 'active' &&
-        target.createdBy === request.managerId,
-      'failed-precondition', 'Tài khoản không còn thuộc quản lý phụ trách.');
-
-      const roots = rootIds(config);
-      if (request.status === 'pending') {
-        transaction.update(requestRef, {
-          status: 'approved_once',
-          firstApprovedBy: adminId,
-          firstApprovedAt: stamp(),
-        });
-        return;
-      }
-
-      requireThat(roots.includes(request.firstApprovedBy) &&
-        request.firstApprovedBy !== adminId,
-      'permission-denied', 'Quản lý tổng còn lại phải là người duyệt lần hai.');
-      transaction.update(requestRef, {
-        status: 'approved',
-        secondApprovedBy: adminId,
-        secondApprovedAt: stamp(),
-      });
-    });
-
-    return { approved: true };
   }
 
   async function resolvePasswordReset(adminId, input) {
@@ -135,26 +101,21 @@ export function createPasswordResetHandlers({ coSoDuLieu, xacThuc, userRef, nguC
       const request = (await transaction.get(requestRef)).data();
       const user = (await transaction.get(targetRef)).data();
 
-      requireThat(request?.status === 'approved' && request.userId === input.userId,
-        'failed-precondition', 'Yêu cầu chưa được hai quản lý tổng duyệt.');
+      requireThat(['pending', 'approved_once', 'approved'].includes(request?.status) &&
+        request.userId === input.userId,
+      'failed-precondition', 'Yêu cầu không còn chờ cấp lại mật khẩu.');
       requireThat(['user', 'admin'].includes(user?.role) && user.status === 'active',
         'failed-precondition', 'Tài khoản không còn hoạt động.');
-
-      const roots = rootIds(config);
-      requireThat(roots.includes(request.firstApprovedBy) &&
-        roots.includes(request.secondApprovedBy) &&
-        request.firstApprovedBy !== request.secondApprovedBy,
-      'failed-precondition', 'Thiếu xác nhận của hai quản lý tổng.');
+      requireThat(request.managerId === user.createdBy,
+        'failed-precondition', 'Tài khoản đã được chuyển cho quản lý khác.');
 
       if (user.role === 'admin') {
-        requireThat(isRoot(actor, config) && request.managerId === user.createdBy &&
-          user.createdBy === actor.id,
-        'permission-denied', 'Chỉ quản lý tổng đã tạo tài khoản mới được cấp lại mật khẩu.');
+        requireThat(isRoot(actor, config),
+          'permission-denied', 'Chỉ admin tổng được cấp lại mật khẩu cho tài khoản admin.');
       } else {
         requireUpdate(actor, config, { ...user, id: input.userId });
-        requireThat(request.managerId === actor.id &&
-          request.managerId === user.createdBy,
-        'permission-denied', 'Chỉ quản lý phụ trách mới được cấp lại mật khẩu.');
+        requireThat(request.managerId === actor.id,
+          'permission-denied', 'Chỉ quản lý hiện tại mới được cấp lại mật khẩu.');
       }
 
       transaction.update(requestRef, { status: 'processing', resolvingBy: adminId });
@@ -179,7 +140,7 @@ export function createPasswordResetHandlers({ coSoDuLieu, xacThuc, userRef, nguC
         const request = (await transaction.get(requestRef)).data();
         if (request?.status === 'processing' && request.resolvingBy === adminId) {
           transaction.update(requestRef, {
-            status: 'approved',
+            status: 'pending',
             resolvingBy: FieldValue.delete(),
           });
         }
@@ -190,5 +151,5 @@ export function createPasswordResetHandlers({ coSoDuLieu, xacThuc, userRef, nguC
     return { updated: true, username: target.username || '' };
   }
 
-  return { requestPasswordReset, approvePasswordReset, resolvePasswordReset };
+  return { requestPasswordReset, resolvePasswordReset };
 }

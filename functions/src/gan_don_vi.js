@@ -92,12 +92,12 @@ export function createSetUnitHandler({
           quanLy?.unitChangePending === true &&
           quanLy.unitChangeOperationId === thaoTac.operationId,
         'failed-precondition', 'Không tìm thấy thao tác đổi đơn vị có thể tiếp tục.');
+        const childrenQuery = coSoDuLieu.collection('users')
+          .where('createdBy', '==', quanLyRef.id)
+          .orderBy(FieldPath.documentId()).limit(PAGE_SIZE);
 
         if (thaoTac.phase === 'checking') {
-          const query = coSoDuLieu.collection('users')
-            .where('createdBy', '==', quanLyRef.id)
-            .orderBy(FieldPath.documentId()).limit(PAGE_SIZE);
-          const pageQuery = thaoTac.checkCursor ? query.startAfter(thaoTac.checkCursor) : query;
+          const pageQuery = thaoTac.checkCursor ? childrenQuery.startAfter(thaoTac.checkCursor) : childrenQuery;
           const page = await giaoDich.get(pageQuery);
           if (page.empty) {
             giaoDich.update(thaoTacRef, {
@@ -151,9 +151,6 @@ export function createSetUnitHandler({
 
         requireThat(thaoTac.phase === 'applying', 'failed-precondition',
           'Giai đoạn đổi đơn vị không hợp lệ.');
-        const childrenQuery = coSoDuLieu.collection('users')
-          .where('createdBy', '==', quanLyRef.id)
-          .orderBy(FieldPath.documentId()).limit(PAGE_SIZE);
         const requestsQuery = coSoDuLieu.collection('admin_requests')
           .where('targetUid', '==', quanLyRef.id)
           .orderBy(FieldPath.documentId()).limit(PAGE_SIZE);
@@ -188,10 +185,11 @@ export function createSetUnitHandler({
         const learners = {docs: []};
         for (const child of children.docs) {
           if (child.data().role !== 'user' || child.data().status === 'deleting') continue;
-          assignments.push(await assignment(
-            giaoDich, child.ref, child.data(), donVi, quanLyRef.id, maNguoiDung,
-            learners, undefined, thaoTac.operationId,
-          ));
+          assignments.push(await assignment({
+            giaoDich, thamChieu: child.ref, dich: child.data(), donVi,
+            managerId: quanLyRef.id, actorId: maNguoiDung,
+            existingLearners: learners, unitChangeOperationId: thaoTac.operationId,
+          }));
         }
         const oldUnitRef = thaoTac.oldUnit
           ? coSoDuLieu.doc(`unit_codes/${userCodeKey(thaoTac.oldUnit)}`) : null;

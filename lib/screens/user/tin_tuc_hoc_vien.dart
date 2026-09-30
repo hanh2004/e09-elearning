@@ -1,3 +1,5 @@
+// APP HỌC VIÊN: Khối tin tức xem nhanh trên trang chủ và nút mở danh sách tin.
+
 import 'package:flutter/material.dart';
 
 import '../../app/chu_de_ung_dung.dart';
@@ -10,9 +12,8 @@ import 'danh_sach_tin_tuc.dart';
 
 /// Khối xem nhanh tin tức trên trang chủ.
 class UserNews extends StatefulWidget {
-  const UserNews({super.key, required this.service, this.uid, this.onViewAll});
+  const UserNews({super.key, required this.service, this.onViewAll});
   final LearningService service;
-  final String? uid;
   final VoidCallback? onViewAll;
   @override
   State<UserNews> createState() => _TrangThaiTinTucHocVien();

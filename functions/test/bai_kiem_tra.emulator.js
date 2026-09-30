@@ -19,7 +19,7 @@ before(async()=>{
 });
 after(async()=>{await env?.cleanup();if(app)await deleteApp(app);});
 async function startStudiedExam(uid,input) { return handlers.start(uid,{courseId:'exam_'+input.examId,lessonId:'study',...input}); }
-async function exam(id,limit=2){await db.doc('courses/exam_'+id).set({published:true});await db.doc('courses/exam_'+id+'/lessons/study').set({learningMode:'study_exam',examId:id});await db.doc('users/u/learning/exam_'+id+'_study').set({courseId:'exam_'+id,lessonId:'study',completed:true});await db.doc(`exams/${id}`).set({title:id,isOpen:true,durationMinutes:1,maxAttempts:limit});await db.doc(`exams/${id}/questions/q`).set({questionText:'2+2?',options:['3','4'],correctAnswerIndex:1});}
+async function exam(id,limit=2){await db.doc('courses/exam_'+id).set({published:true});await db.doc('courses/exam_'+id+'/lessons/study').set({learningMode:'study_exam',examId:id});await db.doc('users/u/learning/exam_'+id+'_study').set({courseId:'exam_'+id,lessonId:'study',completed:true});await db.doc(`exams/${id}`).set({title:id,durationMinutes:1,maxAttempts:limit});await db.doc(`exams/${id}/questions/q`).set({questionText:'2+2?',options:['3','4'],correctAnswerIndex:1});}
 function pausePrivateRunsQuery(firestore) {
   let batDauTruyVan;
   let moTruyVan;
@@ -73,19 +73,59 @@ test('limited admin reads reports and content but cannot mutate learning or exam
  await assertSucceeds(getDocs(collection(limited,'users')));
 });
 test('published lessons reach all learners; drafts and anonymous access stay denied',async()=>{
- await db.doc('courses/shared').set({title:'Shared',published:true,audience:'class:old'});
- await db.doc('courses/shared/lessons/one').set({title:'One',type:'text',order:1});
- await db.doc('courses/draft').set({title:'Draft',published:false,audience:'all'});
- const student=env.authenticatedContext('u').firestore();
- await assertSucceeds(getDocs(query(collection(student,'courses'),where('published','==',true))));
- await assertSucceeds(getDoc(doc(student,'courses/shared/lessons/one')));
- await assertFails(getDoc(doc(student,'courses/draft')));
- await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),'courses/shared')));
+  await db.doc('courses/shared').set({title:'Shared',published:true,audience:'class:old'});
+  await db.doc('courses/shared/lessons/one').set({title:'One',type:'text',order:1});
+  await db.doc('courses/draft').set({title:'Draft',published:false,audience:'all'});
+  await db.doc('courses/ended').set({title:'Ended',published:true,endsAt:Timestamp.fromMillis(Date.now()-1),audience:'all'});
+  await db.doc('courses/ended/lessons/one').set({title:'Ended lesson',type:'text',order:1});
+  const student=env.authenticatedContext('u').firestore();
+  await assertSucceeds(getDocs(query(collection(student,'courses'),where('published','==',true))));
+  await assertSucceeds(getDoc(doc(student,'courses/shared/lessons/one')));
+  await assertFails(getDoc(doc(student,'courses/draft')));
+  await assertFails(getDoc(doc(student,'courses/ended/lessons/one')));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),'courses/shared')));
 });
 test('simultaneous start reserves one run and strips answer keys',async()=>{
   await exam('concurrent');const [a,b]=await Promise.all([startStudiedExam('u',{examId:'concurrent'}),startStudiedExam('u',{examId:'concurrent'})]);
   assert.equal(a.runId,b.runId);assert.equal(a.questions[0].correctIndex,undefined);assert.equal(a.questions[0].explanation,undefined);
   const catalog=await handlers.list('u');assert.equal(catalog.exams.find(e=>e.id==='concurrent').usedAttempts,1);
+});
+test('course availability alone controls starting its linked exam',async()=>{
+  await exam('course_controls_exam');
+  await db.doc('exams/course_controls_exam').update({
+    isOpen:false,
+    opensAt:Timestamp.fromMillis(now+60000),
+    closesAt:Timestamp.fromMillis(now-60000),
+  });
+  const run=await startStudiedExam('u',{examId:'course_controls_exam'});
+  assert.equal(run.status,'in_progress');
+
+  await exam('closed_course');
+  await db.doc('courses/exam_closed_course').update({published:false});
+  await assert.rejects(startStudiedExam('u',{examId:'closed_course'}),{code:'failed-precondition'});
+
+  await exam('scheduled_course');
+  await db.doc('courses/exam_scheduled_course').update({startsAt:Timestamp.fromMillis(now+60000)});
+  await assert.rejects(startStudiedExam('u',{examId:'scheduled_course'}),{code:'failed-precondition'});
+
+  await exam('ended_course');
+  await db.doc('courses/exam_ended_course').update({endsAt:Timestamp.fromMillis(now-1)});
+  await assert.rejects(startStudiedExam('u',{examId:'ended_course'}),{code:'failed-precondition'});
+});
+test('root can manually end a published manual course',async()=>{
+  await db.doc('users/root1').set({role:'super_admin',status:'active',name:'Root'});
+  await db.doc('courses/manual_close').set({
+    title:'Manual close',published:true,publishedAt:Timestamp.fromMillis(Date.now()-60000),
+    deploymentMode:'manual',startsAt:null,endsAt:null,learningMode:'study_only',examId:'',
+    coverUrl:'icon:book',audience:'all',updatedBy:'root1',
+  });
+  const root=env.authenticatedContext('root1').firestore();
+  await assertSucceeds(updateDoc(doc(root,'courses/manual_close'),{
+    endsAt:serverTimestamp(),updatedBy:'root1',
+  }));
+  const ended=(await db.doc('courses/manual_close').get()).data().endsAt;
+  assert.equal(typeof ended?.toMillis,'function');
+  assert.ok(ended.toMillis()<=Date.now());
 });
 test('server ignores client scores, rejects spoofed writes, limits attempts',async()=>{
   await exam('grade',1);const run=await startStudiedExam('u',{examId:'grade'});
@@ -278,7 +318,6 @@ test('course deletion preserves a shared exam and lets an active learner finish 
   await courses.deleteCourse('root1', {courseId});
   assert.equal((await db.doc(`courses/${courseId}`).get()).exists, false);
   const retainedExam = (await db.doc(`exams/${examId}`).get()).data();
-  assert.equal(retainedExam.isOpen, true);
   assert.equal(retainedExam.courseId, undefined);
   assert.equal((await db.doc('courses/keep_shared_course').get()).data().examId, examId);
   assert.equal((await db.doc(`exams/${examId}/questions/q`).get()).exists, true);

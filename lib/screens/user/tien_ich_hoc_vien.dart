@@ -1,19 +1,16 @@
+// APP HỌC VIÊN: Các lối tắt tới bài đã lưu, lịch sử thi và hồ sơ cá nhân.
+
 import 'package:flutter/material.dart';
 
+import '../../app/cau_hinh_ung_dung.dart';
 import '../../app/chu_de_ung_dung.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart';
 import '../../models/tham_so_nguoi_dung.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
-import 'danh_sach_tin_tuc.dart';
 import 'bai_hoc_da_luu.dart';
-import 'chinh_sua_ho_so.dart';
-import 'lam_bai_kiem_tra_bao_mat.dart';
-import 'gui_y_kien_phan_hoi.dart';
-import 'cac_khoa_hoc.dart';
-import 'bai_kiem_tra_hoc_vien.dart';
-import 'thong_bao_hoc_vien.dart';
 import 'ho_so_hoc_vien.dart';
+import 'lich_su_bai_kiem_tra.dart';
 
 class UserUtilitiesScreen extends StatelessWidget {
   const UserUtilitiesScreen({
@@ -39,35 +36,7 @@ class UserUtilitiesScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          _nhom(context, 'Học tập số', [
-            (
-              'Học tập',
-              Icons.menu_book_rounded,
-              AppTheme.red,
-              () => open(UserCoursesScreen(uid: args.userId, service: service)),
-            ),
-            (
-              'Kiểm tra',
-              Icons.assignment_rounded,
-              const Color(0xFFD39B00),
-              () => open(
-                UserLearningTestsScreen(
-                  uid: args.userId,
-                  service: service,
-                  examService: examService,
-                ),
-              ),
-            ),
-            (
-              'Lịch sử kiểm tra',
-              Icons.history_rounded,
-              const Color(0xFF248FC4),
-              () => open(
-                SecureExamHistoryScreen(
-                  service: examService ?? SecureExamService(),
-                ),
-              ),
-            ),
+          _nhom(context, 'Học tập', [
             (
               'Bài đã lưu',
               Icons.bookmark_rounded,
@@ -75,27 +44,17 @@ class UserUtilitiesScreen extends StatelessWidget {
               () =>
                   open(SavedLessonsScreen(service: service, uid: args.userId)),
             ),
-          ]),
-          _nhom(context, 'Thông tin', [
             (
-              'Tin tức',
-              Icons.newspaper_rounded,
-              AppTheme.red,
-              () => open(NewsScreen(service: service)),
-            ),
-            (
-              'Thông báo',
-              Icons.notifications_active_rounded,
+              'Lịch sử bài kiểm tra',
+              Icons.history_rounded,
               const Color(0xFF248FC4),
               () => open(
-                UserNotificationsScreen(uid: args.userId, service: service),
+                ExamHistoryScreen(
+                  userId: args.userId,
+                  secureBackend: AppConfig.useSecureBackend,
+                  service: examService,
+                ),
               ),
-            ),
-            (
-              'Góp ý ứng dụng',
-              Icons.feedback_outlined,
-              const Color(0xFF429B59),
-              () => open(const UserFeedbackScreen()),
             ),
           ]),
           _nhom(context, 'Tài khoản', [
@@ -108,18 +67,6 @@ class UserUtilitiesScreen extends StatelessWidget {
                   args: args,
                   service: service,
                   examService: examService,
-                ),
-              ),
-            ),
-            (
-              'Cập nhật hồ sơ',
-              Icons.manage_accounts_rounded,
-              const Color(0xFF429B59),
-              () => open(
-                ProfileEditScreen(
-                  uid: args.userId,
-                  firestore: service.db,
-                  openEditor: true,
                 ),
               ),
             ),

@@ -76,7 +76,7 @@ export function courseHandlers(coSoDuLieu) {
       }
       daBatDauDon = true;
       for (const bai of cacBaiThiCanXoa) {
-        if (bai.exists) await bai.ref.update({isOpen:false, deleting:true});
+        if (bai.exists) await bai.ref.update({deleting:true});
         await xoaDuLieuBaiThi(coSoDuLieu, bai.id, bai.ref);
       }
       for (const bai of cacBaiThiDungChung) {
@@ -193,7 +193,7 @@ export function courseHandlers(coSoDuLieu) {
 
     try {
       if (thamChieuBaiThi && baiThiTonTai && !baiThiDuocDungNoiKhac) {
-        await thamChieuBaiThi.update({ isOpen: false, deleting: true });
+        await thamChieuBaiThi.update({ deleting: true });
       }
       if (thamChieuBaiThi && !baiThiDuocDungNoiKhac) {
         await xoaDuLieuBaiThi(coSoDuLieu, maBaiThi, thamChieuBaiThi);

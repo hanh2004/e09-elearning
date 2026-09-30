@@ -20,13 +20,31 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(profile().approvedBy)).data.role == 'super_admin');
     }
     function student() { return active() && profile().role == 'user'; }
+    function courseReadable(courseId) {
+      let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
+      let publishedAt = course.get('publishedAt', null);
+      let startsAt = course.get('startsAt', null);
+      let endsAt = course.get('endsAt', null);
+      return active() && course.published == true && course.get('deleting', false) != true &&
+        (course.audience == 'all' || course.audience == 'class:' + profile().get('classId', '')) &&
+        (publishedAt == null || (publishedAt is timestamp && publishedAt <= request.time)) &&
+        (startsAt == null || (startsAt is timestamp && startsAt <= request.time)) &&
+        (endsAt == null || (endsAt is timestamp && endsAt > request.time));
+    }
     function examData(examId) {
       return get(/databases/$(database)/documents/exams/$(examId)).data;
     }
     function examAvailable(examId) {
       let exam = examData(examId);
-      return exam.isOpen == true &&
-        (!('closesAt' in exam) || exam.closesAt == null || request.time < exam.closesAt);
+      let courseId = exam.get('courseId', '');
+      return exam.get('deleting', false) != true && courseId is string && courseId.size() > 0 &&
+        courseReadable(courseId);
+    }
+    function courseEndForExam(examId) {
+      let courseId = examData(examId).get('courseId', '');
+      return courseId is string && courseId.size() > 0
+        ? get(/databases/$(database)/documents/courses/$(courseId)).data.get('endsAt', null)
+        : null;
     }
     function allowedDurationMinutes(exam) {
       // Existing exams stored only a display string. Keep them usable while all
@@ -50,7 +68,8 @@ service cloud.firestore {
         attempt.startedAt == request.time && attempt.endsAt is timestamp &&
         attempt.endsAt > request.time &&
         attempt.endsAt <= request.time + duration.value(allowedDurationMinutes(exam), 'm') &&
-        (!('closesAt' in exam) || exam.closesAt == null || attempt.endsAt <= exam.closesAt);
+        (courseEndForExam(attempt.examId) == null ||
+          (courseEndForExam(attempt.examId) is timestamp && attempt.endsAt <= courseEndForExam(attempt.examId)));
     }
     function validCompletedAttempt(attempt, old) {
       return attempt.keys().hasAll([
@@ -85,7 +104,8 @@ service cloud.firestore {
           attempt.diff(old).affectedKeys().hasOnly(['status', 'startedAt', 'endsAt', 'selectedAnswers', 'currentQuestionIndex']) &&
           attempt.startedAt == request.time && attempt.endsAt > request.time &&
           attempt.endsAt <= request.time + duration.value(allowedDurationMinutes(exam), 'm') &&
-          (!('closesAt' in exam) || exam.closesAt == null || attempt.endsAt <= exam.closesAt) &&
+          (courseEndForExam(old.examId) == null ||
+            (courseEndForExam(old.examId) is timestamp && attempt.endsAt <= courseEndForExam(old.examId))) &&
           attempt.attemptCount == old.attemptCount &&
           (!('maxAttempts' in exam) || exam.maxAttempts == null ||
             attempt.attemptCount < exam.maxAttempts))) ||
@@ -195,11 +215,6 @@ service cloud.firestore {
         (active() && profile().role == 'admin' &&
           get(/databases/$(database)/documents/users/$(resource.data.userId)).data.role == 'user' &&
           get(/databases/$(database)/documents/users/$(resource.data.userId)).data.createdBy == request.auth.uid);
-    }
-    function courseReadable(courseId) {
-      let course = get(/databases/$(database)/documents/courses/$(courseId)).data;
-      return active() && course.published == true &&
-        (course.audience == 'all' || course.audience == 'class:' + profile().get('classId', ''));
     }
     match /courses/{courseId} {
       allow read: if admin() || (active() && resource.data.published == true &&

@@ -1,3 +1,5 @@
+// APP HỌC VIÊN: Danh sách tin tức, tìm tin và mở màn hình chi tiết.
+
 import 'package:flutter/material.dart';
 
 import '../../app/chu_de_ung_dung.dart';
@@ -6,13 +8,11 @@ import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../services/nghiep_vu/dich_vu_tin_tuc.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
 import '../../widgets/tien_ich_tin_tuc.dart';
-import '../../widgets/tim_tin_tuc_bang_giong_noi.dart';
 import 'chi_tiet_tin_tuc.dart';
 
 class NewsScreen extends StatefulWidget {
-  const NewsScreen({super.key, required this.service, this.active = true});
+  const NewsScreen({super.key, required this.service});
   final LearningService service;
-  final bool active;
   @override
   State<NewsScreen> createState() => _TrangThaiTinTuc();
 }
@@ -24,7 +24,6 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
   String category = 'Tất cả';
   int days = 0;
   bool oldest = false;
-  bool overlayOpen = false;
   @override
   void dispose() {
     search.dispose();
@@ -32,7 +31,6 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
   }
 
   Future<void> filter() async {
-    setState(() => overlayOpen = true);
     final daChon = await showModalBottomSheet<(int, bool)>(
       context: context,
       isScrollControlled: true,
@@ -97,22 +95,12 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
       },
     );
     if (!mounted) return;
-    setState(() {
-      overlayOpen = false;
-      if (daChon != null) {
+    if (daChon != null) {
+      setState(() {
         days = daChon.$1;
         oldest = daChon.$2;
-      }
-    });
-  }
-
-  Future<void> openPage(Widget page) async {
-    setState(() => overlayOpen = true);
-    await Navigator.push(
-      context,
-      MaterialPageRoute<void>(builder: (_) => page),
-    );
-    if (mounted) setState(() => overlayOpen = false);
+      });
+    }
   }
 
   @override
@@ -146,22 +134,13 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
                       borderRadius: BorderRadius.circular(32),
                       borderSide: BorderSide.none,
                     ),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (search.text.isNotEmpty)
-                          IconButton(
+                    suffixIcon: search.text.isEmpty
+                        ? null
+                        : IconButton(
                             tooltip: 'Xóa tìm kiếm',
                             icon: const Icon(Icons.close),
                             onPressed: () => setState(search.clear),
                           ),
-                        NewsVoiceSearch(
-                          active: widget.active && !overlayOpen,
-                          onResult: (giaTri) =>
-                              setState(() => search.text = giaTri),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ),
@@ -253,8 +232,12 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
         return NewsTile(
           article: baiViet,
           large: baiViet.id == featured?.id,
-          onTap: () =>
-              openPage(NewsDetailScreen(id: baiViet.id, service: news)),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => NewsDetailScreen(id: baiViet.id, service: news),
+            ),
+          ),
         );
       },
     );

@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e09_elearning/app/chu_de_hoc_vien.dart';
 import 'package:e09_elearning/models/bai_viet_tin_tuc.dart';
 import 'package:e09_elearning/models/bieu_mau_tin_tuc.dart';
-import 'package:e09_elearning/models/anh_bia_trang_chu.dart';
 import 'package:e09_elearning/models/tham_so_nguoi_dung.dart';
 import 'package:e09_elearning/screens/user/danh_sach_tin_tuc.dart';
 import 'package:e09_elearning/screens/user/bo_cuc_chinh_hoc_vien.dart';
@@ -107,14 +106,6 @@ void main() {
       final banners = await HomeBannerService(db).active().first;
       expect(banners, hasLength(5));
       expect(banners.map((banner) => banner.order), [1, 2, 3, 4, 5]);
-      expect(
-        HomeBanner.toFirestore({
-          'imageUrl': 'https://example.org/banner.png',
-          'order': '5',
-          'active': 'Có',
-        })['active'],
-        true,
-      );
     },
   );
 
@@ -137,7 +128,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: HomeNewsBanner(service: NewsService(db), uid: 'u', onStudy: () {}),
+          body: HomeNewsBanner(service: NewsService(db), onStudy: () {}),
         ),
       ),
     );
@@ -253,7 +244,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      for (final tab in ['Trang chủ', 'Tin tức', 'Tiện ích']) {
+      for (final tab in ['Trang chủ', 'Thông tin', 'Tiện ích']) {
         await tester.tap(find.text(tab).last);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: tab);
@@ -274,14 +265,11 @@ void main() {
           });
         }
       }
-      await tester.tap(find.text('Lịch sử kiểm tra'));
+      await tester.tap(find.text('Kiểm tra').last);
       await tester.pumpAndSettle();
-      expect(
-        find.text(
-          'Lịch sử hiển thị khóa học đã kết thúc và đã làm xong bài kiểm tra.',
-        ),
-        findsOneWidget,
-      );
+      await tester.tap(find.byTooltip('Lịch sử kiểm tra'));
+      await tester.pumpAndSettle();
+      expect(find.text('Lịch sử bài kiểm tra'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

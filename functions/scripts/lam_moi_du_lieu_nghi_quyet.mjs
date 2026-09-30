@@ -34,20 +34,17 @@ export function accountPlan(users,names) {
       return {uid:id(d),oldUsername:data(d).username,username,name:data(d).name||'',status:data(d).status};
     });
 }
-export function contentWrites(courses,exams,existing,actor) {
+export function contentWrites(courses,existing,actor) {
   const writes=[];
   const archiveAt=new Date().toISOString();
-  for(const d of [...courses,...exams]) {
+  for(const d of courses) {
     if(data(d).contentBatch===batch)continue;
-    const isCourse=d.name.includes('/courses/');
-    if(isCourse?data(d).published!==true:data(d).isOpen!==true)continue;
-    const value=isCourse?{deploymentMode:'manual'}:{isOpen:false,status:'Đã đóng'};
+    if(data(d).published!==true)continue;
+    const value={deploymentMode:'manual'};
     const updateFields=fields(value);
     const fieldPaths=Object.keys(value);
-    if(isCourse) {
-      updateFields.endsAt={timestampValue:archiveAt};
-      fieldPaths.push('endsAt');
-    }
+    updateFields.endsAt={timestampValue:archiveAt};
+    fieldPaths.push('endsAt');
     writes.push({update:{name:d.name,fields:updateFields},updateMask:{fieldPaths},currentDocument:{updateTime:d.updateTime}});
   }
   for(const d of resolutionDocuments(actor)) {
@@ -98,7 +95,7 @@ export async function run(mode) {
     if(collisions.some(u=>u.localId!==p.uid))throw new Error(`Auth name collision: ${p.username}`);
   }
   const newsHash=digest(snapshot.news),bannersHash=digest(snapshot.home_banners);
-  const writes=contentWrites(snapshot.courses,snapshot.exams,Object.values(snapshot).flat(),id(actor));
+  const writes=contentWrites(snapshot.courses,Object.values(snapshot).flat(),id(actor));
   const report={mode,learners:plan.length,usernames:plan.map(p=>p.username),newsPreserved:snapshot.news.length,bannersPreserved:snapshot.home_banners.length,contentWrites:writes.length};
   if(mode==='--dry-run')return report;
   mkdirSync(dir,{recursive:true});

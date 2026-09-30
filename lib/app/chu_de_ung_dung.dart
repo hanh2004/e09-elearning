@@ -79,9 +79,5 @@ class AppTheme {
       color: red,
       linearTrackColor: Color(0xFFF5E2E3),
     ),
-    navigationRailTheme: const NavigationRailThemeData(
-      backgroundColor: Colors.white,
-      indicatorColor: Color(0xFFF8E7E7),
-    ),
   );
 }

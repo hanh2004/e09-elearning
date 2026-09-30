@@ -1,3 +1,5 @@
+// Danh sách chương và bài học bên trong một khóa học của học viên.
+// Đây là màn hình tách riêng thuộc thư viện cac_khoa_hoc.dart.
 part of 'cac_khoa_hoc.dart';
 
 /// Màn hình danh sách bài học tách khỏi thư viện khóa học để dễ bảo trì.

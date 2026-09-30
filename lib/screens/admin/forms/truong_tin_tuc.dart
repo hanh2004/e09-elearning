@@ -1,3 +1,5 @@
+// Các trường nhập, chọn ảnh bìa và cài đặt hiển thị trong form tin tức quản trị.
+// Đây là phần giao diện tách riêng của quan_ly_tin_tuc.dart.
 part of '../quan_ly_tin_tuc.dart';
 
 class _NhanTrinhSua extends StatelessWidget {

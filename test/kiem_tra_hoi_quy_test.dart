@@ -23,11 +23,6 @@ Future<void> seedStudy(FakeFirebaseFirestore db) async {
 }
 
 void main() {
-  test('editing an audience preserves all characters of class IDs', () {
-    expect(LearningPolicy.classIdFromAudience('class:all'), 'all');
-    expect(LearningPolicy.classIdFromAudience('class:small-A'), 'small-A');
-    expect(LearningPolicy.classIdFromAudience('all'), '');
-  });
   test(
     'server exam duration and attempt limit override stale client values',
     () async {
@@ -35,7 +30,6 @@ void main() {
       final service = FirestoreService(firestore: db);
       await seedStudy(db);
       await db.doc('exams/e').set({
-        'isOpen': true,
         'durationMinutes': 5,
         'maxAttempts': 1,
       });
@@ -72,7 +66,7 @@ void main() {
     final db = FakeFirebaseFirestore();
     final service = FirestoreService(firestore: db);
     await seedStudy(db);
-    await db.doc('exams/e').set({'isOpen': true, 'durationMinutes': 5});
+    await db.doc('exams/e').set({'durationMinutes': 5});
     for (final id in ['a', 'b']) {
       await db.doc('exam_attempts/$id').set({
         'userId': 'u',

@@ -47,8 +47,8 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
     }
     return () => giaoDich.set(thamChieu, {unit: giaTri, managerId});
   }
-  async function assignment(giaoDich, thamChieu, dich, donVi, managerId, actorId,
-    existingLearners, requestedSuffix, unitChangeOperationId) {
+  async function assignment({giaoDich, thamChieu, dich, donVi, managerId, actorId,
+    existingLearners, requestedSuffix, unitChangeOperationId}) {
     const manager = (await giaoDich.get(userRef(managerId))).data();
     requireThat(manager?.adminDeletionPending !== true, 'failed-precondition',
       'Không thể chuyển học viên cho quản lý đang chờ duyệt xóa.');
@@ -83,8 +83,6 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
     const oldRef = dich.userCode ? coSoDuLieu.doc(`user_codes/${userCodeKey(dich.userCode)}`) : null;
     const cu = oldRef && oldRef.path !== nextRef.path ? await giaoDich.get(oldRef) : null;
     const changed = userCodeKey(dich.unit || '') !== userCodeKey(donVi) || dich.createdBy !== managerId;
-    if (changed && dich.userCode) requireThat(userCodeKey(dich.userCode) !== userCodeKey(maLoi),
-      'invalid-argument', 'Mã mới phải khác mã cũ.');
     return () => {
       giaoDich.set(nextRef, {uid: thamChieu.id, code: maLoi, createdBy: managerId, updatedAt: stamp()});
       if (cu?.exists && cu.data().uid === thamChieu.id) giaoDich.delete(oldRef);
@@ -414,7 +412,7 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
   async function updateUser(maNguoiDung, dauVao) {
     const thamChieu = userRef(dauVao.userId);
     requireThat(!dauVao.password, 'failed-precondition',
-      'Hãy cấp lại mật khẩu từ yêu cầu đã được duyệt.');
+      'Hãy xử lý yêu cầu cấp lại mật khẩu.');
     requireThat(typeof dauVao.name === 'string' && dauVao.name.trim().length > 0 && dauVao.name.length <= 100 &&
       !Object.hasOwn(dauVao, 'role') && !Object.hasOwn(dauVao, 'createdBy') && !Object.hasOwn(dauVao, 'username') &&
       (!Object.hasOwn(dauVao, 'unit') || typeof dauVao.unit === 'string') &&
@@ -550,17 +548,24 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
       const manager = (await giaoDich.get(managerRef)).data();
       requireThat(dich?.role === 'user' && ['active', 'blocked'].includes(dich.status),
         'failed-precondition', 'Chỉ có thể chuyển học viên đang hoạt động hoặc bị khóa.');
-      requireThat(manager?.role === 'admin' && manager.status === 'active',
-        'failed-precondition', 'Quản lý mới chưa hoạt động.');
-      requireThat(dich.createdBy === managerRef.id ||
-        userCodeKey(manager.unit || '') !== userCodeKey(dich.unit || ''),
-        'failed-precondition', 'Không thể chuyển học viên trong cùng đơn vị.');
-      requireThat(rootIds(cauHinh).includes(manager.createdBy) &&
-        rootIds(cauHinh).includes(manager.approvedBy) && manager.createdBy !== manager.approvedBy,
-        'failed-precondition', 'Quản lý mới chưa được quản lý tổng phê duyệt.');
-      const reserve = await unitReservation(giaoDich, manager.unit, managerRef.id);
-      const write = await assignment(giaoDich, targetRef, dich, validateUnit(manager.unit), managerRef.id, maNguoiDung,
-        undefined);
+      const managerIsRoot = manager?.role === 'super_admin' &&
+        manager.status === 'active' && rootIds(cauHinh).includes(managerRef.id);
+      const managerIsApprovedAdmin = manager?.role === 'admin' && manager.status === 'active' &&
+        rootIds(cauHinh).includes(manager.createdBy) && rootIds(cauHinh).includes(manager.approvedBy) &&
+        manager.createdBy !== manager.approvedBy;
+      requireThat(managerIsRoot || managerIsApprovedAdmin,
+        'failed-precondition', 'Quản lý mới chưa hoạt động hoặc chưa được phê duyệt.');
+      const targetUnit = validateUnit(managerIsRoot ? 'E09' : manager.unit);
+      requireThat(managerIsRoot || dich.createdBy === managerRef.id ||
+        userCodeKey(targetUnit) !== userCodeKey(dich.unit || ''),
+      'failed-precondition', 'Học viên đang do quản lý này phụ trách.');
+      const reserve = managerIsRoot
+        ? () => {}
+        : await unitReservation(giaoDich, targetUnit, managerRef.id);
+      const write = await assignment({
+        giaoDich, thamChieu: targetRef, dich, donVi: targetUnit,
+        managerId: managerRef.id, actorId: maNguoiDung,
+      });
       const resetRequest = await giaoDich.get(coSoDuLieu.doc(`password_reset_requests/${targetRef.id}`));
       requireThat(resetRequest.data()?.status !== 'processing', 'failed-precondition',
         'Đang cấp lại mật khẩu. Thử chuyển quản lý sau khi hoàn tất.');

@@ -1,3 +1,5 @@
+// APP HỌC VIÊN: Mở và đọc toàn bộ nội dung của một tin tức.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 

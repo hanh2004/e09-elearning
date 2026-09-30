@@ -36,15 +36,15 @@ test('short usernames skip occupied names and leave admin accounts untouched',()
   assert.deepEqual(plan.map(p=>p.uid),['a','b']);
   assert.deepEqual(users,before);
 });
-test('migration only closes old material, creates new content, and is repeatable',()=>{
-  const courses=[doc('courses/old',{published:true})],exams=[doc('exams/old',{isOpen:true})];
-  const writes=contentWrites(courses,exams,[],'root');
-  assert.equal(writes.length,23);
+test('migration only closes old courses, creates new content, and is repeatable',()=>{
+  const courses=[doc('courses/old',{published:true})];
+  const writes=contentWrites(courses,[],'root');
+  assert.equal(writes.length,22);
   assert.deepEqual(writes[0].updateMask.fieldPaths,['deploymentMode','endsAt']);
   assert.equal(writes[0].update.fields.published, undefined);
-  assert.deepEqual(writes[1].updateMask.fieldPaths,['isOpen','status']);
   assert.ok(writes.every(w=>!w.delete&&/\/documents\/(courses|exams)\//.test(w.update.name)&&w.currentDocument));
+  assert.equal(writes.some(w=>w.update.name.endsWith('/exams/old')),false);
   const existing=resolutionDocuments('root').map(d=>doc(d.path,d.data));
-  assert.deepEqual(contentWrites([doc('courses/old',{published:false})],[doc('exams/old',{isOpen:false})],existing,'root'),[]);
-  assert.throws(()=>contentWrites([],[],[doc('courses/nq57_study_only_20260919',{title:'someone else'})],'root'));
+  assert.deepEqual(contentWrites([doc('courses/old',{published:false})],existing,'root'),[]);
+  assert.throws(()=>contentWrites([],[doc('courses/nq57_study_only_20260919',{title:'someone else'})],'root'));
 });

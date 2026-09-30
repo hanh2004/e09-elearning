@@ -5,9 +5,9 @@ import 'package:e09_elearning/app/chu_de_ung_dung.dart';
 import 'package:e09_elearning/widgets/giao_dien_quan_tri.dart';
 import 'package:e09_elearning/models/dinh_danh_tai_khoan.dart';
 import 'package:e09_elearning/screens/admin/quan_ly_tai_khoan.dart';
-import 'package:e09_elearning/screens/admin/quan_ly_lop_hoc.dart';
 import 'package:e09_elearning/screens/admin/quan_ly_khoa_hoc.dart';
 import 'package:e09_elearning/screens/admin/quan_ly_thong_bao.dart';
+import 'package:e09_elearning/screens/admin/quan_ly_tin_tuc.dart';
 import 'package:e09_elearning/services/du_lieu/dich_vu_firestore.dart';
 import 'package:e09_elearning/services/nghiep_vu/dich_vu_hoc_tap.dart';
 
@@ -29,8 +29,8 @@ void main() {
         final learning = LearningService(db: db);
         final pages = <Widget>[
           AdminAccountScreen(service: FirestoreService(firestore: db)),
-          AdminClassesScreen(service: learning),
           AdminCoursesScreen(service: learning),
+          AdminNewsScreen(service: learning),
           AdminNotificationsScreen(service: learning),
         ];
         final navigator = GlobalKey<NavigatorState>();
@@ -47,7 +47,12 @@ void main() {
             MaterialPageRoute<void>(builder: (_) => page),
           );
           await tester.pumpAndSettle();
-          expect(find.byType(NavigationRail), findsOneWidget);
+          if (width >= 1000) {
+            expect(find.text('Trang chủ'), findsWidgets);
+          } else {
+            expect(find.byTooltip('Trang chủ'), findsOneWidget);
+          }
+          expect(find.byType(NavigationRail), findsNothing);
           final bar = tester.widget<AppBar>(find.byType(AppBar));
           expect(bar.backgroundColor, AppTheme.red);
           expect(bar.foregroundColor, Colors.white);

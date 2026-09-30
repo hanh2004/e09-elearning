@@ -13,4 +13,5 @@ Future<void> main() => bootstrap(
     homeBuilder: (_) => const AdminHomeScreen(),
     initialHome: AdminSessionGate(homeBuilder: (_) => const AdminHomeScreen()),
   ),
+  useIsolatedAdminWebSessions: true,
 );

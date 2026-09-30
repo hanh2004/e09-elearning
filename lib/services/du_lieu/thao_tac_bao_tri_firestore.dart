@@ -22,6 +22,8 @@ mixin _FirestoreMaintenanceOperations on _FirestoreServiceCore {
     }
     await FirebaseFunctions.instanceFor(region: AppConfig.functionsRegion)
         .httpsCallable('maintenanceSet')
-        .call<Map<String, dynamic>>({'maintenance': daBat});
+        .call<Map<String, dynamic>>(
+          AdminWebSession.addToken({'maintenance': daBat}),
+        );
   }
 }

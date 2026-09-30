@@ -15,7 +15,7 @@ before(async () => {
   await db.doc('courses/study-course').set({published:true});
   await db.doc('courses/study-course/lessons/study').set({learningMode:'study_exam',examId:'study-exam'});
   await db.doc('courses/study-course/lessons/only').set({learningMode:'study_only'});
-  await db.doc('exams/study-exam').set({isOpen:true,durationMinutes:10});
+  await db.doc('exams/study-exam').set({durationMinutes:10});
   await db.doc('exams/study-exam/questions/q').set({questionText:'Q',options:['A','B'],correctAnswerIndex:0});
 });
 after(async () => { if (app) await deleteApp(app); });
@@ -31,7 +31,7 @@ for (const mode of ['scheduled', 'manual']) {
     await course.collection('lessons').doc('l').set({order:1});
     const progress = db.doc(`users/study-user/learning/${courseId}_l`);
     await progress.set({courseId,lessonId:'l',studyCompleted:true,completed:false});
-    await db.doc(`exams/${courseId}`).set({isOpen:true,durationMinutes:10});
+    await db.doc(`exams/${courseId}`).set({durationMinutes:10});
     await db.doc(`exams/${courseId}/questions/q`).set({questionText:'Q',options:['A','B'],correctAnswerIndex:0});
     const input = {examId:courseId,courseId,lessonId:'l'};
     const run = await handler.start('study-user',input);
@@ -55,7 +55,7 @@ for (const mode of ['scheduled', 'manual']) {
 
 test('submission completes the course even with a failing score and archives its identity', async () => {
   await db.doc('courses/completion').set({published:true, title:'Khóa hoàn thành', learningMode:'study_exam', examId:'completion-exam'});
-  await db.doc('exams/completion-exam').set({isOpen:true,durationMinutes:10});
+  await db.doc('exams/completion-exam').set({durationMinutes:10});
   await db.doc('exams/completion-exam/questions/q').set({questionText:'Q',options:['A','B'],correctAnswerIndex:0});
   for (const lessonId of ['one','two']) {
     await db.doc(`courses/completion/lessons/${lessonId}`).set({order:1});
@@ -88,7 +88,7 @@ test('course exam requires all lessons and cannot fall back to an old lesson exa
   await course.set({published:true,learningMode:'study_exam',examId:'final-exam'});
   await course.collection('lessons').doc('a').set({learningMode:'study_exam',examId:'study-exam'});
   await course.collection('lessons').doc('b').set({learningMode:'study_only'});
-  await db.doc('exams/final-exam').set({isOpen:true,durationMinutes:10});
+  await db.doc('exams/final-exam').set({durationMinutes:10});
   await db.doc('exams/final-exam/questions/q').set({questionText:'Final',options:['A','B'],correctAnswerIndex:0});
   const input = {examId:'final-exam',courseId:'full-course',lessonId:'a'};
   await db.doc('users/study-user/learning/full-course_a').set({courseId:'full-course',lessonId:'a',completed:true});
@@ -138,7 +138,7 @@ test('lesson exam does not wait for an earlier lesson', async () => {
   await course.collection('lessons').doc('second').set({
     order:2, learningMode:'study_exam', examId:'independent-exam',
   });
-  await db.doc('exams/independent-exam').set({isOpen:true,durationMinutes:10});
+  await db.doc('exams/independent-exam').set({durationMinutes:10});
   await db.doc('exams/independent-exam/questions/q').set({
     questionText:'Q',options:['A','B'],correctAnswerIndex:0,
   });

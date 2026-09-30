@@ -15,7 +15,6 @@ class NewsArticle {
   String get coverUrl => data['coverUrl'] as String? ?? '';
   String get category => data['category'] as String? ?? categories.first;
   bool get featured => data['featured'] == true;
-  bool get homeBanner => data['homeBanner'] == true;
   DateTime? get publishedAt {
     final giaTri = data['publishedAt'] ?? data['updatedAt'];
     return giaTri is Timestamp ? giaTri.toDate() : null;

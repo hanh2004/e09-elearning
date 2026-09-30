@@ -392,17 +392,6 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     return truyVan.snapshots();
   }
 
-  Future<void> approvePasswordReset(String requestId) async {
-    if (!_apiTaiKhoan.hasTransport) {
-      throw const AccountProvisioningException(
-        'Duyệt cấp lại mật khẩu cần kết nối dịch vụ quản lý tài khoản.',
-      );
-    }
-    await _apiTaiKhoan.call('accountApprovePasswordReset', {
-      'requestId': requestId,
-    });
-  }
-
   Future<void> approveRootPasswordReset(String requestId) async {
     if (!_apiTaiKhoan.hasTransport) {
       throw const AccountProvisioningException(

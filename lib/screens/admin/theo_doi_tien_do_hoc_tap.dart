@@ -6,16 +6,15 @@ import 'package:flutter/material.dart';
 
 import '../../app/chu_de_ung_dung.dart';
 import '../../models/ket_qua_bai_kiem_tra.dart';
-import '../../models/quy_tac_hoc_tap.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import '../../widgets/anh_dai_dien_mac_dinh.dart';
 
-import '../../services/du_lieu/dich_vu_firestore.dart';
-import 'khung_giao_dien_quan_tri.dart';
+import '../../services/nguon_du_lieu_bao_cao_quan_tri.dart';
 
 /// Theo dõi các lượt làm bài, điểm số và học viên đã thi.
 class AdminProgressScreen extends StatefulWidget {
-  const AdminProgressScreen({super.key});
+  const AdminProgressScreen({super.key, required this.reportData});
+  final AdminReportData reportData;
 
   @override
   State<AdminProgressScreen> createState() => _TrangThaiTienDoQuanTri();
@@ -23,122 +22,17 @@ class AdminProgressScreen extends StatefulWidget {
 
 class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
   static const primaryColor = Color(0xFFB51F24);
-  final FirestoreService _dichVuFirestore = FirestoreService();
-
-  void _chonDieuHuong(int viTri) {
-    pushAdminPrimary(context, viTri);
-  }
 
   @override
-  Widget build(BuildContext context) {
-    final laMayTinh = AdminResponsiveShell.isDesktop(context);
-    return AdminResponsiveShell(
-      selectedIndex: 2,
-      onSelected: _chonDieuHuong,
-      activeExtra: 'Theo dõi tiến độ',
-      child: Scaffold(
-        backgroundColor: AdminUi.page,
-        appBar: AdminUi.appBar('Theo dõi tiến độ'),
-        body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _dichVuFirestore.getExamsStream(),
-          builder: (context, examSnapshot) {
-            if (examSnapshot.hasError) {
-              return _dungThongBaoLoi(
-                'Không tải được bài thi',
-                examSnapshot.error,
-              );
-            }
-            if (!examSnapshot.hasData) {
-              return const AdminLoading();
-            }
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _dichVuFirestore.getExamAttemptsStream(),
-              builder: (context, attemptSnapshot) {
-                if (attemptSnapshot.hasError) {
-                  return _dungThongBaoLoi(
-                    'Không tải được lượt làm bài',
-                    attemptSnapshot.error,
-                  );
-                }
-                if (!attemptSnapshot.hasData) {
-                  return const AdminLoading();
-                }
-                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _dichVuFirestore.getUsersStream(),
-                  builder: (context, userSnapshot) {
-                    final userNames = <String, String>{};
-                    for (final nguoiDung
-                        in userSnapshot.data?.docs ?? const []) {
-                      final duLieu = nguoiDung.data();
-                      userNames[nguoiDung.id] =
-                          (duLieu['name'] ?? duLieu['username'] ?? nguoiDung.id)
-                              .toString();
-                    }
-                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: _dichVuFirestore.db
-                          .collection('courses')
-                          .snapshots(),
-                      builder: (context, courseSnapshot) {
-                        if (courseSnapshot.hasError) {
-                          return _dungThongBaoLoi(
-                            'Không tải được danh sách khóa học',
-                            courseSnapshot.error,
-                          );
-                        }
-                        if (!courseSnapshot.hasData) {
-                          return const AdminLoading();
-                        }
-                        final visibility =
-                            LearningContentVisibility.fromDocuments(
-                              courses: courseSnapshot.data!.docs,
-                              exams: examSnapshot.data!.docs,
-                            );
-                        return _dungNoiDung(
-                          examSnapshot.data!.docs
-                              .where(visibility.includesExam)
-                              .toList(),
-                          attemptSnapshot.data!.docs
-                              .where(visibility.includesAttempt)
-                              .toList(),
-                          userNames,
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            );
-          },
-        ),
-        bottomNavigationBar: laMayTinh
-            ? null
-            : BottomNavigationBar(
-                currentIndex: 2,
-                onTap: _chonDieuHuong,
-                type: BottomNavigationBarType.fixed,
-                selectedItemColor: primaryColor,
-                unselectedItemColor: Colors.grey,
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home),
-                    label: 'Trang chủ',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.assignment),
-                    label: 'Quản lý khóa học',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.bar_chart),
-                    label: 'Báo cáo',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.settings),
-                    label: 'Cài đặt',
-                  ),
-                ],
-              ),
-      ),
-    );
+  Widget build(BuildContext context) => _dungDuLieu(widget.reportData);
+
+  Widget _dungDuLieu(AdminReportData data) {
+    final userNames = {
+      for (final user in data.users)
+        user.id: (user.data()['name'] ?? user.data()['username'] ?? user.id)
+            .toString(),
+    };
+    return _dungNoiDung(data.visibleExams, data.visibleAttempts, userNames);
   }
 
   Widget _dungNoiDung(
@@ -195,7 +89,10 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
             final cacLuotThi = resultRecords
                 .where((luotThi) => luotThi.data()['examId'] == baiThi.id)
                 .toList();
-            return _dungTheBaiThi(baiThi, cacLuotThi, userNames);
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: _dungTheBaiThi(baiThi, cacLuotThi, userNames),
+            );
           }),
       ],
     );
@@ -215,15 +112,15 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     ];
     return LayoutBuilder(
       builder: (context, constraints) => Wrap(
-        spacing: 12,
-        runSpacing: 12,
+        spacing: 16,
+        runSpacing: 16,
         children: [
           for (final card in cards)
             SizedBox(
               width: constraints.maxWidth >= 900
-                  ? (constraints.maxWidth - 36) / 4
+                  ? (constraints.maxWidth - 48) / 4
                   : constraints.maxWidth >= 560
-                  ? (constraints.maxWidth - 12) / 2
+                  ? (constraints.maxWidth - 16) / 2
                   : constraints.maxWidth,
               child: AdminMetricCard(
                 value: '${card.$2}',
@@ -259,7 +156,7 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     );
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
@@ -454,7 +351,7 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     }
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 16),
       child: ListTile(
         leading: const DefaultUserAvatar(radius: 20),
         title: Text(
@@ -486,12 +383,4 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     return '${two(ngay.hour)}:${two(ngay.minute)} ${two(ngay.day)}/${two(ngay.month)}/${ngay.year}';
   }
 
-  Widget _dungThongBaoLoi(String thongDiep, Object? loi) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text('$thongDiep\n$loi', textAlign: TextAlign.center),
-      ),
-    );
-  }
 }

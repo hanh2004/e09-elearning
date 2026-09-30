@@ -1,3 +1,5 @@
+// Luồng chọn và xóa hàng loạt tài khoản; chỉ admin tổng được mở chức năng này.
+// Đây là phần xử lý tách riêng của quan_ly_tai_khoan.dart.
 part of "quan_ly_tai_khoan.dart";
 
 extension _AdminAccountBulkDelete on _TrangThaiTaiKhoanQuanTri {

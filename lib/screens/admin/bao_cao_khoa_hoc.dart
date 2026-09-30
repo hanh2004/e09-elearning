@@ -141,16 +141,7 @@ class _TrangThaiBaoCaoKhoaHoc extends State<AdminCourseReportScreen> {
     onSelected: (viTri) => pushAdminPrimary(context, viTri),
     child: Scaffold(
       backgroundColor: AdminUi.page,
-      appBar: AdminUi.appBar(
-        'Kết quả khóa học',
-        actions: [
-          IconButton(
-            tooltip: 'Làm mới',
-            icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() => report = load()),
-          ),
-        ],
-      ),
+      appBar: AdminUi.appBar('Kết quả khóa học'),
       body: FutureBuilder<CourseCompletionReport>(
         future: report,
         builder: (context, duLieuNhan) {
@@ -188,9 +179,20 @@ class _TrangThaiBaoCaoKhoaHoc extends State<AdminCourseReportScreen> {
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Text(
-                widget.course.data()['title'] ?? '',
-                style: Theme.of(context).textTheme.headlineSmall,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.course.data()['title'] ?? '',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => setState(() => report = load()),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Làm mới'),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               const Row(

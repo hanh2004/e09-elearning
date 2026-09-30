@@ -1,10 +1,36 @@
-import 'package:e09_elearning/screens/user/chinh_sua_ho_so.dart';
 import 'package:e09_elearning/models/bao_cao_quan_tri.dart';
 import 'package:e09_elearning/services/ket_noi_api/api_tai_khoan.dart';
+import 'package:e09_elearning/services/tai_khoan/thao_tac_tai_khoan_hoc_vien.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+Future<void> _moCapNhatDonVi(
+  WidgetTester tester,
+  FakeFirebaseFirestore db, {
+  AccountApi? accounts,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => updateLearnerUnit(
+              context,
+              uid: 'u',
+              firestore: db,
+              accounts: accounts,
+            ),
+            child: const Text('Cập nhật đơn vị'),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('Cập nhật đơn vị'));
+  await tester.pumpAndSettle();
+}
 
 void main() {
   testWidgets(
@@ -27,17 +53,7 @@ void main() {
           };
         },
       );
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ProfileEditScreen(
-            uid: 'u',
-            firestore: db,
-            accounts: api,
-            openEditor: true,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
+      await _moCapNhatDonVi(tester, db, accounts: api);
       expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
@@ -59,21 +75,15 @@ void main() {
       'createdBy': 'm1',
       'subUnit': 'Đội cũ',
     });
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ProfileEditScreen(
-          uid: 'u',
-          firestore: db,
-          openEditor: true,
-          accounts: AccountApi(
-            transport: (_, _) async => throw StateError('offline'),
-          ),
-        ),
+    await _moCapNhatDonVi(
+      tester,
+      db,
+      accounts: AccountApi(
+        transport: (_, _) async => throw StateError('offline'),
       ),
     );
-    await tester.pumpAndSettle();
     expect(
-      find.textContaining('Không tải được danh sách trực thuộc'),
+      find.textContaining('Không thể tải thông tin đơn vị'),
       findsOneWidget,
     );
     expect(find.text('Lưu'), findsNothing);
@@ -82,7 +92,7 @@ void main() {
   });
 
   testWidgets(
-    'falls back to the direct manager profile when function is unavailable',
+    'falls back to the manager profile when the function is unavailable',
     (tester) async {
       final db = FakeFirebaseFirestore();
       await db.doc('users/u').set({
@@ -97,28 +107,22 @@ void main() {
         'unit': 'D',
         'subUnits': ['C1', 'C2'],
       });
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ProfileEditScreen(
-            uid: 'u',
-            firestore: db,
-            openEditor: true,
-            accounts: AccountApi(
-              transport: (_, _) async => throw FirebaseFunctionsException(
-                code: 'unavailable',
-                message: 'function is not deployed',
-              ),
-            ),
+      await _moCapNhatDonVi(
+        tester,
+        db,
+        accounts: AccountApi(
+          transport: (_, _) async => throw FirebaseFunctionsException(
+            code: 'unavailable',
+            message: 'function is not deployed',
           ),
         ),
       );
-      await tester.pumpAndSettle();
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
-    expect(find.text('C1'), findsWidgets);
-    expect(find.text('C2'), findsWidgets);
+      expect(find.text('C1'), findsWidgets);
+      expect(find.text('C2'), findsWidgets);
       expect(
-        find.textContaining('Không tải được danh sách trực thuộc'),
+        find.textContaining('Không thể tải thông tin đơn vị'),
         findsNothing,
       );
       expect(tester.takeException(), isNull);
@@ -136,21 +140,13 @@ void main() {
       'role': 'user',
       'avatarUrl': 'https://example.org/old-avatar.png',
     });
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ProfileEditScreen(uid: 'u', firestore: db),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _moCapNhatDonVi(tester, db);
     expect(
       find.byWidgetPredicate(
         (widget) => widget is Image && widget.image is NetworkImage,
       ),
       findsNothing,
     );
-    await tester.tap(find.text('Cập nhật hồ sơ'));
-    await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.add_photo_alternate_outlined), findsNothing);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Đơn vị trực thuộc (tổ/đội/bộ phận)'),
       'Đội 1',
@@ -160,7 +156,6 @@ void main() {
     final user = (await db.doc('users/u').get()).data()!;
     expect(user['unit'], 'Đơn vị A');
     expect(user['subUnit'], 'Đội 1');
-    expect(find.textContaining('Đơn vị: Đội 1-Đơn vị A'), findsOneWidget);
     expect(tester.takeException(), isNull);
     final report = AdminReport.build(
       users: {'u': user},

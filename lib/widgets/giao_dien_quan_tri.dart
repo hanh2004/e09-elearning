@@ -7,6 +7,9 @@ import '../app/chu_de_ung_dung.dart';
 
 class AdminUi {
   static ThemeData get theme => AppTheme.light.copyWith(
+    cardTheme: AppTheme.light.cardTheme.copyWith(
+      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+    ),
     appBarTheme: const AppBarTheme(
       backgroundColor: AppTheme.red,
       foregroundColor: Colors.white,
@@ -26,7 +29,11 @@ class AdminUi {
   );
   static const page = Color(0xFFF4F7FC);
   static const border = Color(0xFFDDE6F2);
-  static AppBar appBar(String tieuDe, {List<Widget>? actions}) => AppBar(
+  static AppBar appBar(
+    String tieuDe, {
+    List<Widget>? actions,
+    PreferredSizeWidget? bottom,
+  }) => AppBar(
     title: Text(
       tieuDe,
       maxLines: 2,
@@ -123,6 +130,7 @@ class AdminUi {
         },
       ),
     ],
+    bottom: bottom,
   );
 }
 
