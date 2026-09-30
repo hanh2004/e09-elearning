@@ -87,6 +87,7 @@ class _AdminSessionGateState extends State<AdminSessionGate> {
       final identity = AccountIdentity(
         id: user.uid,
         role: (data['role'] ?? '').toString(),
+        name: (data['name'] ?? '').toString(),
       );
       if (!identity.isAdmin) {
         AccountSession.current = null;

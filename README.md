@@ -140,10 +140,8 @@ cập nhật cho các đợt phát hành tiếp theo.
 - Học viên bấm **Quên mật khẩu?** ở màn hình đăng nhập để gửi yêu cầu thẳng đến quản lý
   hiện tại. Quản lý đó cấp lại mật khẩu cho học viên mình phụ trách; admin tổng chỉ xử lý
   học viên đang được giao cho mình và các tài khoản admin. Mật khẩu không lưu trong Firestore.
-- Firestore Rules chặn User tự xóa lượt làm, ghi cho người khác, nộp sau hạn
-  và ghi điểm ngoài miền hợp lệ. Chấm điểm tuyệt đối chống can thiệp vẫn cần
-  backend tin cậy; app phát hành phải dùng backend đã triển khai, không tắt
-  `USE_SECURE_BACKEND` để thay thế bằng đường Rules-only thử nghiệm.
+- Firestore Rules chặn học viên ghi trực tiếp lượt thi và điểm. App phát hành
+  luôn dùng Cloud Functions để bắt đầu, lưu câu trả lời, chấm và nộp bài thi.
 
 Web Admin và Firestore Rules hiện đã được triển khai trên Firebase project thật.
 Khi thay đổi schema hoặc quy tắc quyền, phải kiểm thử bằng emulator trước khi triển khai.

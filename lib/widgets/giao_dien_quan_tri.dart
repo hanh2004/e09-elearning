@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../app/chu_de_ung_dung.dart';
+import '../models/dinh_danh_tai_khoan.dart';
 
 class AdminUi {
   static ThemeData get theme => AppTheme.light.copyWith(
@@ -25,6 +26,17 @@ class AdminUi {
       ),
       iconTheme: IconThemeData(color: Colors.white),
       actionsIconTheme: IconThemeData(color: Colors.white),
+    ),
+    tabBarTheme: const TabBarThemeData(
+      indicatorColor: Colors.white,
+      indicatorSize: TabBarIndicatorSize.label,
+      labelColor: Colors.white,
+      unselectedLabelColor: Color(0xCCFFFFFF),
+      labelStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+      unselectedLabelStyle: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
     ),
   );
   static const page = Color(0xFFF4F7FC);
@@ -115,11 +127,16 @@ class AdminUi {
                   child: Icon(Icons.person_outline, color: Colors.white),
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Admin',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 160),
+                  child: Text(
+                    AccountSession.current?.displayName ?? 'Quản lý',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -173,24 +190,27 @@ class AdminPageHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(28, 24, 28, 18),
+    padding: const EdgeInsets.fromLTRB(28, 28, 28, 18),
     child: LayoutBuilder(
       builder: (context, constraints) {
         final vanBan = Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineMedium
-                  ?.copyWith(color: AppTheme.navy, fontWeight: FontWeight.w800),
+              textAlign: TextAlign.start,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: AppTheme.navy,
+                fontSize: 32,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               subtitle,
-              textAlign: TextAlign.center,
+              textAlign: TextAlign.start,
               style: Theme.of(context).textTheme.bodyLarge
-                  ?.copyWith(color: const Color(0xFF60779A)),
+                  ?.copyWith(color: const Color(0xFF60779A), fontSize: 18),
             ),
           ],
         );
@@ -236,13 +256,13 @@ class AdminMetricCard extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final iconBox = Container(
-            width: 52,
-            height: 52,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
               color: color.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(14),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 28),
+            child: Icon(icon, color: color, size: 32),
           );
           final labels = Column(
             crossAxisAlignment: constraints.maxWidth < 210
@@ -257,10 +277,13 @@ class AdminMetricCard extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              Text(label, style: const TextStyle(color: Color(0xFF60779A))),
+              Text(
+                label,
+                style: const TextStyle(color: Color(0xFF60779A), fontSize: 16),
+              ),
             ],
           );
-          if (constraints.maxWidth < 280) {
+          if (constraints.maxWidth < 250) {
             return Column(
               children: [iconBox, const SizedBox(height: 8), labels],
             );

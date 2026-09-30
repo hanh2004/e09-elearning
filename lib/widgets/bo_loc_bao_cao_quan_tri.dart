@@ -16,7 +16,14 @@ class AdminReportFilters extends StatelessWidget {
     this.exams,
     this.selectedExam,
     this.onExamChanged,
+    this.courses,
+    this.selectedCourse,
+    this.onCourseChanged,
+    this.courseTypes,
+    this.selectedCourseType,
+    this.onCourseTypeChanged,
     this.onClear,
+    this.trailing,
   });
 
   final List<String> units;
@@ -31,7 +38,14 @@ class AdminReportFilters extends StatelessWidget {
   final List<(String, String)>? exams;
   final String? selectedExam;
   final ValueChanged<String?>? onExamChanged;
+  final List<(String, String)>? courses;
+  final String? selectedCourse;
+  final ValueChanged<String?>? onCourseChanged;
+  final List<(String, String)>? courseTypes;
+  final String? selectedCourseType;
+  final ValueChanged<String?>? onCourseTypeChanged;
   final VoidCallback? onClear;
+  final Widget? trailing;
 
   Widget _dropdown(
     double width,
@@ -110,6 +124,7 @@ class AdminReportFilters extends StatelessWidget {
               onChanged: onSearchChanged,
             ),
           ),
+          if (trailing != null) SizedBox(width: width, child: trailing),
           if (onExamChanged != null)
             _dropdown(
               width,
@@ -120,6 +135,28 @@ class AdminReportFilters extends StatelessWidget {
               'Tất cả bài thi',
               exams ?? const [],
               onExamChanged!,
+            ),
+          if (onCourseChanged != null)
+            _dropdown(
+              width,
+              'course:$selectedCourse',
+              'Khóa học',
+              Icons.menu_book_outlined,
+              selectedCourse,
+              'Tất cả khóa học',
+              courses ?? const [],
+              onCourseChanged!,
+            ),
+          if (onCourseTypeChanged != null)
+            _dropdown(
+              width,
+              'course-type:$selectedCourseType',
+              'Loại khóa học',
+              Icons.category_outlined,
+              selectedCourseType,
+              'Tất cả loại khóa học',
+              courseTypes ?? const [],
+              onCourseTypeChanged!,
             ),
           if (onClear != null)
             TextButton.icon(

@@ -10,6 +10,7 @@ class AdminReportData {
   AdminReportData._({
     required this.usersSnapshot,
     required this.coursesSnapshot,
+    required this.attemptsSnapshot,
     required this.visibleCourses,
     required this.visibleExams,
     required this.visibleAttempts,
@@ -28,6 +29,7 @@ class AdminReportData {
     return AdminReportData._(
       usersSnapshot: users,
       coursesSnapshot: courses,
+      attemptsSnapshot: attempts,
       visibleCourses: courses.docs.where(visibility.includesCourse).toList(),
       visibleExams: exams.docs.where(visibility.includesExam).toList(),
       visibleAttempts: attempts.docs.where(visibility.includesAttempt).toList(),
@@ -36,6 +38,7 @@ class AdminReportData {
 
   final QuerySnapshot<Map<String, dynamic>> usersSnapshot;
   final QuerySnapshot<Map<String, dynamic>> coursesSnapshot;
+  final QuerySnapshot<Map<String, dynamic>> attemptsSnapshot;
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> visibleCourses;
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> visibleExams;
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> visibleAttempts;
@@ -43,10 +46,11 @@ class AdminReportData {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> get users =>
       usersSnapshot.docs;
 
-  /// Tiến độ bài học chỉ cần tải lại khi danh sách học viên hoặc khóa học đổi.
+  /// Tải lại tiến độ khi học viên, khóa học hoặc lượt kiểm tra đổi.
   bool hasSameLearningInputs(AdminReportData other) =>
       identical(usersSnapshot, other.usersSnapshot) &&
-      identical(coursesSnapshot, other.coursesSnapshot);
+      identical(coursesSnapshot, other.coursesSnapshot) &&
+      identical(attemptsSnapshot, other.attemptsSnapshot);
 }
 
 /// Mở một bộ luồng chung để các tab báo cáo dùng cùng snapshot và bộ lọc quyền.
@@ -81,18 +85,19 @@ class AdminReportDataSource {
           );
         }
 
-        void bind<T>(
-          Stream<T> stream,
-          void Function(T value) update,
-        ) => subscriptions.add(
-          stream.listen((value) {
-            update(value);
-            publishWhenReady();
-          }, onError: controller.addError),
-        );
+        void bind<T>(Stream<T> stream, void Function(T value) update) =>
+            subscriptions.add(
+              stream.listen((value) {
+                update(value);
+                publishWhenReady();
+              }, onError: controller.addError),
+            );
 
         bind(service.getUsersStream(), (value) => users = value);
-        bind(service.db.collection('courses').snapshots(), (value) => courses = value);
+        bind(
+          service.db.collection('courses').snapshots(),
+          (value) => courses = value,
+        );
         bind(service.getExamsStream(), (value) => exams = value);
         bind(service.getExamAttemptsStream(), (value) => attempts = value);
 

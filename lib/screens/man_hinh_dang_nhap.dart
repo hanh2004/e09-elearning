@@ -144,6 +144,7 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
         AccountSession.current = AccountIdentity(
           id: userData['id'].toString(),
           role: userData['role'].toString(),
+          name: (userData['name'] ?? '').toString(),
         );
         Navigator.pushReplacement(
           context,

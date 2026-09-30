@@ -2,15 +2,26 @@
 // Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
 
 class AccountIdentity {
-  const AccountIdentity({required this.id, required this.role});
+  const AccountIdentity({required this.id, required this.role, this.name = ''});
 
   static final RegExp _usernamePattern = RegExp(r'^[A-Za-z0-9_.@-]{3,64}$');
   static bool isValidUsername(String value) => _usernamePattern.hasMatch(value);
 
   final String id;
   final String role;
+  final String name;
   bool get isRoot => role == 'super_admin';
   bool get isAdmin => isRoot || role == 'admin';
+  String get displayName {
+    final fullName = name.trim();
+    if (fullName.isNotEmpty) return fullName;
+    return switch (role) {
+      'super_admin' => 'Quản lý tổng',
+      'admin' => 'Quản lý',
+      'user' => 'Học viên',
+      _ => 'Tài khoản',
+    };
+  }
   bool canDelete(String targetId, Map<String, dynamic> target) =>
       target['role'] != 'super_admin' &&
       const ['active', 'blocked', 'deleting'].contains(target['status']) &&

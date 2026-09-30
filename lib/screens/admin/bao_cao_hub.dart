@@ -1,6 +1,5 @@
 // Trang tổng hợp các báo cáo quản trị và điều hướng giữa những tab báo cáo.
 // Nguồn dữ liệu chung được cấp cho các tab; mỗi tab giữ bộ lọc riêng.
-
 import 'package:flutter/material.dart';
 
 import '../../services/du_lieu/dich_vu_firestore.dart';
@@ -40,7 +39,7 @@ class _AdminReportsHubScreenState extends State<AdminReportsHubScreen> {
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: [
-              Tab(text: 'Tiến độ học'),
+              Tab(text: 'Tổng quan học tập'),
               Tab(text: 'Kết quả thi'),
               Tab(text: 'Báo cáo tổng hợp'),
             ],
@@ -60,12 +59,8 @@ class _AdminReportsHubScreenState extends State<AdminReportsHubScreen> {
             final data = snapshot.data!;
             return TabBarView(
               children: [
-                AdminLearningDashboard(
-                  reportData: data,
-                ),
-                AdminProgressScreen(
-                  reportData: data,
-                ),
+                AdminLearningDashboard(reportData: data),
+                AdminProgressScreen(reportData: data),
                 AdminReportScreen(
                   embedded: true,
                   service: _dataSource.service,

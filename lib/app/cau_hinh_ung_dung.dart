@@ -1,10 +1,7 @@
 // CẤU HÌNH CHẠY: các giá trị dùng chung cho app học viên, web admin và kết nối API.
-// Truyền --dart-define khi chạy/build để chọn emulator hoặc luồng thi tương thích cũ.
+// Truyền --dart-define khi chạy/build để chọn emulator; thi luôn dùng API máy chủ.
 class AppConfig {
-  static const useSecureBackend = bool.fromEnvironment(
-    'USE_SECURE_BACKEND',
-    defaultValue: true,
-  );
+  static const useSecureBackend = true;
   static const emulatorHost = String.fromEnvironment('FIREBASE_EMULATOR_HOST');
 
   // Phải trùng vùng deploy trong functions/src/diem_vao.js.

@@ -100,24 +100,26 @@ class _TrangThaiCaiDatQuanTri extends State<AdminSettingsScreen> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AdminUi.border),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      DefaultUserAvatar(radius: 32),
-                      SizedBox(width: 16),
+                      const DefaultUserAvatar(radius: 32),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Admin',
-                              style: TextStyle(
+                              AccountSession.current?.displayName ?? 'Quản lý',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
                                 color: AppTheme.navy,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            SizedBox(height: 4),
-                            Text(
+                            const SizedBox(height: 4),
+                            const Text(
                               'Tài khoản quản trị',
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,

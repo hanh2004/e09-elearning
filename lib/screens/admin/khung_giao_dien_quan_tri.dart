@@ -1,6 +1,5 @@
 // Khung điều hướng responsive của web admin: sidebar desktop, thanh dưới mobile và mở trang quản trị.
 // Tiêu đề và nội dung từng trang nằm trong các màn hình quản trị tương ứng.
-
 import 'package:flutter/material.dart';
 
 import '../../app/chu_de_ung_dung.dart';
@@ -94,10 +93,16 @@ class AdminResponsiveShell extends StatelessWidget {
 
   Widget _thanhBen(BuildContext context, bool wide) {
     return SizedBox(
-      width: wide ? 250 : 72,
+      width: wide ? 280 : 72,
       height: double.infinity,
-      child: ColoredBox(
-        color: AppTheme.navy,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A2D5D), Color(0xFF14244D)],
+          ),
+        ),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -129,16 +134,12 @@ class AdminResponsiveShell extends StatelessWidget {
                     selectedIndex == 3,
                     () => onSelected(3),
                   ),
-                  _lienKet(
-                    context,
-                    (
-                      'Thông báo',
-                      Icons.notifications_outlined,
-                      const AdminNotificationsScreen(),
-                      false,
-                    ),
-                    wide,
-                  ),
+                  _lienKet(context, (
+                    'Thông báo',
+                    Icons.notifications_outlined,
+                    const AdminNotificationsScreen(),
+                    false,
+                  ), wide),
                 ],
               ),
             ),
@@ -149,18 +150,18 @@ class AdminResponsiveShell extends StatelessWidget {
   }
 
   Widget _thuongHieu(bool wide) => Padding(
-    padding: EdgeInsets.fromLTRB(12, 8, 12, wide ? 24 : 12),
+    padding: EdgeInsets.fromLTRB(12, 16, 12, wide ? 28 : 12),
     child: Column(
       children: [
-        BrandLogo(admin: true, height: wide ? 64 : 40),
+        BrandLogo(admin: true, height: wide ? 76 : 40),
         if (wide) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           const Text(
             'HỌC TẬP SỐ\nQUẢN TRỊ E09',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white,
-              fontSize: 18,
+              fontSize: 19,
               fontWeight: FontWeight.bold,
               height: 1.35,
             ),
@@ -171,12 +172,7 @@ class AdminResponsiveShell extends StatelessWidget {
   );
 
   List<(String, IconData, Widget, bool)> _cacLienKet() => [
-    (
-      'Tin tức',
-      Icons.newspaper_outlined,
-      const AdminNewsScreen(),
-      false,
-    ),
+    ('Tin tức', Icons.newspaper_outlined, const AdminNewsScreen(), false),
     ('Tài khoản', Icons.people_outline, const AdminAccountScreen(), false),
     (
       'Quản lý khóa học',
@@ -245,31 +241,57 @@ class AdminResponsiveShell extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(left: child ? 20 : 8, right: 8, bottom: 3),
       child: Material(
-        color: mau,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
           onTap: onTap,
-          child: Container(
-            decoration: daChon
-                ? const BoxDecoration(
-                    border: Border(
-                      left: BorderSide(color: AppTheme.gold, width: 4),
-                    ),
-                  )
-                : null,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: daChon ? null : mau,
+              gradient: daChon
+                  ? const LinearGradient(
+                      colors: [Color(0xFFBE2028), Color(0xFFA91821)],
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(10),
+            ),
             child: Row(
               children: [
-                Icon(bieuTuong, color: daChon ? Colors.white : Colors.white70),
-                const SizedBox(width: 14),
+                if (daChon)
+                  Container(
+                    width: 4,
+                    height: 56,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.gold,
+                      borderRadius: BorderRadius.horizontal(
+                        left: Radius.circular(10),
+                      ),
+                    ),
+                  ),
                 Expanded(
-                  child: Text(
-                    nhan,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: child ? 13 : 15,
-                      fontWeight: daChon ? FontWeight.w800 : FontWeight.w500,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(daChon ? 12 : 16, 16, 12, 16),
+                    child: Row(
+                      children: [
+                        Icon(
+                          bieuTuong,
+                          color: daChon ? Colors.white : Colors.white70,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            nhan,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: child ? 13 : 15,
+                              fontWeight: daChon
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -75,7 +75,11 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
           padding: EdgeInsets.symmetric(horizontal: 28),
           child: Text(
             'Kết quả theo bài thi',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: AppTheme.navy,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -156,46 +160,97 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     );
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 20),
+      color: Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: Colors.grey[200]!),
+        side: const BorderSide(color: AdminUi.border),
       ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
         onTap: () => _hienChiTietBaiThi(baiThi, cacLuotThi, userNames),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(22, 16, 22, 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: primaryColor.withValues(alpha: 0.1),
-                    child: const Icon(Icons.assignment, color: primaryColor),
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: primaryColor.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.assignment_rounded,
+                      color: primaryColor,
+                      size: 30,
+                    ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 18),
                   Expanded(
                     child: Text(
                       (examData['title'] ?? 'Bài kiểm tra').toString(),
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                        color: AppTheme.navy,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                  const Icon(Icons.chevron_right),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: Color(0xFF292929),
+                    size: 28,
+                  ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Divider(height: 1, color: AdminUi.border),
+              ),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _dungChiSoBaiThi('Người đã làm', '${cacNguoiDung.length}'),
-                  _dungChiSoBaiThi('Tổng lượt làm', '$totalAttemptCount'),
-                  _dungChiSoBaiThi('Điểm tốt TB', average.toStringAsFixed(1)),
+                  Expanded(
+                    child: _dungChiSoBaiThi(
+                      'Người đã làm',
+                      '${cacNguoiDung.length}',
+                    ),
+                  ),
+                  const SizedBox(
+                    height: 48,
+                    child: VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: AdminUi.border,
+                    ),
+                  ),
+                  Expanded(
+                    child: _dungChiSoBaiThi(
+                      'Tổng lượt làm',
+                      '$totalAttemptCount',
+                    ),
+                  ),
+                  const SizedBox(
+                    height: 48,
+                    child: VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: AdminUi.border,
+                    ),
+                  ),
+                  Expanded(
+                    child: _dungChiSoBaiThi(
+                      'Điểm tốt TB',
+                      average.toStringAsFixed(1),
+                      valueColor: average > 0
+                          ? const Color(0xFF159B43)
+                          : AppTheme.navy,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -205,14 +260,29 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     );
   }
 
-  Widget _dungChiSoBaiThi(String nhan, String giaTri) {
+  Widget _dungChiSoBaiThi(
+    String nhan,
+    String giaTri, {
+    Color valueColor = AppTheme.navy,
+  }) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           giaTri,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(
+            color: valueColor,
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+          ),
+          textAlign: TextAlign.center,
         ),
-        Text(nhan, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+        Text(
+          nhan,
+          style: const TextStyle(color: Color(0xFF7185A5), fontSize: 14),
+          textAlign: TextAlign.center,
+        ),
       ],
     );
   }
@@ -382,5 +452,4 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     String two(int giaTri) => giaTri.toString().padLeft(2, '0');
     return '${two(ngay.hour)}:${two(ngay.minute)} ${two(ngay.day)}/${two(ngay.month)}/${ngay.year}';
   }
-
 }
