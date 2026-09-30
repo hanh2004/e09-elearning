@@ -80,7 +80,7 @@ async function call(name, data) {
   return { ok: response.ok, body: await response.json() };
 }
 
-test('only the current Admin web session can use protected account APIs', async () => {
+test('account web sessions support Admin and learner roles', async () => {
   const firstClaim = await call('adminSessionClaim', {
     sessionToken: tokenA,
     takeOver: false,
@@ -138,4 +138,12 @@ test('only the current Admin web session can use protected account APIs', async 
     sessionToken: tokenB,
   });
   assert.deepEqual(releasedHeartbeat.body.result, { active: false });
+
+  await db.doc(`users/${uid}`).set({ role: 'user', status: 'active' });
+  const learnerClaim = await call('adminSessionClaim', {
+    sessionToken: 'c'.repeat(64),
+    takeOver: false,
+  });
+  assert.equal(learnerClaim.ok, true, JSON.stringify(learnerClaim.body));
+  assert.deepEqual(learnerClaim.body.result, { claimed: true, occupied: false });
 });
