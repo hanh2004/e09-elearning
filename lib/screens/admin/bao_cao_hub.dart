@@ -1,8 +1,5 @@
 // Trang tổng hợp các báo cáo quản trị và điều hướng giữa những tab báo cáo.
-// Dữ liệu báo cáo được lấy từ các màn hình con và nguồn dữ liệu quản trị.
-
-// Trang tổng hợp các báo cáo quản trị và điều hướng giữa những tab báo cáo.
-// Dữ liệu báo cáo được lấy từ các màn hình con và nguồn dữ liệu quản trị.
+// Nguồn dữ liệu chung được cấp cho các tab; mỗi tab giữ bộ lọc riêng.
 
 import 'package:flutter/material.dart';
 
@@ -14,7 +11,7 @@ import 'khung_giao_dien_quan_tri.dart';
 import 'theo_doi_tien_do_hoc_tap.dart';
 import 'tong_quan_hoc_tap.dart';
 
-/// Không gian báo cáo chung, mỗi tab giữ nguyên bộ lọc và dữ liệu riêng.
+/// Các tab dùng chung nguồn dữ liệu báo cáo nhưng giữ bộ lọc riêng.
 class AdminReportsHubScreen extends StatefulWidget {
   const AdminReportsHubScreen({super.key, this.service});
 

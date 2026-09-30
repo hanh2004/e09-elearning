@@ -1,4 +1,5 @@
-// Đặt phía trên Navigator để chặn mọi trang và dừng toàn bộ tiến trình con.
+// APP HỌC VIÊN: Đọc trạng thái bảo trì, kết thúc phiên và thay nội dung app bằng màn hình chặn.
+// Được gắn tại diem_vao_hoc_vien.dart để áp dụng toàn app và hủy các trang/luồng con đang mở.
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';

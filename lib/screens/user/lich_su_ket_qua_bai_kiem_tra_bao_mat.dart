@@ -1,8 +1,8 @@
-// Kết quả và lịch sử của bài kiểm tra bảo mật, tách khỏi luồng làm bài.
+// Màn hình kết quả và xem lại đáp án của bài kiểm tra bảo mật.
 // Đây là phần riêng của lam_bai_kiem_tra_bao_mat.dart.
 part of 'lam_bai_kiem_tra_bao_mat.dart';
 
-/// Kết quả và lịch sử thi tách riêng khỏi luồng làm bài.
+/// Kết quả và đáp án đúng tách riêng khỏi luồng làm bài.
 class SecureExamResultScreen extends StatelessWidget {
   const SecureExamResultScreen({super.key, required this.result});
 

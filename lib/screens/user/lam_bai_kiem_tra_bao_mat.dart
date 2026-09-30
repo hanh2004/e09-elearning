@@ -1,5 +1,6 @@
 // APP HỌC VIÊN: Làm bài kiểm tra an toàn với câu hỏi từ máy chủ tin cậy.
-// Gồm làm bài, kết quả và lịch sử; API: ../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart.
+// Gồm làm bài, kết quả và xem lại đáp án; lịch sử ở lich_su_bai_kiem_tra.dart.
+// API: ../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart.
 
 import '../../widgets/dau_trang_hoc_vien.dart';
 

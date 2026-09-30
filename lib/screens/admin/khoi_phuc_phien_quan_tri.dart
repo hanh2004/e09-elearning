@@ -1,5 +1,5 @@
-// Cổng kiểm tra và khôi phục phiên admin trước khi mở khu vực quản trị.
-// Phiên không hợp lệ sẽ được chuyển về đăng nhập hoặc xử lý theo trạng thái phiên.
+// Cổng xác thực quyền admin và nhận phiên đăng nhập trước khi mở khu vực quản trị.
+// Nếu tài khoản đang có phiên khác, hộp thoại cho phép xác nhận đăng xuất phiên đó.
 
 import 'dart:async';
 

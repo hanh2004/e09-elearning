@@ -1,5 +1,5 @@
-// Khung giao diện web admin: menu, tiêu đề trang và điều hướng giữa các chức năng.
-// Các trang quản trị được gắn vào menu và xử lý chuyển trang tại đây.
+// Khung điều hướng responsive của web admin: sidebar desktop, thanh dưới mobile và mở trang quản trị.
+// Tiêu đề và nội dung từng trang nằm trong các màn hình quản trị tương ứng.
 
 import 'package:flutter/material.dart';
 

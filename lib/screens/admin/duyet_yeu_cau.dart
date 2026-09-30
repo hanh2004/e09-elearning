@@ -1,4 +1,4 @@
-// WEB ADMIN: Admin tổng duyệt yêu cầu tạo/xóa quản lý và xem học viên liên quan.
+// WEB ADMIN: Admin tổng duyệt tạo quản lý, xử lý xóa quản lý hai bước và xem học viên liên quan.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';

@@ -1,5 +1,5 @@
-// WEB ADMIN: Form tạo/sửa bài học. Đổi thời lượng mặc định và giới hạn trong LessonForm.
-// Sửa cấu hình form trong showLessonEditor; nhãn và kiểm tra thời lượng nằm ở LessonForm.
+// WEB ADMIN: Form tạo/sửa bài học; showLessonEditor lưu dữ liệu qua LearningService.
+// Trường nhập, thời gian mặc định và giới hạn hợp lệ được định nghĩa trong LessonForm.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

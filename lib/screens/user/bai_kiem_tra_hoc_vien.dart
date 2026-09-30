@@ -1,4 +1,4 @@
-// APP HỌC VIÊN: Trang học và kiểm tra theo khóa, điều hướng từ bài học sang bài thi.
+// APP HỌC VIÊN: Luồng học trước rồi mới mở bài kiểm tra theo khóa; có lối vào lịch sử thi.
 
 import 'dart:async';
 

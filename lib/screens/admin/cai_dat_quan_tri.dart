@@ -1,4 +1,4 @@
-// WEB ADMIN: Cài đặt hệ thống và công tắc bảo trì ứng dụng học viên.
+// WEB ADMIN: Cài đặt hệ thống, đăng xuất; admin tổng quản lý góp ý và bật/tắt bảo trì.
 // Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
 
 import 'package:flutter/material.dart';

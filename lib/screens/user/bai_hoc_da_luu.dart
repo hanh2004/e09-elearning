@@ -1,4 +1,4 @@
-// APP HỌC VIÊN: Danh sách bài học đã hoàn thành/lưu để mở lại nội dung.
+// APP HỌC VIÊN: Danh sách khóa học chỉ học đã hoàn thành, có thể mở lại nội dung.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

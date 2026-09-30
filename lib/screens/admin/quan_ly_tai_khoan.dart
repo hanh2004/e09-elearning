@@ -1,5 +1,5 @@
-// WEB ADMIN: Quản lý tài khoản: học viên, quản lý, đơn vị và quyền thao tác.
-// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+// WEB ADMIN: Quản lý học viên/quản lý, đơn vị, phân quyền và chuyển học viên giữa đơn vị.
+// Form tài khoản và xóa hàng loạt được tách trong các file part cùng thư mục.
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

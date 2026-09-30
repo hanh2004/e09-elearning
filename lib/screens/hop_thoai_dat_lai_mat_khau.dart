@@ -1,4 +1,4 @@
-// Hộp thoại gửi yêu cầu đặt lại mật khẩu từ màn hình đăng nhập học viên.
+// Hộp thoại yêu cầu đặt lại mật khẩu học viên và khôi phục tài khoản admin tổng.
 
 import 'dart:convert';
 import 'dart:math';

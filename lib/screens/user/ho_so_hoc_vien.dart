@@ -1,5 +1,4 @@
-// APP HỌC VIÊN: Cập nhật đơn vị, đổi mật khẩu, lịch sử thi và đăng xuất.
-// Sửa giao diện trong build(); tìm hàm xử lý tương ứng để sửa thao tác.
+// APP HỌC VIÊN: Xem hồ sơ, cập nhật đơn vị, đổi mật khẩu, gửi góp ý và đăng xuất.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
