@@ -9,50 +9,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../models/dinh_danh_tai_khoan.dart';
 import 'phien_dang_nhap_quan_tri_web.dart';
+import '../thong_bao_loi_ung_dung.dart';
 
 String accountLoginEmail(String tenDangNhap) =>
     '${sha256.convert(utf8.encode(tenDangNhap.trim().toLowerCase()))}@accounts.invalid';
 
 /// Chuyển mã lỗi Firebase thành hướng dẫn an toàn để hiển thị trên màn hình.
 String accountLoginErrorMessage(Object error) {
-  if (error is FirebaseAuthException) {
-    return switch (error.code) {
-      'network-request-failed' => 'Không kết nối được Firebase Authentication. Kiểm tra mạng rồi thử lại.',
-      'unauthorized-domain' =>
-        'Tên miền web Admin chưa được cho phép trong Firebase Authentication.',
-      'operation-not-allowed' =>
-        'Firebase Authentication chưa bật đăng nhập Email/Password.',
-      'invalid-api-key' || 'app-not-authorized' || 'project-not-found' => 'Cấu hình Firebase của web Admin không hợp lệ. Hãy kiểm tra project và API key.',
-      'too-many-requests' => 'Firebase tạm khóa yêu cầu đăng nhập do thử quá nhiều lần. Vui lòng chờ rồi thử lại.',
-      _ =>
-        'Không xác thực được với Firebase (${error.code}). Kiểm tra thông tin đăng nhập và trạng thái tài khoản.',
-    };
-  }
-
-  if (error is FirebaseException) {
-    if (error.code == 'network-request-failed' ||
-        error.code == 'unavailable' ||
-        error.code == 'deadline-exceeded') {
-      return 'Không kết nối được máy chủ Firebase (${error.plugin}). Kiểm tra mạng hoặc trạng thái dịch vụ.';
-    }
-    if (error.plugin == 'cloud_firestore' &&
-        error.code == 'permission-denied') {
-      return 'Đăng nhập Firebase thành công nhưng Firestore từ chối đọc hồ sơ. Kiểm tra Firestore Rules và quyền tài khoản.';
-    }
-    if (error.plugin == 'cloud_firestore' &&
-        error.code == 'failed-precondition') {
-      return 'Firestore chưa sẵn sàng hoặc chưa được cấu hình cho project Firebase này.';
-    }
-    return 'Dịch vụ Firebase ${error.plugin} trả lỗi ${error.code}. Kiểm tra cấu hình máy chủ.';
-  }
-
-  return 'Không thể hoàn tất đăng nhập (${error.runtimeType}). Kiểm tra kết nối máy chủ rồi thử lại.';
-}
-
-/// Mã kỹ thuật không chứa tên đăng nhập hoặc mật khẩu, dùng để đối chiếu log.
-String accountLoginErrorCode(Object error) {
-  if (error is FirebaseException) return '${error.plugin}/${error.code}';
-  return error.runtimeType.toString();
+  return AppErrorMessage.from(
+    error,
+    feature: 'Đăng nhập',
+    fallbackAction: 'Hãy kiểm tra thông tin tài khoản, kết nối và cấu hình máy chủ rồi thử lại.',
+  );
 }
 
 class AccountAuth {

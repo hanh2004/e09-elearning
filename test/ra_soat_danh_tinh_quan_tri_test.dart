@@ -103,7 +103,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('u'), findsOneWidget);
       expect(find.text('m2'), findsNothing);
-      await tester.tap(find.byTooltip('Chuyển cho quản lý khác'));
+      await tester.tap(find.byTooltip('Chuyển đơn vị'));
       await tester.pumpAndSettle();
       final dropdown = find.descendant(
         of: find.byType(AlertDialog),

@@ -89,7 +89,6 @@ class _TrangThaiCaiDatQuanTri extends State<AdminSettingsScreen> {
             children: [
               const AdminPageHeading(
                 title: 'Cài đặt hệ thống',
-                subtitle: 'Quản lý tài khoản và trạng thái vận hành hệ thống.',
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28),

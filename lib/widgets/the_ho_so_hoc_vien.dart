@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import 'anh_dai_dien_mac_dinh.dart';
 import 'the_hoc_vien.dart';
+import 'thong_bao_loi.dart';
 
 class ProfileCard extends StatefulWidget {
   const ProfileCard({
@@ -83,9 +84,13 @@ class _TrangThaiTheHoSo extends State<ProfileCard> {
                           style: const TextStyle(color: Colors.blueGrey),
                         ),
                       if (duLieuNhan.hasError)
-                        const Text(
-                          'Chưa cập nhật được hồ sơ.',
-                          style: TextStyle(color: Colors.red),
+                        AppErrorNotice(
+                          error: duLieuNhan.error!,
+                          feature: 'Tải hồ sơ học viên',
+                          centered: false,
+                          style: const TextStyle(color: Colors.red),
+                          fallbackAction:
+                              'Kiểm tra kết nối và cấu hình máy chủ rồi tải lại.',
                         ),
                     ],
                   ),

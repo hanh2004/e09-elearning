@@ -2,15 +2,16 @@
 // Các màn hình import tệp này sẽ dùng chung thay đổi.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
 import '../models/quy_tac_hoc_tap.dart';
 import '../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../services/tep/dich_vu_tai_anh.dart';
+import '../services/thong_bao_loi_ung_dung.dart';
 import 'bo_soan_thao_bai_hoc.dart';
 import 'anh_bia_khoa_hoc.dart';
 import 'dau_trang_hoc_vien.dart';
+import 'thong_bao_loi.dart';
 
 /// Bộ chọn ngày giờ dùng chung cho lịch khóa học, đề thi và thông báo.
 Future<DateTime?> pickLearningDateTime(
@@ -134,33 +135,42 @@ class _LearningDateTimeFieldState extends State<LearningDateTimeField> {
 }
 
 class LearningList extends StatelessWidget {
-  const LearningList({super.key, required this.stream, required this.builder});
+  const LearningList({
+    super.key,
+    required this.stream,
+    required this.builder,
+    this.errorTitle = 'Tải dữ liệu',
+  });
   final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
   final Widget Function(List<QueryDocumentSnapshot<Map<String, dynamic>>>)
   builder;
+  final String errorTitle;
   @override
-  Widget build(BuildContext context) =>
-      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: stream,
-        builder: (context, duLieuNhan) {
-          if (duLieuNhan.hasError) {
-            return const Center(
-              child: Text(
-                'Không tải được dữ liệu. Kiểm tra kết nối và quyền truy cập.',
-              ),
-            );
-          }
-          if (!duLieuNhan.hasData) {
-            return const Center(
-              child: SizedBox(
-                width: 220,
-                child: LinearProgressIndicator(minHeight: 4),
-              ),
-            );
-          }
-          return builder(duLieuNhan.data!.docs);
-        },
-      );
+  Widget build(
+    BuildContext context,
+  ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    stream: stream,
+    builder: (context, duLieuNhan) {
+      if (duLieuNhan.hasError) {
+        return AppErrorNotice(
+          error: duLieuNhan.error!,
+          feature: errorTitle,
+          padding: const EdgeInsets.all(24),
+          fallbackAction:
+              'Kiểm tra kết nối mạng và cấu hình máy chủ rồi tải lại trang.',
+        );
+      }
+      if (!duLieuNhan.hasData) {
+        return const Center(
+          child: SizedBox(
+            width: 220,
+            child: LinearProgressIndicator(minHeight: 4),
+          ),
+        );
+      }
+      return builder(duLieuNhan.data!.docs);
+    },
+  );
 }
 
 /// [fields] dùng mã trường ổn định; [labels] chỉ đổi chữ hiển thị trên form.
@@ -208,32 +218,11 @@ Future<bool> editLearningRecord(
 
   String errorMessage(Object loi) {
     if (loi is ImageUploadException) return loi.message;
-    if (loi is FirebaseFunctionsException &&
-        [
-          'already-exists',
-          'invalid-argument',
-          'failed-precondition',
-          'permission-denied',
-          'not-found',
-        ].contains(loi.code) &&
-        (loi.message ?? '').trim().isNotEmpty) {
-      return loi.message!;
-    }
-    if (loi is ArgumentError && loi.message.toString().trim().isNotEmpty) {
-      return loi.message.toString();
-    }
-    if (loi is FirebaseException) {
-      return switch (loi.code) {
-        'permission-denied' => 'Bạn không có quyền thực hiện thao tác này.',
-        'unauthenticated' => 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.',
-        'unavailable' || 'network-request-failed' =>
-          'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.',
-        'deadline-exceeded' => 'Máy chủ phản hồi quá lâu. Hãy thử lại.',
-        'not-found' => 'Không tìm thấy dữ liệu cần cập nhật.',
-        _ => 'Máy chủ báo lỗi (${loi.code}). Hãy thử lại.',
-      };
-    }
-    return 'Không thể hoàn tất thao tác. Kiểm tra dữ liệu và kết nối rồi thử lại.';
+    return AppErrorMessage.from(
+      loi,
+      feature: title,
+      fallbackAction: 'Kiểm tra thông tin đã nhập, quyền tài khoản và kết nối máy chủ rồi thử lại.',
+    );
   }
 
   final controllers = {

@@ -12,6 +12,7 @@ import '../../models/bieu_mau_khoa_hoc.dart';
 import '../../models/bieu_mau_bai_hoc.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../services/du_lieu/dich_vu_firestore.dart';
+import '../../services/thong_bao_loi_ung_dung.dart';
 import '../../models/tham_so_ngan_hang_cau_hoi.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import '../../widgets/anh_bia_khoa_hoc.dart';
@@ -39,6 +40,26 @@ class _TrangThaiBaiHocQuanTri extends State<AdminLessonsScreen> {
   late final Timer refreshTimer;
 
   bool get hasExamCourse => CourseForm.hasExam(widget.course.data());
+
+  void _showOperationError(
+    Object error, {
+    required String feature,
+    required String fallbackAction,
+  }) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppErrorMessage.from(
+            error,
+            feature: feature,
+            fallbackAction: fallbackAction,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -136,12 +157,13 @@ class _TrangThaiBaiHocQuanTri extends State<AdminLessonsScreen> {
         },
       );
       if (mounted) setState(() => published = !published);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không đổi được trạng thái khóa học.')),
-        );
-      }
+    } catch (loi) {
+      _showOperationError(
+        loi,
+        feature: 'Đổi trạng thái triển khai khóa học',
+        fallbackAction:
+            'Kiểm tra quyền quản trị và kết nối máy chủ rồi thử lại.',
+      );
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -223,17 +245,14 @@ class _TrangThaiBaiHocQuanTri extends State<AdminLessonsScreen> {
         final questions = await FirestoreService(firestore: service.db)
             .getQuestionsForExam(examId);
         hasQuestions = questions.any((question) => question.isValidForExam);
-      } catch (_) {
-        if (mounted) {
-          setState(() => busy = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Không kiểm tra được câu hỏi. Khóa học chưa được triển khai; hãy kiểm tra kết nối rồi thử lại.',
-              ),
-            ),
-          );
-        }
+      } catch (loi) {
+        if (mounted) setState(() => busy = false);
+        _showOperationError(
+          loi,
+          feature: 'Kiểm tra câu hỏi trước khi triển khai khóa học',
+          fallbackAction:
+              'Kiểm tra quyền truy cập, kết nối và cấu hình máy chủ rồi thử lại.',
+        );
         return false;
       }
     }
@@ -309,12 +328,13 @@ class _TrangThaiBaiHocQuanTri extends State<AdminLessonsScreen> {
         },
       );
       if (mounted) Navigator.pop(context);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không kết thúc được khóa học.')),
-        );
-      }
+    } catch (loi) {
+      _showOperationError(
+        loi,
+        feature: 'Kết thúc khóa học',
+        fallbackAction:
+            'Kiểm tra quyền quản trị, trạng thái khóa học và máy chủ rồi thử lại.',
+      );
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -494,13 +514,14 @@ class _TrangThaiBaiHocQuanTri extends State<AdminLessonsScreen> {
           );
         }
       }
-    } catch (_) {
-      if (mounted) {
-        setState(() => busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thêm được bài kiểm tra.')),
-        );
-      }
+    } catch (loi) {
+      if (mounted) setState(() => busy = false);
+      _showOperationError(
+        loi,
+        feature: 'Thêm bài kiểm tra vào khóa học',
+        fallbackAction:
+            'Kiểm tra cấu hình bài kiểm tra, quyền quản trị và máy chủ rồi thử lại.',
+      );
     }
   }
 
@@ -564,6 +585,7 @@ class _TrangThaiBaiHocQuanTri extends State<AdminLessonsScreen> {
                   ),
             body: LearningList(
               stream: stream,
+              errorTitle: 'Tải bài học và bài kiểm tra',
               builder: (cacBanGhi) {
                 final courseData = widget.course.data();
                 final courseModeLabel = CourseForm.modeLabel(courseData);

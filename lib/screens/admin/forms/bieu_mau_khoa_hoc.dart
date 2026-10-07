@@ -9,6 +9,7 @@ import '../../../models/dinh_danh_tai_khoan.dart';
 import '../../../models/bieu_mau_khoa_hoc.dart';
 import '../../../services/tep/dich_vu_tai_anh.dart';
 import '../../../services/nghiep_vu/dich_vu_hoc_tap.dart';
+import '../../../services/thong_bao_loi_ung_dung.dart';
 import '../../../widgets/giao_dien_quan_tri.dart';
 import '../../../widgets/tien_ich_giao_dien_hoc_tap.dart';
 
@@ -157,9 +158,16 @@ class _TrangThaiHopThoaiSuaKhoaHoc extends State<_HopThoaiSuaKhoaHoc> {
       });
     } on ImageUploadException catch (loi) {
       if (mounted) setState(() => _loi = loi.message);
-    } catch (_) {
+    } catch (loi) {
       if (mounted) {
-        setState(() => _loi = 'Không thể chọn ảnh. Vui lòng thử lại.');
+        setState(
+          () => _loi = AppErrorMessage.from(
+            loi,
+            feature: 'Chọn ảnh khóa học',
+            fallbackAction:
+                'Kiểm tra quyền tải ảnh và kết nối máy chủ rồi thử lại.',
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _dangXuLy = false);
@@ -213,10 +221,14 @@ class _TrangThaiHopThoaiSuaKhoaHoc extends State<_HopThoaiSuaKhoaHoc> {
           _tienDoTaiLen = null;
         });
       }
-    } catch (_) {
+    } catch (loi) {
       if (mounted) {
         setState(() {
-          _loi = 'Không thể lưu khóa học. Kiểm tra kết nối rồi thử lại.';
+          _loi = AppErrorMessage.from(
+            loi,
+            feature: 'Lưu khóa học',
+            fallbackAction: 'Kiểm tra quyền quản trị, dữ liệu khóa học và máy chủ rồi thử lại.',
+          );
           _tienDoTaiLen = null;
         });
       }

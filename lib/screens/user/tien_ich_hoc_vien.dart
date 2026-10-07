@@ -11,6 +11,7 @@ import '../../widgets/dau_trang_hoc_vien.dart';
 import 'bai_hoc_da_luu.dart';
 import 'ho_so_hoc_vien.dart';
 import 'lich_su_bai_kiem_tra.dart';
+import 'thong_bao_hoc_vien.dart';
 
 class UserUtilitiesScreen extends StatelessWidget {
   const UserUtilitiesScreen({
@@ -36,6 +37,16 @@ class UserUtilitiesScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          _nhom(context, 'Thông tin', [
+            (
+              'Thông báo',
+              Icons.notifications_active_rounded,
+              const Color(0xFFB51F24),
+              () => open(
+                UserNotificationsScreen(uid: args.userId, service: service),
+              ),
+            ),
+          ]),
           _nhom(context, 'Học tập', [
             (
               'Bài đã lưu',
@@ -62,12 +73,7 @@ class UserUtilitiesScreen extends StatelessWidget {
               'Cá nhân',
               Icons.person_rounded,
               const Color(0xFFD39B00),
-              () => open(
-                UserProfileScreen(
-                  args: args,
-                  service: service,
-                ),
-              ),
+              () => open(UserProfileScreen(args: args, service: service)),
             ),
           ]),
         ],

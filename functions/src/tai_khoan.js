@@ -415,7 +415,7 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
       'Hãy xử lý yêu cầu cấp lại mật khẩu.');
     requireThat(typeof dauVao.name === 'string' && dauVao.name.trim().length > 0 && dauVao.name.length <= 100 &&
       !Object.hasOwn(dauVao, 'role') && !Object.hasOwn(dauVao, 'createdBy') && !Object.hasOwn(dauVao, 'username') &&
-      (!Object.hasOwn(dauVao, 'unit') || typeof dauVao.unit === 'string') &&
+      !Object.hasOwn(dauVao, 'unit') &&
       (!Object.hasOwn(dauVao, 'userCodeSuffix') || typeof dauVao.userCodeSuffix === 'string'),
     'invalid-argument', 'Thông tin cập nhật không hợp lệ.');
     await coSoDuLieu.runTransaction(async (giaoDich) => {
@@ -431,18 +431,15 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
       }
       requireUpdate(nguoiThaoTac, cauHinh, { ...dich, id: thamChieu.id });
       requireThat(dich?.status === 'active', 'failed-precondition', 'Tài khoản chưa hoạt động.');
-      const isRootActor = isRoot(nguoiThaoTac, cauHinh);
-      requireThat(!(Object.hasOwn(dauVao, 'unit') || Object.hasOwn(dauVao, 'userCodeSuffix')) ||
-        (dich.role === 'user' && (isRootActor
-          ? Object.hasOwn(dauVao, 'unit') && !Object.hasOwn(dauVao, 'userCodeSuffix')
-          : Object.hasOwn(dauVao, 'userCodeSuffix') && !Object.hasOwn(dauVao, 'unit'))),
-      'permission-denied', 'Quản lý tổng chỉ đổi phần mã đơn vị; quản lý phụ trách chỉ đổi phần đuôi.');
+      requireThat(!Object.hasOwn(dauVao, 'userCodeSuffix') ||
+        (dich.role === 'user' && dich.createdBy === nguoiThaoTac.id),
+      'permission-denied', 'Chỉ quản lý phụ trách mới được đổi phần đuôi mã người dùng.');
 
       const oldSuffix = userCodeSuffix(dich, thamChieu.id);
-      const nextUnit = Object.hasOwn(dauVao, 'unit') ? validateUnit(dauVao.unit) : dich.unit;
+      const nextUnit = dich.unit;
       const nextSuffix = Object.hasOwn(dauVao, 'userCodeSuffix')
         ? dauVao.userCodeSuffix.trim() : oldSuffix;
-      const codeChanged = Object.hasOwn(dauVao, 'unit') || Object.hasOwn(dauVao, 'userCodeSuffix');
+      const codeChanged = Object.hasOwn(dauVao, 'userCodeSuffix');
       const updates = { name: dauVao.name.trim(), updatedBy: maNguoiDung, updatedAt: stamp() };
       if (codeChanged) {
         const oldCode = dich.userCode || makeUserCode(dich.unit, oldSuffix);
@@ -463,12 +460,10 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
         }
         giaoDich.set(nextRef, { uid: thamChieu.id, code: newCode,
           createdBy: dich.createdBy || maNguoiDung, updatedAt: stamp() });
-        updates.unit = nextUnit;
         updates.userCode = newCode;
         updates.userCodeSuffix = nextSuffix;
         giaoDich.create(coSoDuLieu.collection('account_audit').doc(), {
-          actorId: maNguoiDung, targetUid: thamChieu.id, action: isRootActor
-            ? 'change_user_code_unit' : 'change_user_code_suffix',
+          actorId: maNguoiDung, targetUid: thamChieu.id, action: 'change_user_code_suffix',
           previousCode: oldCode, code: newCode, at: stamp(),
         });
       }

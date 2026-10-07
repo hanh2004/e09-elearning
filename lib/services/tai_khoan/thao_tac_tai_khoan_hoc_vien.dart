@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../widgets/tien_ich_giao_dien_hoc_tap.dart';
 import '../ket_noi_api/api_tai_khoan.dart';
+import '../thong_bao_loi_ung_dung.dart';
 
 Future<void> updateLearnerUnit(
   BuildContext context, {
@@ -108,7 +109,15 @@ Future<void> updateLearnerUnit(
     );
   } catch (error) {
     if (context.mounted) {
-      _showAccountMessage(context, _unitErrorMessage(error));
+      _showAccountMessage(
+        context,
+        AppErrorMessage.from(
+          error,
+          feature: 'Cập nhật đơn vị trực thuộc',
+          fallbackAction:
+              'Kiểm tra kết nối mạng, quyền tài khoản và cấu hình máy chủ rồi thử lại.',
+        ),
+      );
     }
   }
 }
@@ -148,23 +157,4 @@ void _showAccountMessage(BuildContext context, String message) {
   ScaffoldMessenger.maybeOf(context)
     ?..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
-}
-
-String _unitErrorMessage(Object error) {
-  if (error is FirebaseFunctionsException) {
-    return error.message ?? 'Không tải được danh sách đơn vị trực thuộc.';
-  }
-  if (error is FirebaseException) {
-    return switch (error.code) {
-      'permission-denied' => 'Bạn không có quyền cập nhật đơn vị.',
-      'unauthenticated' => 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.',
-      'unavailable' || 'network-request-failed' =>
-        'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.',
-      _ => 'Không thể cập nhật đơn vị. Hãy thử lại.',
-    };
-  }
-  if (error is ArgumentError && error.message.toString().isNotEmpty) {
-    return error.message.toString();
-  }
-  return 'Không thể tải thông tin đơn vị. Kiểm tra kết nối rồi thử lại.';
 }

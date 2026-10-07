@@ -7,6 +7,7 @@ import '../../models/bai_viet_tin_tuc.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../services/nghiep_vu/dich_vu_tin_tuc.dart';
 import '../../widgets/tien_ich_tin_tuc.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'chi_tiet_tin_tuc.dart';
 import 'danh_sach_tin_tuc.dart';
 
@@ -50,18 +51,17 @@ class _TrangThaiTinTucHocVien extends State<UserNews> {
           ),
         ],
       ),
-      NewsCategories(
-        selected: category,
-        onSelected: (giaTri) => setState(() => category = giaTri),
-      ),
-      const Divider(height: 1),
       StreamBuilder<List<NewsArticle>>(
         stream: articles,
         builder: (context, duLieuNhan) {
           if (duLieuNhan.hasError) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Không tải được tin tức. Kiểm tra kết nối.'),
+            return AppErrorNotice(
+              error: duLieuNhan.error!,
+              feature: 'Tải tin tức trang chủ',
+              padding: const EdgeInsets.all(16),
+              centered: false,
+              fallbackAction:
+                  'Kiểm tra kết nối và cấu hình máy chủ rồi thử lại.',
             );
           }
           if (!duLieuNhan.hasData) {
@@ -70,31 +70,39 @@ class _TrangThaiTinTucHocVien extends State<UserNews> {
               child: LinearProgressIndicator(),
             );
           }
-          final visible = duLieuNhan.data!
+          final all = duLieuNhan.data!;
+          final visible = all
               .where((a) => category == 'Tất cả' || a.category == category)
               .take(3)
               .toList();
-          if (visible.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Text('Chưa có tin tức mới.'),
-            );
-          }
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final baiViet in visible) ...[
-                NewsTile(
-                  article: baiViet,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          NewsDetailScreen(id: baiViet.id, service: news),
+              NewsCategories(
+                selected: category,
+                categories: NewsArticle.quickCategoriesFor(all),
+                onSelected: (giaTri) => setState(() => category = giaTri),
+              ),
+              const Divider(height: 1),
+              if (visible.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Text('Chưa có tin tức mới.'),
+                )
+              else
+                for (final baiViet in visible) ...[
+                  NewsTile(
+                    article: baiViet,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            NewsDetailScreen(id: baiViet.id, service: news),
+                      ),
                     ),
                   ),
-                ),
-                const Divider(height: 1),
-              ],
+                  const Divider(height: 1),
+                ],
             ],
           );
         },

@@ -45,6 +45,7 @@ class CourseCover extends StatelessWidget {
       child: url.isEmpty
           ? fallback()
           : Image.network(
+              key: ValueKey(url),
               url,
               webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
               width: width,

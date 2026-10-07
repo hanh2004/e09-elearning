@@ -7,6 +7,7 @@ import '../../app/chu_de_ung_dung.dart';
 import '../../models/quy_tac_hoc_tap.dart';
 import '../../services/nguon_du_lieu_bao_cao_quan_tri.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
+import '../../widgets/thong_bao_loi.dart';
 import '../../widgets/bo_loc_bao_cao_quan_tri.dart';
 
 class _LessonDefinition {
@@ -395,15 +396,6 @@ class _TrangThaiTongQuanHocTapQuanTri extends State<AdminLearningDashboard> {
     Map<String, double> scoresByUser,
   ) {
     final name = row.name.trim();
-    final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
-    const avatarColors = [
-      Color(0xFFE1F0FF),
-      Color(0xFFECE5FF),
-      Color(0xFFD9F4E8),
-      Color(0xFFFFE9DB),
-    ];
-    final avatarColor =
-        avatarColors[(name.hashCode & 0x7fffffff) % avatarColors.length];
     final total = row.courses.length;
     final completed = row.courses.where((course) => course.completed).length;
     final progress = total == 0 ? 0.0 : (completed / total).clamp(0.0, 1.0);
@@ -427,18 +419,6 @@ class _TrangThaiTongQuanHocTapQuanTri extends State<AdminLearningDashboard> {
             borderRadius: BorderRadius.circular(10),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 21,
-                  backgroundColor: avatarColor,
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      color: Color(0xFF1687F8),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     name,
@@ -621,7 +601,12 @@ class _TrangThaiTongQuanHocTapQuanTri extends State<AdminLearningDashboard> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Không tải được thống kê.'),
+              AppErrorNotice(
+                error: duLieuNhan.error!,
+                feature: 'Tải thống kê tiến độ học tập',
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                fallbackAction: 'Kiểm tra quyền quản trị, kết nối và cấu hình máy chủ. Bấm Thử lại.',
+              ),
               TextButton(
                 onPressed: () => _refresh(data),
                 child: const Text('Thử lại'),
@@ -715,19 +700,6 @@ class _TrangThaiTongQuanHocTapQuanTri extends State<AdminLearningDashboard> {
             (student) => student.courses.every((course) => !course.started),
           )
           .length;
-      final selectedCourseTitle = selectedCourse == null
-          ? null
-          : availableCourses
-                .firstWhere((course) => course.id == selectedCourse)
-                .title;
-      final courseScopeLabel =
-          selectedCourseTitle ??
-          switch (selectedCourseType) {
-            'study_exam' => 'khóa học có kiểm tra',
-            'study_only' => 'khóa học không kiểm tra',
-            _ => 'tất cả khóa học',
-          };
-
       final examCourseIds = {
         for (final exam in data.visibleExams)
           if ((exam.data()['courseId']?.toString().trim() ?? '').isNotEmpty)
@@ -759,8 +731,6 @@ class _TrangThaiTongQuanHocTapQuanTri extends State<AdminLearningDashboard> {
         children: [
           AdminPageHeading(
             title: 'Tổng quan học tập',
-            subtitle:
-                'Theo dõi mức độ hoàn thành khóa học và điều kiện kiểm tra.',
             action: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.red,
@@ -793,52 +763,6 @@ class _TrangThaiTongQuanHocTapQuanTri extends State<AdminLearningDashboard> {
               courses: courseOptions,
               selectedCourse: selectedCourse,
               selectedCourseType: selectedCourseType,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF5E3),
-                border: Border.all(color: const Color(0xFFFFE2AE)),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    color: Color(0xFFFF7900),
-                    size: 28,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          scopeRows.isEmpty
-                              ? 'Không có học viên trong phạm vi lọc'
-                              : notStarted == 0
-                              ? 'Học viên trong $courseScopeLabel đều đã bắt đầu học'
-                              : 'Còn $notStarted học viên chưa bắt đầu khóa nào',
-                          style: const TextStyle(
-                            color: Color(0xFF28364B),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$courseScopeLabel • Phạm vi: ${scopeRows.length} học viên, '
-                          '${selectedCourseDefinitions.length} khóa học',
-                          style: const TextStyle(color: Color(0xFF60779A)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
           const SizedBox(height: 12),

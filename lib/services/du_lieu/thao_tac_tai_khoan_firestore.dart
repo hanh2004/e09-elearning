@@ -525,11 +525,10 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     required String username,
     required String password,
     required String role,
-    String? unit,
     String? userCodeSuffix,
   }) async {
     if (!_apiTaiKhoan.hasTransport) {
-      if (unit != null || userCodeSuffix != null) {
+      if (userCodeSuffix != null) {
         throw const AccountProvisioningException(
           'Đổi mã người dùng cần kết nối dịch vụ tài khoản trên máy chủ.',
         );
@@ -545,7 +544,6 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
       'userId': docId,
       'name': name,
       if (password.isNotEmpty) 'password': password,
-      ..._optionalAccountField('unit', unit),
       ..._optionalAccountField('userCodeSuffix', userCodeSuffix),
     });
   }

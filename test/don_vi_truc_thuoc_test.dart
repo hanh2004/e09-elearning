@@ -83,7 +83,7 @@ void main() {
       ),
     );
     expect(
-      find.textContaining('Không thể tải thông tin đơn vị'),
+      find.textContaining('Cập nhật đơn vị trực thuộc đang bị lỗi: offline'),
       findsOneWidget,
     );
     expect(find.text('Lưu'), findsNothing);

@@ -34,6 +34,11 @@ test('root publishes news; learners read only published news and cannot write', 
   await assertFails(setDoc(doc(user, 'news/forged'), {...item, updatedBy: 'news-user'}));
   await assertFails(setDoc(doc(root, 'news/empty'), {...item, content: ''}));
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'news/published')));
+  await assertFails(deleteDoc(doc(user, 'news/published')));
+  await assertSucceeds(deleteDoc(doc(root, 'news/draft')));
+  if ((await getDoc(doc(root, 'news/draft'))).exists()) {
+    throw new Error('Root delete did not remove the news document');
+  }
 });
 
 test('news accepts custom categories and legacy defaults but rejects invalid category values', async () => {

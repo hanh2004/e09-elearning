@@ -182,14 +182,12 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       await tester.scrollUntilVisible(
-        find.text('0 quản lý • 2 học viên\nĐã làm: 1 • Chưa làm: 1'),
+        find.text('0 quản lý • 2 học viên'),
         150,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(
-        find.text('0 quản lý • 2 học viên\nĐã làm: 1 • Chưa làm: 1'),
-        findsOneWidget,
-      );
+      expect(find.text('0 quản lý • 2 học viên'), findsOneWidget);
+      expect(find.text('50%'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

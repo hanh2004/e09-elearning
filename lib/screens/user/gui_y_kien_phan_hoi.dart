@@ -9,6 +9,7 @@ import '../../app/cau_hinh_ung_dung.dart';
 import '../../app/chu_de_ung_dung.dart';
 import '../../services/tai_khoan/xac_thuc_tai_khoan.dart';
 import '../../services/tai_khoan/phien_dang_nhap_quan_tri_web.dart';
+import '../../services/thong_bao_loi_ung_dung.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
 
 class UserFeedbackScreen extends StatefulWidget {
@@ -91,30 +92,22 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
         const SnackBar(content: Text('Đã gửi góp ý. Cảm ơn bạn!')),
       );
       Navigator.pop(context);
-    } on FirebaseAuthException catch (error) {
+    } catch (error) {
       if (mounted) {
         setState(() {
-          _error = error.code == 'network-request-failed'
-              ? 'Không có kết nối mạng. Hãy thử lại.'
-              : 'Tên đăng nhập hoặc mật khẩu không chính xác.';
+          _error = error is FirebaseAuthException &&
+                  ['invalid-credential', 'wrong-password'].contains(error.code)
+              ? 'Tên đăng nhập hoặc mật khẩu không chính xác.'
+              : AppErrorMessage.from(
+            error,
+            feature: error is FirebaseAuthException
+                ? 'Xác thực tài khoản để gửi góp ý'
+                : 'Gửi góp ý',
+            fallbackAction:
+                'Kiểm tra thông tin tài khoản, quyền truy cập, kết nối và cấu hình máy chủ rồi thử lại.',
+          );
         });
       }
-    } on FirebaseFunctionsException catch (error) {
-      if (mounted) {
-        setState(
-          () => _error = error.message ?? 'Chưa gửi được góp ý. Hãy thử lại.',
-        );
-      }
-    } on FirebaseException catch (error) {
-      if (mounted) {
-        setState(
-          () => _error = error.code == 'unavailable'
-              ? 'Không kết nối được máy chủ. Hãy thử lại.'
-              : 'Không thể xác minh tài khoản. Hãy thử lại.',
-        );
-      }
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Có lỗi xảy ra. Vui lòng thử lại.');
     } finally {
       if (mounted) setState(() => _sending = false);
     }

@@ -93,7 +93,7 @@ class AdminResponsiveShell extends StatelessWidget {
 
   Widget _thanhBen(BuildContext context, bool wide) {
     return SizedBox(
-      width: wide ? 280 : 72,
+      width: wide ? 264 : 72,
       height: double.infinity,
       child: DecoratedBox(
         decoration: const BoxDecoration(
@@ -150,18 +150,18 @@ class AdminResponsiveShell extends StatelessWidget {
   }
 
   Widget _thuongHieu(bool wide) => Padding(
-    padding: EdgeInsets.fromLTRB(12, 16, 12, wide ? 28 : 12),
+    padding: EdgeInsets.fromLTRB(12, 12, 12, wide ? 20 : 10),
     child: Column(
       children: [
-        BrandLogo(admin: true, height: wide ? 76 : 40),
+        BrandLogo(admin: true, height: wide ? 66 : 40),
         if (wide) ...[
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
           const Text(
             'HỌC TẬP SỐ\nQUẢN TRỊ E09',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white,
-              fontSize: 19,
+              fontSize: 17,
               fontWeight: FontWeight.bold,
               height: 1.35,
             ),
@@ -261,7 +261,7 @@ class AdminResponsiveShell extends StatelessWidget {
                 if (daChon)
                   Container(
                     width: 4,
-                    height: 56,
+                    height: 48,
                     decoration: const BoxDecoration(
                       color: AppTheme.gold,
                       borderRadius: BorderRadius.horizontal(
@@ -271,20 +271,20 @@ class AdminResponsiveShell extends StatelessWidget {
                   ),
                 Expanded(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(daChon ? 12 : 16, 16, 12, 16),
+                    padding: EdgeInsets.fromLTRB(daChon ? 12 : 14, 12, 12, 12),
                     child: Row(
                       children: [
                         Icon(
                           bieuTuong,
                           color: daChon ? Colors.white : Colors.white70,
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             nhan,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: child ? 13 : 15,
+                              fontSize: child ? 12 : 14,
                               fontWeight: daChon
                                   ? FontWeight.w800
                                   : FontWeight.w500,

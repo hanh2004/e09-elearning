@@ -9,6 +9,7 @@ import '../../services/nghiep_vu/dich_vu_tin_tuc.dart';
 import '../../widgets/anh_bia_khoa_hoc.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
 import '../../widgets/hien_thi_noi_dung_bai_hoc.dart';
+import '../../widgets/thong_bao_loi.dart';
 
 class NewsDetailScreen extends StatefulWidget {
   const NewsDetailScreen({super.key, required this.id, required this.service});
@@ -38,6 +39,13 @@ class _TrangThaiChiTietTinTuc extends State<NewsDetailScreen> {
             ),
             body: !duLieuNhan.hasData && !duLieuNhan.hasError
                 ? const Center(child: CircularProgressIndicator())
+                : duLieuNhan.hasError
+                ? AppErrorNotice(
+                    error: duLieuNhan.error!,
+                    feature: 'Tải chi tiết tin tức',
+                    padding: const EdgeInsets.all(24),
+                    fallbackAction: 'Kiểm tra kết nối và cấu hình máy chủ rồi quay lại thử sau.',
+                  )
                 : !visible
                 ? const Center(
                     child: Padding(

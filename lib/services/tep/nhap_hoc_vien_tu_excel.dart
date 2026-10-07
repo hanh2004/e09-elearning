@@ -20,6 +20,58 @@ class UserExcelImport {
     'Mật khẩu',
     'Mã người dùng',
   ];
+  static const _headerAliases = [
+    {'họ và tên', 'name'},
+    {'tên đăng nhập', 'username'},
+    {'mật khẩu', 'password'},
+  ];
+  static const _codeAliases = {'mã người dùng', 'user code', 'code'};
+
+  String _normalizeHeader(String value) => value
+      .replaceAll('\uFEFF', '')
+      .replaceAll('\u00A0', ' ')
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'\s+'), ' ');
+
+  bool _blank(CellValue? value) =>
+      value == null ||
+      value is TextCellValue && value.value.toString().trim().isEmpty;
+
+  bool _hasSupportedHeaders(List<List<CellValue?>> rows) {
+    if (rows.isEmpty) return false;
+    final firstRow = rows.first;
+    String headerAt(int index) {
+      final cell = index < firstRow.length ? firstRow[index] : null;
+      return cell is TextCellValue
+          ? _normalizeHeader(cell.value.toString())
+          : '';
+    }
+    return firstRow.length >= 3 &&
+        List.generate(3, (index) => index).every(
+          (index) => _headerAliases[index].contains(headerAt(index)),
+        ) &&
+        (firstRow.length < 4 || _codeAliases.contains(headerAt(3))) &&
+        firstRow.skip(4).every(_blank);
+  }
+
+  Sheet? _findUserSheet(Excel workbook) {
+    final sheets = workbook.tables.entries.toList();
+    for (final entry in sheets) {
+      if (_normalizeHeader(entry.key) == 'users') return entry.value;
+    }
+    final matchingSheets = sheets
+        .where((entry) {
+          final rows = entry.value.rows
+              .map((row) => row.map((cell) => cell?.value).toList())
+              .toList();
+          return _hasSupportedHeaders(rows);
+        })
+        .toList();
+    if (matchingSheets.length == 1) return matchingSheets.single.value;
+    if (sheets.length == 1) return sheets.single.value;
+    return null;
+  }
 
   UserImportPreview parse(Uint8List duLieuByte) {
     if (duLieuByte.isEmpty || duLieuByte.length > maxFileBytes) {
@@ -29,12 +81,12 @@ class UserExcelImport {
     }
     try {
       final soExcel = decode(duLieuByte);
-      final trangTinh =
-          soExcel.tables['Users'] ??
-          (soExcel.tables.length == 1 ? soExcel.tables.values.first : null);
+      final trangTinh = _findUserSheet(soExcel);
       if (trangTinh == null) {
         return const UserImportPreview(
-          errors: ['Không tìm thấy sheet Users. Hãy dùng file mẫu.'],
+          errors: [
+            'Không tìm thấy sheet Users hoặc tiêu đề đúng mẫu. Hãy tải mẫu Excel và nhập trong sheet Users.',
+          ],
         );
       }
       return parseRows(
@@ -123,26 +175,12 @@ class UserExcelImport {
     }
     String text(CellValue? giaTri) =>
         giaTri is TextCellValue ? giaTri.value.toString() : '';
-    bool blank(CellValue? giaTri) =>
-        giaTri == null ||
-        giaTri is TextCellValue && text(giaTri).trim().isEmpty;
+    bool blank(CellValue? giaTri) => _blank(giaTri);
     final dauTrang = source.first;
-    const aliases = [
-      {'họ và tên', 'name'},
-      {'tên đăng nhập', 'username'},
-      {'mật khẩu', 'password'},
-    ];
-    const codeAliases = {'mã người dùng', 'user code', 'code'};
-    if (dauTrang.length < 3 ||
-        List.generate(3, (i) => i).any(
-          (i) => !aliases[i].contains(text(dauTrang[i]).trim().toLowerCase()),
-        ) ||
-        (dauTrang.length >= 4 &&
-            !codeAliases.contains(text(dauTrang[3]).trim().toLowerCase())) ||
-        dauTrang.skip(4).any((oDuLieu) => !blank(oDuLieu))) {
+    if (!_hasSupportedHeaders(source)) {
       return const UserImportPreview(
         errors: [
-          'Dòng 1 cần 3 cột bắt buộc: Họ và tên, Tên đăng nhập, Mật khẩu; cột Mã người dùng là tùy chọn. Không thêm cột vai trò.',
+          'Dòng 1 cần đúng mẫu: Họ và tên, Tên đăng nhập, Mật khẩu; cột Mã người dùng là tùy chọn. Không thêm cột vai trò.',
         ],
       );
     }

@@ -4,6 +4,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../app/cau_hinh_ung_dung.dart';
+import '../thong_bao_loi_ung_dung.dart';
 import '../tai_khoan/phien_dang_nhap_quan_tri_web.dart';
 
 typedef ExamCall = Future<Map<String, dynamic>> Function(
@@ -26,7 +27,11 @@ class SecureExamService {
     return response.data;
   }
 
-  static String error(Object loi) => loi is FirebaseFunctionsException
-      ? loi.message ?? 'Không kết nối được máy chủ.'
-      : 'Không hoàn tất thao tác. Hãy thử lại.';
+  static String error(Object loi, {String feature = 'Thao tác bài kiểm tra'}) =>
+      AppErrorMessage.from(
+        loi,
+        feature: feature,
+        fallbackAction:
+            'Kiểm tra kết nối mạng và cấu hình máy chủ rồi thử lại.',
+      );
 }

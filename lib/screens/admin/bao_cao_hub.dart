@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/du_lieu/dich_vu_firestore.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
+import '../../widgets/thong_bao_loi.dart';
 import '../../services/nguon_du_lieu_bao_cao_quan_tri.dart';
 import 'bao_cao_thong_ke.dart';
 import 'khung_giao_dien_quan_tri.dart';
@@ -49,10 +50,10 @@ class _AdminReportsHubScreenState extends State<AdminReportsHubScreen> {
           stream: _reportStream,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'Không tải được dữ liệu báo cáo: ${snapshot.error}',
-                ),
+              return AppErrorNotice(
+                error: snapshot.error!,
+                feature: 'Tải dữ liệu báo cáo',
+                fallbackAction: 'Kiểm tra kết nối, quyền tài khoản và cấu hình máy chủ rồi tải lại.',
               );
             }
             if (!snapshot.hasData) return const AdminLoading();

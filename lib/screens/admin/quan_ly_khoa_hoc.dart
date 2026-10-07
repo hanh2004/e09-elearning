@@ -217,6 +217,7 @@ class _TrangThaiKhoaHocQuanTri extends State<AdminCoursesScreen> {
       appBar: AdminUi.appBar(pageTitle),
       body: LearningList(
         stream: stream,
+        errorTitle: 'Tải danh sách khóa học',
         builder: (cacBanGhi) {
           final daLoc = cacBanGhi
               .where(
@@ -277,9 +278,6 @@ class _TrangThaiKhoaHocQuanTri extends State<AdminCoursesScreen> {
             children: [
               AdminPageHeading(
                 title: pageTitle,
-                subtitle: widget.ended
-                    ? 'Tra cứu và quản lý các khóa học đã kết thúc.'
-                    : 'Quản lý các khóa học và nội dung học tập trên hệ thống.',
                 action: createActions,
               ),
               Padding(

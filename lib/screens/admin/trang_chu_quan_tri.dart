@@ -10,6 +10,7 @@ import '../../models/quy_tac_hoc_tap.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../models/bao_cao_quan_tri.dart';
+import '../../services/thong_bao_loi_ung_dung.dart';
 import 'khung_giao_dien_quan_tri.dart';
 import 'quan_ly_tai_khoan.dart';
 import 'quan_ly_khoa_hoc.dart';
@@ -31,12 +32,7 @@ class _TrangThaiTrangChuQuanTri extends State<AdminHomeScreen> {
     if (widget.firestore == null && Firebase.apps.isEmpty) return null;
     final db = widget.firestore ?? FirebaseFirestore.instance;
     return Future.wait(
-      [
-        'users',
-        'courses',
-        'exams',
-        'exam_attempts',
-      ].map(
+      ['users', 'courses', 'exams', 'exam_attempts'].map(
         (c) => db.collection(c).get(const GetOptions(source: Source.server)),
       ),
     );
@@ -139,7 +135,13 @@ class _TrangThaiTrangChuQuanTri extends State<AdminHomeScreen> {
                 if (duLieuNhan.hasError) {
                   return Card(
                     child: ListTile(
-                      title: const Text('Không tải được thống kê'),
+                      title: Text(
+                        AppErrorMessage.from(
+                          duLieuNhan.error!,
+                          feature: 'Tải thống kê trang chủ Admin',
+                          fallbackAction: 'Kiểm tra quyền quản trị, kết nối và cấu hình máy chủ.',
+                        ),
+                      ),
                       subtitle: const Text('Bấm làm mới để thử lại.'),
                       trailing: IconButton(
                         onPressed: () => setState(() => data = _taiDuLieu()),

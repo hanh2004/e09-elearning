@@ -3,13 +3,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../app/chu_de_ung_dung.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import 'khung_giao_dien_quan_tri.dart';
 import '../../services/du_lieu/dich_vu_firestore.dart';
+import '../../services/thong_bao_loi_ung_dung.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'hop_thoai_nhap_hoc_vien.dart';
 import 'duyet_yeu_cau.dart';
 import 'yeu_cau_dat_lai_mat_khau.dart';
@@ -76,102 +78,97 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
     List<String> subUnits,
     String? selectedSubUnit,
   ) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
     child: AdminCard(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final chieuRong = constraints.maxWidth >= 650
-                    ? (constraints.maxWidth - 16) / 2
-                    : constraints.maxWidth;
-                return Wrap(
-                  spacing: 16,
-                  runSpacing: 16,
-                  children: [
-                    SizedBox(
-                      width: chieuRong,
-                      child: DropdownButtonFormField<String>(
-                        key: ValueKey('account-unit:$selectedUnit'),
-                        initialValue: selectedUnit,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Đơn vị',
-                          prefixIcon: Icon(Icons.apartment),
-                        ),
-                        hint: const Text('Tất cả đơn vị'),
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('Tất cả đơn vị'),
-                          ),
-                          for (final donVi in cacDonVi)
-                            DropdownMenuItem(
-                              value: donVi,
-                              child: Text(
-                                donVi.isEmpty ? 'Chưa phân đơn vị' : donVi,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                        onChanged: (giaTri) =>
-                            setState(() => _boLocDonVi = giaTri),
-                      ),
+        padding: const EdgeInsets.all(10),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth >= 900;
+            final chieuRong = constraints.maxWidth >= 650
+                ? (constraints.maxWidth - 12) / 2
+                : constraints.maxWidth;
+            final controls = <Widget>[
+              SizedBox(
+                width: compact ? null : chieuRong,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('account-unit:$selectedUnit'),
+                  initialValue: selectedUnit,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Đơn vị',
+                    prefixIcon: Icon(Icons.apartment),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  hint: const Text('Tất cả đơn vị'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('Tất cả đơn vị'),
                     ),
-                    SizedBox(
-                      width: chieuRong,
-                      child: TextField(
-                        controller: _oNhapTimKiem,
-                        onChanged: (giaTri) => setState(
-                          () => _timKiem = giaTri.trim().toLowerCase(),
-                        ),
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.search),
-                          hintText: 'Tìm học viên hoặc đơn vị',
-                        ),
-                      ),
-                    ),
-                    if (selectedUnit != null)
-                      SizedBox(
-                        width: chieuRong,
-                        child: DropdownButtonFormField<String>(
-                          key: ValueKey(
-                            'account-sub-unit:$selectedUnit:$selectedSubUnit',
-                          ),
-                          initialValue: selectedSubUnit,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Trực thuộc',
-                            prefixIcon: Icon(Icons.account_tree_outlined),
-                          ),
-                          hint: const Text('Tất cả trực thuộc'),
-                          items: [
-                            const DropdownMenuItem(
-                              value: null,
-                              child: Text('Tất cả trực thuộc'),
-                            ),
-                            for (final giaTri in subUnits)
-                              DropdownMenuItem(
-                                value: giaTri,
-                                child: Text(
-                                  giaTri,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                          ],
-                          onChanged: (giaTri) =>
-                              setState(() => _boLocTrucThuoc = giaTri),
+                    for (final donVi in cacDonVi)
+                      DropdownMenuItem(
+                        value: donVi,
+                        child: Text(
+                          donVi.isEmpty ? 'Chưa phân đơn vị' : donVi,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                   ],
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            TextButton.icon(
+                  onChanged: (giaTri) => setState(() => _boLocDonVi = giaTri),
+                ),
+              ),
+              SizedBox(
+                width: compact ? null : chieuRong,
+                child: TextField(
+                  controller: _oNhapTimKiem,
+                  onChanged: (giaTri) =>
+                      setState(() => _timKiem = giaTri.trim().toLowerCase()),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Tìm học viên hoặc đơn vị',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ];
+            if (selectedUnit != null) {
+              controls.add(
+                SizedBox(
+                  width: compact ? null : chieuRong,
+                  child: DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      'account-sub-unit:$selectedUnit:$selectedSubUnit',
+                    ),
+                    initialValue: selectedSubUnit,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Trực thuộc',
+                      prefixIcon: Icon(Icons.account_tree_outlined),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    hint: const Text('Tất cả trực thuộc'),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Tất cả trực thuộc'),
+                      ),
+                      for (final giaTri in subUnits)
+                        DropdownMenuItem(
+                          value: giaTri,
+                          child: Text(giaTri, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: (giaTri) =>
+                        setState(() => _boLocTrucThuoc = giaTri),
+                  ),
+                ),
+              );
+            }
+            final xoaBoLoc = TextButton.icon(
               onPressed: () => setState(() {
                 _boLocDonVi = null;
                 _boLocTrucThuoc = null;
@@ -180,11 +177,32 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
               }),
               style: TextButton.styleFrom(
                 foregroundColor: const Color(0xFFB71C1C),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
               ),
               icon: const Icon(Icons.filter_alt_off_outlined),
               label: const Text('Xóa bộ lọc'),
-            ),
-          ],
+            );
+            if (compact) {
+              return Row(
+                children: [
+                  for (var i = 0; i < controls.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 10),
+                    Expanded(child: controls[i]),
+                  ],
+                  const SizedBox(width: 4),
+                  xoaBoLoc,
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(spacing: 12, runSpacing: 10, children: controls),
+                const SizedBox(height: 4),
+                xoaBoLoc,
+              ],
+            );
+          },
         ),
       ),
     ),
@@ -192,30 +210,399 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
 
   String _loiTaiKhoan(Object loi) {
     if (loi is AccountProvisioningException) return loi.message;
-    if (loi is FirebaseFunctionsException) {
-      return loi.message ?? 'Không thể hoàn tất thao tác tài khoản.';
-    }
     if (loi is FirebaseAuthException) {
-      return switch (loi.code) {
+      final specific = switch (loi.code) {
         'email-already-in-use' => 'Tên đăng nhập đã tồn tại.',
         'weak-password' => 'Mật khẩu chưa đủ mạnh.',
-        'network-request-failed' =>
-          'Mất kết nối Firebase. Kiểm tra mạng rồi thử lại.',
-        'operation-not-allowed' =>
-          'Firebase Authentication chưa bật đăng nhập Email/Mật khẩu.',
-        _ => 'Không thể tạo thông tin đăng nhập (${loi.code}).',
+        _ => null,
       };
+      if (specific != null) return specific;
     }
-    if (loi is FirebaseException) {
-      return switch (loi.code) {
-        'permission-denied' =>
-          'Tài khoản hiện tại không có quyền thực hiện thao tác này.',
-        'unavailable' => 'Firebase đang mất kết nối. Vui lòng thử lại.',
-        _ => 'Firebase chưa hoàn tất thao tác (${loi.code}).',
-      };
-    }
-    return 'Chưa hoàn tất: $loi';
+    return AppErrorMessage.from(
+      loi,
+      feature: 'Quản lý tài khoản',
+      fallbackAction: 'Kiểm tra dữ liệu, quyền tài khoản, kết nối và cấu hình máy chủ rồi thử lại.',
+    );
   }
+
+  Widget _dungBangTaiKhoan(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacBanGhi,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacQuanLy,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> tatCaTaiKhoan,
+    Map<String, String> tenNguoiTao,
+  ) => LayoutBuilder(
+    builder: (context, constraints) {
+      final chieuRongHuuDung = constraints.maxWidth - 32;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: SizedBox(
+          width: chieuRongHuuDung,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: AdminUi.border),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Column(
+                  children: [
+                    Container(
+                      height: 48,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF4F7FB),
+                        border: Border(
+                          bottom: BorderSide(color: AdminUi.border),
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(
+                        children: [
+                          _oCotBang(3, 'Tài khoản', tieuDe: true),
+                          _vachCotBang(),
+                          _oCotBang(2, 'Vai trò', tieuDe: true),
+                          _vachCotBang(),
+                          _oCotBang(1, 'Đơn vị', tieuDe: true),
+                          _vachCotBang(),
+                          _oCotBang(2, 'Trực thuộc', tieuDe: true),
+                          _vachCotBang(),
+                          _oCotBang(2, 'Mã', tieuDe: true),
+                          _vachCotBang(),
+                          _oCotBang(2, 'Quản lý', tieuDe: true),
+                          _vachCotBang(),
+                          SizedBox(
+                            width: 196,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Text(
+                                'Thao tác',
+                                maxLines: 1,
+                                style: const TextStyle(
+                                  color: Color(0xFF5E6F89),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: cacBanGhi.length,
+                        separatorBuilder: (context, index) => const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: AdminUi.border,
+                        ),
+                        itemBuilder: (context, index) => _dungDongBangTaiKhoan(
+                          cacBanGhi[index],
+                          cacQuanLy,
+                          tatCaTaiKhoan,
+                          tenNguoiTao,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ),
+      );
+    },
+  );
+
+  Widget _oCotBang(int flex, String nhan, {bool tieuDe = false}) => Expanded(
+    flex: flex,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Text(
+        nhan,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: tieuDe ? const Color(0xFF5E6F89) : AppTheme.navy,
+          fontSize: tieuDe ? 14 : 15,
+          fontWeight: tieuDe ? FontWeight.w700 : FontWeight.w600,
+        ),
+      ),
+    ),
+  );
+
+  Widget _vachCotBang() => const SizedBox(
+    height: 30,
+    child: VerticalDivider(width: 1, thickness: 1, color: AdminUi.border),
+  );
+
+  Widget _dungDongBangTaiKhoan(
+    QueryDocumentSnapshot<Map<String, dynamic>> banGhi,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacQuanLy,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> tatCaTaiKhoan,
+    Map<String, String> tenNguoiTao,
+  ) {
+    final nguoiDung = banGhi.data();
+    final vaiTro = switch (nguoiDung['role']) {
+      'super_admin' => 'Quản lý tổng',
+      'admin' => 'Quản lý',
+      'user' => 'Học viên',
+      _ => 'Chưa phân quyền',
+    };
+    final ten = (nguoiDung['name'] ?? '').toString().trim();
+    final tenTaiKhoan = (nguoiDung['username'] ?? '').toString().trim();
+    final hienThiTen = ten.isNotEmpty ? ten : tenTaiKhoan;
+    final maNguoiDung = (nguoiDung['userCode'] ?? '').toString().trim();
+    final maQuanLy = nguoiDung['createdBy']?.toString();
+    String quanLyHienThi() {
+      if (maQuanLy == null || maQuanLy.isEmpty) return '—';
+      for (final quanLy in cacQuanLy) {
+        if (quanLy.id == maQuanLy) {
+          return (quanLy.data()['username'] ??
+                  tenNguoiTao[maQuanLy] ??
+                  maQuanLy)
+              .toString();
+        }
+      }
+      return tenNguoiTao[maQuanLy] ?? maQuanLy;
+    }
+
+    final trangThai = nguoiDung['adminDeletionPending'] == true
+        ? 'Chờ duyệt xóa'
+        : nguoiDung['status'] == 'blocked'
+        ? 'Đã khóa'
+        : !['active', null].contains(nguoiDung['status'])
+        ? 'Chờ xử lý'
+        : null;
+    final thaoTac = <Widget>[];
+    if (_danhTinh!.isRoot && nguoiDung['role'] == 'admin') {
+      thaoTac.add(
+        _nutBangTaiKhoan(
+          'Phân đơn vị',
+          Icons.apartment_rounded,
+          () => _moHopThoaiDonVi(
+            banGhi.id,
+            nguoiDung,
+            tatCaTaiKhoan
+                .where(
+                  (hocVien) =>
+                      hocVien.data()['role'] == 'user' &&
+                      hocVien.data()['createdBy'] == banGhi.id,
+                )
+                .toList(),
+          ),
+        ),
+      );
+    }
+    if (_danhTinh!.isRoot &&
+        nguoiDung['role'] == 'user' &&
+        cacQuanLy.any((quanLy) => _coTheChuyenHocVienCho(quanLy, nguoiDung))) {
+      thaoTac.add(
+        _nutBangTaiKhoan(
+          'Chuyển đơn vị',
+          Icons.swap_horiz_rounded,
+          () => _moHopThoaiChuyenQuanLy(banGhi.id, nguoiDung, cacQuanLy),
+        ),
+      );
+    }
+    if (_danhTinh!.isRoot &&
+        nguoiDung['role'] != 'super_admin' &&
+        ['active', 'blocked'].contains(nguoiDung['status'])) {
+      final dangKhoa = nguoiDung['status'] == 'blocked';
+      thaoTac.add(
+        _nutBangTaiKhoan(
+          dangKhoa ? 'Mở khóa' : 'Khóa tài khoản',
+          dangKhoa ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+          () async {
+            try {
+              await _dichVu.setUserBlocked(banGhi.id, !dangKhoa);
+            } catch (loi) {
+              if (mounted) {
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(SnackBar(content: Text(_loiTaiKhoan(loi))));
+              }
+            }
+          },
+        ),
+      );
+    }
+    if (_danhTinh!.canEdit(banGhi.id, nguoiDung)) {
+      thaoTac.add(
+        _nutBangTaiKhoan(
+          'Sửa tài khoản',
+          Icons.edit_rounded,
+          () => _moHopThoaiTaiKhoan(id: banGhi.id, user: nguoiDung),
+        ),
+      );
+    }
+    if (_danhTinh!.canDelete(banGhi.id, nguoiDung)) {
+      thaoTac.add(
+        _nutBangTaiKhoan(
+          nguoiDung['role'] == 'admin' ? 'Đề xuất xóa Quản lý' : 'Xóa học viên',
+          Icons.delete_outline_rounded,
+          () => _xoa(banGhi.id, nguoiDung),
+          mauDo: true,
+        ),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 64),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hienThiTen.isEmpty ? 'Chưa có tên' : hienThiTen,
+                    style: const TextStyle(
+                      color: AppTheme.navy,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (ten.isNotEmpty && tenTaiKhoan.isNotEmpty)
+                    Text(
+                      tenTaiKhoan,
+                      style: const TextStyle(
+                        color: Color(0xFF7185A5),
+                        fontSize: 13,
+                      ),
+                    ),
+                  if (trangThai != null)
+                    Text(
+                      trangThai,
+                      style: const TextStyle(
+                        color: Color(0xFFB14B32),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          _vachCotBang(),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFCE9EC),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    vaiTro,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF98202A),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          _vachCotBang(),
+          Expanded(
+            flex: 1,
+            child: _giaTriCotBang(
+              nguoiDung['role'] == 'super_admin'
+                  ? 'E09'
+                  : (nguoiDung['unit'] ?? '').toString(),
+            ),
+          ),
+          _vachCotBang(),
+          Expanded(
+            flex: 2,
+            child: _giaTriCotBang((nguoiDung['subUnit'] ?? '').toString()),
+          ),
+          _vachCotBang(),
+          Expanded(flex: 2, child: _giaTriCotBang(maNguoiDung)),
+          _vachCotBang(),
+          Expanded(
+            flex: 2,
+            child: _giaTriCotBang(
+              nguoiDung['role'] == 'user' ? quanLyHienThi() : '',
+            ),
+          ),
+          _vachCotBang(),
+          SizedBox(
+            width: 196,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  alignment: WrapAlignment.start,
+                  spacing: 4,
+                  runSpacing: 6,
+                  children: thaoTac.isEmpty ? [const Text('—')] : thaoTac,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _giaTriCotBang(String giaTri) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    child: Text(
+      giaTri.trim().isEmpty ? '—' : giaTri,
+      style: TextStyle(
+        color: giaTri.trim().isEmpty ? const Color(0xFF95A1B2) : AppTheme.navy,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+
+  Widget _nutBangTaiKhoan(
+    String tooltip,
+    IconData icon,
+    VoidCallback onPressed, {
+    bool mauDo = false,
+  }) => Tooltip(
+    message: tooltip,
+    child: Material(
+      color: mauDo ? const Color(0xFFFFF3F3) : const Color(0xFFF7F9FC),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AdminUi.border),
+          ),
+          child: Icon(
+            icon,
+            size: 21,
+            color: mauDo ? const Color(0xFFBA202B) : const Color(0xFF353A42),
+          ),
+        ),
+      ),
+    ),
+  );
 
   Future<void> _nhapDuLieu() async {
     final soLuong = await showDialog<int>(
@@ -311,11 +698,7 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
         body: Column(
           children: [
             if (MediaQuery.sizeOf(context).width >= 900)
-              const AdminPageHeading(
-                title: 'Danh sách tài khoản',
-                subtitle:
-                    'Quản lý học viên, quản lý đơn vị và phân quyền hệ thống.',
-              ),
+              const AdminPageHeading(title: 'Danh sách tài khoản'),
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 0, 28, 18),
               child: Wrap(
@@ -377,26 +760,24 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                       stream: _dichVu.getPasswordResetRequestsStream(),
                       builder: (context, requests) {
                         final soDangCho =
-                            requests.data?.docs
-                                .where((request) {
-                                  final data = request.data();
-                                  final assignedToMe =
-                                      data['managerId'] == _danhTinh!.id;
-                                  final rootRecovery =
-                                      root &&
-                                      data['type'] == 'root_recovery' &&
-                                      data['userId'] != _danhTinh!.id;
-                                  final adminReset =
-                                      root && data['userRole'] == 'admin';
-                                  return (assignedToMe ||
-                                          rootRecovery ||
-                                          adminReset) &&
-                                      [
-                                        'pending',
-                                        'approved_once',
-                                      ].contains(data['status']);
-                                })
-                                .length ??
+                            requests.data?.docs.where((request) {
+                              final data = request.data();
+                              final assignedToMe =
+                                  data['managerId'] == _danhTinh!.id;
+                              final rootRecovery =
+                                  root &&
+                                  data['type'] == 'root_recovery' &&
+                                  data['userId'] != _danhTinh!.id;
+                              final adminReset =
+                                  root && data['userRole'] == 'admin';
+                              return (assignedToMe ||
+                                      rootRecovery ||
+                                      adminReset) &&
+                                  [
+                                    'pending',
+                                    'approved_once',
+                                  ].contains(data['status']);
+                            }).length ??
                             0;
                         return Badge(
                           isLabelVisible: soDangCho > 0,
@@ -505,10 +886,10 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                   stream: _luongTaiKhoan,
                   builder: (context, duLieuNhan) {
                     if (duLieuNhan.hasError) {
-                      return const Center(
-                        child: Text(
-                          'Không tải được danh sách. Kiểm tra quyền và kết nối.',
-                        ),
+                      return AppErrorNotice(
+                        error: duLieuNhan.error!,
+                        feature: 'Tải danh sách tài khoản',
+                        fallbackAction: 'Kiểm tra quyền quản trị, kết nối và cấu hình máy chủ rồi tải lại.',
                       );
                     }
                     if (!duLieuNhan.hasData) {
@@ -548,9 +929,8 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                         ? _boLocDonVi
                         : null;
                     final selectedSubUnit = _boLocTrucThuoc;
-                    // Học viên E09 do quản trị tổng tạo vẫn có trong danh sách;
-                    // thêm lựa chọn trực thuộc của họ vào bộ lọc, nhưng không
-                    // hiển thị chính tài khoản quản trị tổng.
+                    // Hiển thị quản trị tổng cùng các tài khoản để danh sách
+                    // được sắp theo vai trò từ quản trị tổng đến học viên.
                     final subUnitOwners = duLieuNhan.data!.docs
                         .where(
                           (banGhi) =>
@@ -592,7 +972,39 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                           '${duLieu['name'] ?? ''} ${duLieu['username'] ?? ''} ${duLieu['userCode'] ?? ''} $donVi ${duLieu['subUnit'] ?? ''} ${duLieu['subUnit'] ?? ''}-$donVi'
                               .toLowerCase()
                               .contains(_timKiem);
-                    }).toList();
+                    }).toList()
+                      ..sort((a, b) {
+                        int mucVaiTro(String? role) => switch (role) {
+                          'super_admin' => 0,
+                          'admin' => 1,
+                          'user' => 2,
+                          _ => 3,
+                        };
+
+                        final theoVaiTro = mucVaiTro(
+                          a.data()['role']?.toString(),
+                        ).compareTo(mucVaiTro(b.data()['role']?.toString()));
+                        if (theoVaiTro != 0) return theoVaiTro;
+
+                        String tenSapXep(
+                          QueryDocumentSnapshot<Map<String, dynamic>> record,
+                        ) {
+                          final duLieu = record.data();
+                          final ten = (duLieu['name'] ?? '').toString().trim();
+                          final tenDangNhap = (duLieu['username'] ?? '')
+                              .toString()
+                              .trim();
+                          return (ten.isNotEmpty
+                                  ? ten
+                                  : tenDangNhap.isNotEmpty
+                                  ? tenDangNhap
+                                  : record.id)
+                              .toLowerCase();
+                        }
+
+                        final theoTen = tenSapXep(a).compareTo(tenSapXep(b));
+                        return theoTen != 0 ? theoTen : a.id.compareTo(b.id);
+                      });
                     return Column(
                       children: [
                         _boLoc(cacDonVi, selectedUnit, subUnits, activeSubUnit),
@@ -601,160 +1013,189 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                               ? const Center(
                                   child: Text('Không tìm thấy tài khoản nào'),
                                 )
-                              : ListView.builder(
-                                  padding: const EdgeInsets.all(16),
-                                  itemCount: cacBanGhi.length,
-                                  itemBuilder: (context, i) {
-                                    final banGhi = cacBanGhi[i];
-                                    final nguoiDung = banGhi.data();
-                                    final vaiTro = switch (nguoiDung['role']) {
-                                      'super_admin' => 'Quản lý tổng',
-                                      'admin' => 'Quản lý',
-                                      'user' => 'Học viên',
-                                      _ => 'Tài khoản cũ chưa được cấp quyền',
-                                    };
-                                    final creatorId = nguoiDung['createdBy']
-                                        ?.toString();
-                                    final creatorLabel =
-                                        nguoiDung['role'] == 'user'
-                                        ? '\nQuản lý: ${creatorId == null ? 'Dữ liệu cũ/không xác định' : creatorNames[creatorId] ?? creatorId}'
-                                        : '';
-                                    return Card(
-                                      child: ListTile(
-                                        title: Text(
-                                          nguoiDung['name']?.toString() ?? '',
-                                        ),
-                                        subtitle: Text(
-                                          '${nguoiDung['username']} • $vaiTro${nguoiDung['adminDeletionPending'] == true
-                                              ? ' • Chờ duyệt xóa'
-                                              : nguoiDung['status'] == 'active'
-                                              ? ''
-                                              : nguoiDung['status'] == 'blocked'
-                                              ? ' • Đã khóa'
-                                              : ' • Chờ xử lý'}\nĐơn vị: ${nguoiDung['role'] == 'super_admin' ? 'E09' : nguoiDung['unit'] ?? 'Chưa phân đơn vị'}${(nguoiDung['subUnit'] as String? ?? '').isEmpty ? '' : '\nTrực thuộc: ${nguoiDung['subUnit']}'}${nguoiDung['role'] == 'user' ? '\nMã người dùng: ${nguoiDung['userCode'] ?? 'Chưa được cấp'}' : ''}$creatorLabel',
-                                        ),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (root &&
-                                                nguoiDung['role'] == 'admin')
-                                              IconButton(
-                                                tooltip: 'Phân đơn vị',
-                                                icon: const Icon(
-                                                  Icons.apartment,
+                              : LayoutBuilder(
+                                  builder: (context, constraints) =>
+                                      constraints.maxWidth >= 1100
+                                      ? _dungBangTaiKhoan(
+                                          cacBanGhi,
+                                          cacQuanLy,
+                                          duLieuNhan.data!.docs,
+                                          creatorNames,
+                                        )
+                                      : ListView.builder(
+                                          padding: const EdgeInsets.all(16),
+                                          itemCount: cacBanGhi.length,
+                                          itemBuilder: (context, i) {
+                                            final banGhi = cacBanGhi[i];
+                                            final nguoiDung = banGhi.data();
+                                            final vaiTro =
+                                                switch (nguoiDung['role']) {
+                                                  'super_admin' =>
+                                                    'Quản lý tổng',
+                                                  'admin' => 'Quản lý',
+                                                  'user' => 'Học viên',
+                                                  _ => 'Tài khoản cũ chưa được cấp quyền',
+                                                };
+                                            final creatorId =
+                                                nguoiDung['createdBy']
+                                                    ?.toString();
+                                            final creatorLabel =
+                                                nguoiDung['role'] == 'user'
+                                                ? '\nQuản lý: ${creatorId == null ? 'Dữ liệu cũ/không xác định' : creatorNames[creatorId] ?? creatorId}'
+                                                : '';
+                                            return Card(
+                                              child: ListTile(
+                                                title: Text(
+                                                  nguoiDung['name']
+                                                          ?.toString() ??
+                                                      '',
                                                 ),
-                                                onPressed: () => _moHopThoaiDonVi(
-                                                  banGhi.id,
-                                                  nguoiDung,
-                                                  duLieuNhan.data!.docs
-                                                      .where(
-                                                        (child) =>
-                                                            child
-                                                                    .data()['role'] ==
-                                                                'user' &&
-                                                            child.data()['createdBy'] ==
-                                                                banGhi.id,
-                                                      )
-                                                      .toList(),
+                                                subtitle: Text(
+                                                  '${nguoiDung['username']} • $vaiTro${nguoiDung['adminDeletionPending'] == true
+                                                      ? ' • Chờ duyệt xóa'
+                                                      : nguoiDung['status'] == 'active'
+                                                      ? ''
+                                                      : nguoiDung['status'] == 'blocked'
+                                                      ? ' • Đã khóa'
+                                                      : ' • Chờ xử lý'}\nĐơn vị: ${nguoiDung['role'] == 'super_admin' ? 'E09' : nguoiDung['unit'] ?? 'Chưa phân đơn vị'}${(nguoiDung['subUnit'] as String? ?? '').isEmpty ? '' : '\nTrực thuộc: ${nguoiDung['subUnit']}'}${nguoiDung['role'] == 'user' ? '\nMã người dùng: ${nguoiDung['userCode'] ?? 'Chưa được cấp'}' : ''}$creatorLabel',
                                                 ),
-                                              ),
-                                            if (root &&
-                                                nguoiDung['role'] == 'user' &&
-                                                cacQuanLy.any(
-                                                  (manager) =>
-                                                      _coTheChuyenHocVienCho(
-                                                        manager,
-                                                        nguoiDung,
+                                                trailing: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    if (root &&
+                                                        nguoiDung['role'] ==
+                                                            'admin')
+                                                      IconButton(
+                                                        tooltip: 'Phân đơn vị',
+                                                        icon: const Icon(
+                                                          Icons.apartment,
+                                                        ),
+                                                        onPressed: () => _moHopThoaiDonVi(
+                                                          banGhi.id,
+                                                          nguoiDung,
+                                                          duLieuNhan.data!.docs
+                                                              .where(
+                                                                (child) =>
+                                                                    child
+                                                                            .data()['role'] ==
+                                                                        'user' &&
+                                                                    child.data()['createdBy'] ==
+                                                                        banGhi.id,
+                                                              )
+                                                              .toList(),
+                                                        ),
                                                       ),
-                                                ))
-                                              IconButton(
-                                                tooltip:
-                                                    'Chuyển cho quản lý khác',
-                                                icon: const Icon(
-                                                  Icons.swap_horiz,
-                                                ),
-                                                onPressed: () =>
-                                                    _moHopThoaiChuyenQuanLy(
+                                                    if (root &&
+                                                        nguoiDung['role'] ==
+                                                            'user' &&
+                                                        cacQuanLy.any(
+                                                          (manager) =>
+                                                              _coTheChuyenHocVienCho(
+                                                                manager,
+                                                                nguoiDung,
+                                                              ),
+                                                        ))
+                                                      IconButton(
+                                                        tooltip: 'Chuyển đơn vị',
+                                                        icon: const Icon(
+                                                          Icons.swap_horiz,
+                                                        ),
+                                                        onPressed: () =>
+                                                            _moHopThoaiChuyenQuanLy(
+                                                              banGhi.id,
+                                                              nguoiDung,
+                                                              cacQuanLy,
+                                                            ),
+                                                      ),
+                                                    if (root &&
+                                                        nguoiDung['role'] !=
+                                                            'super_admin' &&
+                                                        [
+                                                          'active',
+                                                          'blocked',
+                                                        ].contains(
+                                                          nguoiDung['status'],
+                                                        ))
+                                                      IconButton(
+                                                        tooltip:
+                                                            nguoiDung['status'] ==
+                                                                'blocked'
+                                                            ? 'Mở khóa'
+                                                            : 'Khóa tài khoản',
+                                                        icon: Icon(
+                                                          nguoiDung['status'] ==
+                                                                  'blocked'
+                                                              ? Icons.lock_open
+                                                              : Icons
+                                                                    .lock_outline,
+                                                        ),
+                                                        onPressed: () async {
+                                                          try {
+                                                            await _dichVu
+                                                                .setUserBlocked(
+                                                                  banGhi.id,
+                                                                  nguoiDung['status'] !=
+                                                                      'blocked',
+                                                                );
+                                                          } catch (loi) {
+                                                            if (context
+                                                                .mounted) {
+                                                              ScaffoldMessenger.of(
+                                                                context,
+                                                              ).showSnackBar(
+                                                                SnackBar(
+                                                                  content: Text(
+                                                                    _loiTaiKhoan(
+                                                                      loi,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              );
+                                                            }
+                                                          }
+                                                        },
+                                                      ),
+                                                    if (_danhTinh!.canEdit(
                                                       banGhi.id,
                                                       nguoiDung,
-                                                      cacQuanLy,
-                                                    ),
-                                              ),
-                                            if (root &&
-                                                nguoiDung['role'] !=
-                                                    'super_admin' &&
-                                                [
-                                                  'active',
-                                                  'blocked',
-                                                ].contains(nguoiDung['status']))
-                                              IconButton(
-                                                tooltip:
-                                                    nguoiDung['status'] ==
-                                                        'blocked'
-                                                    ? 'Mở khóa'
-                                                    : 'Khóa tài khoản',
-                                                icon: Icon(
-                                                  nguoiDung['status'] ==
-                                                          'blocked'
-                                                      ? Icons.lock_open
-                                                      : Icons.lock_outline,
-                                                ),
-                                                onPressed: () async {
-                                                  try {
-                                                    await _dichVu
-                                                        .setUserBlocked(
-                                                          banGhi.id,
-                                                          nguoiDung['status'] !=
-                                                              'blocked',
-                                                        );
-                                                  } catch (loi) {
-                                                    if (context.mounted) {
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        SnackBar(
-                                                          content: Text(
-                                                            _loiTaiKhoan(loi),
-                                                          ),
+                                                    ))
+                                                      IconButton(
+                                                        tooltip:
+                                                            'Sửa tài khoản',
+                                                        icon: const Icon(
+                                                          Icons.edit,
                                                         ),
-                                                      );
-                                                    }
-                                                  }
-                                                },
-                                              ),
-                                            if (_danhTinh!.canEdit(
-                                              banGhi.id,
-                                              nguoiDung,
-                                            ))
-                                              IconButton(
-                                                tooltip: 'Sửa tài khoản',
-                                                icon: const Icon(Icons.edit),
-                                                onPressed: () =>
-                                                    _moHopThoaiTaiKhoan(
-                                                      id: banGhi.id,
-                                                      user: nguoiDung,
-                                                    ),
-                                              ),
-                                            if (_danhTinh!.canDelete(
-                                              banGhi.id,
-                                              nguoiDung,
-                                            ))
-                                              IconButton(
-                                                tooltip:
-                                                    nguoiDung['role'] == 'admin'
-                                                    ? 'Đề xuất xóa Quản lý'
-                                                    : 'Xóa học viên',
-                                                icon: const Icon(
-                                                  Icons.delete_outline,
+                                                        onPressed: () =>
+                                                            _moHopThoaiTaiKhoan(
+                                                              id: banGhi.id,
+                                                              user: nguoiDung,
+                                                            ),
+                                                      ),
+                                                    if (_danhTinh!.canDelete(
+                                                      banGhi.id,
+                                                      nguoiDung,
+                                                    ))
+                                                      IconButton(
+                                                        tooltip:
+                                                            nguoiDung['role'] ==
+                                                                'admin'
+                                                            ? 'Đề xuất xóa Quản lý'
+                                                            : 'Xóa học viên',
+                                                        icon: const Icon(
+                                                          Icons.delete_outline,
+                                                        ),
+                                                        onPressed: () => _xoa(
+                                                          banGhi.id,
+                                                          nguoiDung,
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
-                                                onPressed: () =>
-                                                    _xoa(banGhi.id, nguoiDung),
                                               ),
-                                          ],
+                                            );
+                                          },
                                         ),
-                                      ),
-                                    );
-                                  },
                                 ),
                         ),
                       ],

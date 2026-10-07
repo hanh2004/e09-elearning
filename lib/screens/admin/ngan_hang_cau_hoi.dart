@@ -11,6 +11,7 @@ import '../../services/du_lieu/dich_vu_firestore.dart';
 import '../../models/tham_so_ngan_hang_cau_hoi.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../services/nghiep_vu/phan_tich_cau_hoi_nhap_nhieu.dart';
+import '../../widgets/thong_bao_loi.dart';
 
 /// Ngân hàng câu hỏi của một đề: xem, thêm, sửa và xóa câu hỏi.
 class AdminQuestionBankScreen extends StatefulWidget {
@@ -780,10 +781,13 @@ class _TrangThaiNganHangCauHoiQuanTri extends State<AdminQuestionBankScreen> {
               slivers: [
                 SliverToBoxAdapter(child: _examPolicyPanel()),
                 if (snapshot.hasError)
-                  const SliverFillRemaining(
+                  SliverFillRemaining(
                     hasScrollBody: false,
-                    child: Center(
-                      child: Text('Có lỗi xảy ra khi tải câu hỏi.'),
+                    child: AppErrorNotice(
+                      error: snapshot.error!,
+                      feature: 'Tải ngân hàng câu hỏi',
+                      padding: const EdgeInsets.all(24),
+                      fallbackAction: 'Kiểm tra quyền quản trị, kết nối và cấu hình máy chủ rồi tải lại.',
                     ),
                   )
                 else if (snapshot.connectionState == ConnectionState.waiting)

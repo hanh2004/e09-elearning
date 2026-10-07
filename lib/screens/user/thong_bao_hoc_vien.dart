@@ -9,6 +9,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
+import '../../services/thong_bao_loi_ung_dung.dart';
+import '../../widgets/thong_bao_loi.dart';
 import '../../widgets/tien_ich_giao_dien_hoc_tap.dart';
 
 /// Danh sách thông báo và trạng thái đã đọc của học viên.
@@ -29,11 +31,18 @@ class _TrangThaiThongBaoHocVien extends State<UserNotificationsScreen> {
     if (!pending.add(ma)) return;
     try {
       await service.markNotificationRead(widget.uid, ma);
-    } catch (_) {
+    } catch (loi) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Chưa lưu được trạng thái đã đọc. Vui lòng thử lại.'),
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                loi,
+                feature: 'Đánh dấu thông báo đã đọc',
+                fallbackAction:
+                    'Kiểm tra kết nối và cấu hình máy chủ rồi thử lại.',
+              ),
+            ),
           ),
         );
       }
@@ -68,7 +77,11 @@ class _TrangThaiThongBaoHocVien extends State<UserNotificationsScreen> {
       stream: profile,
       builder: (context, duLieuNhan) {
         if (duLieuNhan.hasError) {
-          return const Center(child: Text('Không tải được hồ sơ.'));
+          return AppErrorNotice(
+            error: duLieuNhan.error!,
+            feature: 'Tải hồ sơ để nhận thông báo',
+            fallbackAction: 'Kiểm tra phiên đăng nhập, quyền tài khoản và máy chủ rồi thử lại.',
+          );
         }
         if (!duLieuNhan.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -78,6 +91,7 @@ class _TrangThaiThongBaoHocVien extends State<UserNotificationsScreen> {
             widget.uid,
             duLieuNhan.data!.data()?['classId'] ?? '',
           ),
+          errorTitle: 'Tải thông báo học viên',
           builder: (cacBanGhi) {
             final daSapXep = cacBanGhi.toList()
               ..sort(
@@ -90,6 +104,7 @@ class _TrangThaiThongBaoHocVien extends State<UserNotificationsScreen> {
             }
             return LearningList(
               stream: reads,
+              errorTitle: 'Tải trạng thái đã đọc',
               builder: (receipts) {
                 final readIds = receipts.map((r) => r.id).toSet();
                 final unread = daSapXep

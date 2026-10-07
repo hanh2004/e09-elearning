@@ -123,7 +123,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Học xong và làm bài kiểm tra'));
     await tester.pumpAndSettle();
-    expect(find.text('Khóa học chưa mở hoặc đã kết thúc.'), findsOneWidget);
+    expect(
+      find.textContaining('Khóa học chưa mở hoặc đã kết thúc.'),
+      findsOneWidget,
+    );
     expect(
       (await db.doc('users/u/learning/c_l').get()).data()?['studyCompleted'],
       true,

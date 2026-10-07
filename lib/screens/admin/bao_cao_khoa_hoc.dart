@@ -8,6 +8,7 @@ import '../../models/dinh_danh_tai_khoan.dart';
 import '../../models/bao_cao_hoan_thanh_khoa_hoc.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'khung_giao_dien_quan_tri.dart';
 
 /// Báo cáo khóa học đã kết thúc, thống kê hoàn thành theo đơn vị và học viên.
@@ -43,7 +44,17 @@ class _ThongKeThiCuaKhoa extends StatelessWidget {
           .where('courseId', isEqualTo: courseId)
           .snapshots(),
       builder: (context, duLieuNhan) {
-        if (duLieuNhan.hasError || !duLieuNhan.hasData) {
+        if (duLieuNhan.hasError) {
+          return AppErrorNotice(
+            error: duLieuNhan.error!,
+            feature: 'Tải thống kê bài kiểm tra của khóa học',
+            padding: const EdgeInsets.all(16),
+            centered: false,
+            fallbackAction:
+                'Kiểm tra quyền truy cập và cấu hình máy chủ rồi thử lại.',
+          );
+        }
+        if (!duLieuNhan.hasData) {
           return const SizedBox.shrink();
         }
         final cacLuotThi = duLieuNhan.data!.docs
@@ -150,7 +161,12 @@ class _TrangThaiBaoCaoKhoaHoc extends State<AdminCourseReportScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Không tải được báo cáo. Vui lòng thử lại.'),
+                  AppErrorNotice(
+                    error: duLieuNhan.error!,
+                    feature: 'Tải báo cáo kết quả khóa học',
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    fallbackAction: 'Kiểm tra quyền quản trị, kết nối và cấu hình máy chủ. Bấm Thử lại.',
+                  ),
                   TextButton(
                     onPressed: () => setState(() => report = load()),
                     child: const Text('Thử lại'),

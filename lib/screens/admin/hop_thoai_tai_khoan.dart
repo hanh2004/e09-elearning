@@ -76,8 +76,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
     var busy = false;
     String? loi;
     final isStudentEdit = id != null && user?['role'] == 'user';
-    final rootCanChangeCodeUnit = isStudentEdit && _danhTinh!.isRoot;
-    final managerCanChangeCodeSuffix = isStudentEdit && !_danhTinh!.isRoot;
+    final canChangeCodeSuffix = isStudentEdit;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -144,22 +143,15 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                           ],
                           onChanged: (giaTri) => selectedSubUnit = giaTri,
                         ),
-                      if (rootCanChangeCodeUnit)
+                      if (isStudentEdit)
                         TextFormField(
                           controller: donVi,
-                          decoration: InputDecoration(
-                            labelText: 'Mã đơn vị trong mã người dùng',
+                          enabled: false,
+                          decoration: const InputDecoration(
+                            labelText: 'Đơn vị hiện tại',
                             helperText:
-                                'Mã đầy đủ: ${donVi.text}-${userCode.text}. '
-                                'Đuôi do quản lý phụ trách giữ nguyên.',
+                                'Muốn đổi đơn vị, dùng thao tác Chuyển đơn vị.',
                           ),
-                          onChanged: (_) => update(() {}),
-                          validator: (v) =>
-                              v == null ||
-                                  v.trim().isEmpty ||
-                                  v.trim().length > 100
-                              ? 'Nhập mã đơn vị, tối đa 100 ký tự.'
-                              : null,
                         ),
                       TextFormField(
                         controller: ten,
@@ -195,15 +187,17 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                               ? 'Mã gồm 1–64 ký tự không dấu, số, _, ., @ hoặc -.'
                               : null,
                         ),
-                      if (managerCanChangeCodeSuffix)
+                      if (canChangeCodeSuffix)
                         TextFormField(
                           controller: userCode,
                           textCapitalization: TextCapitalization.characters,
                           decoration: InputDecoration(
                             labelText: 'Đuôi mã người dùng',
                             prefixText: '${user?['unit'] ?? ''}-',
-                            helperText: 'Chỉ đổi phần đuôi; mã đơn vị do quản lý tổng đặt.',
+                            helperText:
+                                'Mã đầy đủ: ${user?['unit'] ?? ''}-${userCode.text}. Chỉ đổi phần đuôi.',
                           ),
+                          onChanged: (_) => update(() {}),
                           validator: (v) => !_maDuoiHopLe(v)
                               ? 'Đuôi mã gồm 1–64 ký tự hợp lệ.'
                               : null,
@@ -272,10 +266,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                               username: tenDangNhap.text,
                               password: matKhau.text,
                               role: user!['role'].toString(),
-                              unit: rootCanChangeCodeUnit
-                                  ? donVi.text.trim()
-                                  : null,
-                              userCodeSuffix: managerCanChangeCodeSuffix
+                              userCodeSuffix: canChangeCodeSuffix
                                   ? userCode.text.trim()
                                   : null,
                             );
@@ -448,7 +439,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
         builder: (_, update) => AlertDialog(
-          title: const Text('Chuyển học viên cho quản lý'),
+          title: const Text('Chuyển học viên sang đơn vị khác'),
           content: SizedBox(
             width: 430,
             child: Form(
@@ -466,7 +457,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                       initialValue: daChon,
                       isExpanded: true,
                       decoration: const InputDecoration(
-                        labelText: 'Quản lý mới',
+                        labelText: 'Đơn vị / quản lý tiếp nhận',
                         border: OutlineInputBorder(),
                       ),
                       items: [

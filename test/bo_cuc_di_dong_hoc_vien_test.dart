@@ -84,7 +84,7 @@ void main() {
         for (final label in [
           'Học tập',
           'Kiểm tra',
-          'Thông tin',
+          'Tin tức',
           'Tiện ích',
           'Cá nhân',
           'Trang chủ',
@@ -117,20 +117,9 @@ void main() {
             await tester.pumpAndSettle();
             expect(tester.takeException(), isNull, reason: 'history back');
           }
-          if (label == 'Thông tin') {
-            expect(find.text('Tin tức'), findsOneWidget);
-            expect(find.text('Thông báo'), findsOneWidget);
-            await tester.tap(find.text('Thông báo').last);
-            await tester.pumpAndSettle();
-            expect(find.text('Thông báo hệ thống'), findsOneWidget);
-            expect(find.byTooltip('Back'), findsOneWidget, reason: label);
-            await tester.pageBack();
-            await tester.pumpAndSettle();
-            expect(
-              tester.takeException(),
-              isNull,
-              reason: '$label notification back',
-            );
+          if (label == 'Tin tức') {
+            expect(find.byTooltip('Lọc tin tức'), findsOneWidget);
+            expect(find.text('Tìm kiếm tin tức'), findsOneWidget);
           }
           if (label == 'Cá nhân') {
             expect(find.text('Lịch sử bài kiểm tra'), findsNothing);

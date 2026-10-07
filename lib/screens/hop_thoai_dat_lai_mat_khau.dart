@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../models/dinh_danh_tai_khoan.dart';
 import '../services/du_lieu/dich_vu_firestore.dart';
+import '../services/thong_bao_loi_ung_dung.dart';
 
 /// Shows the learner password-reset request dialog.
 ///
@@ -135,11 +136,15 @@ Future<void> showPasswordResetDialog({
                               ),
                             ),
                           );
-                        } catch (_) {
+                        } catch (loi) {
                           if (!dialogContext.mounted) return;
                           update(() {
                             busy = false;
-                            error = 'Không thể gửi yêu cầu. Vui lòng thử lại.';
+                            error = AppErrorMessage.from(
+                              loi,
+                              feature: 'Gửi yêu cầu đặt lại mật khẩu',
+                              fallbackAction: 'Kiểm tra thông tin tài khoản, quyền truy cập và cấu hình máy chủ rồi thử lại.',
+                            );
                           });
                         }
                       },
@@ -270,11 +275,15 @@ Future<void> showRootPasswordRecoveryDialog({
                                   'Chưa kiểm tra được trạng thái. Hãy thử lại.',
                               };
                             });
-                          } catch (_) {
+                          } catch (loi) {
                             if (dialogContext.mounted) {
                               update(
-                                () =>
-                                    error = 'Không kiểm tra được. Hãy thử lại.',
+                                () => error = AppErrorMessage.from(
+                                  loi,
+                                  feature:
+                                      'Kiểm tra trạng thái khôi phục mật khẩu',
+                                  fallbackAction: 'Kiểm tra kết nối và cấu hình máy chủ rồi thử lại.',
+                                ),
                               );
                             }
                           } finally {
@@ -348,13 +357,17 @@ Future<void> showRootPasswordRecoveryDialog({
                               ),
                             ),
                           );
-                        } catch (_) {
+                        } catch (loi) {
                           if (!dialogContext.mounted) return;
                           update(() {
                             busy = false;
-                            error = approved
-                                ? 'Không thể đổi mật khẩu. Hãy thử lại.'
-                                : 'Không thể gửi yêu cầu. Hãy kiểm tra tên đăng nhập hoặc thử lại sau.';
+                            error = AppErrorMessage.from(
+                              loi,
+                              feature: approved
+                                  ? 'Đặt lại mật khẩu quản trị tổng'
+                                  : 'Gửi yêu cầu khôi phục mật khẩu quản trị tổng',
+                              fallbackAction: 'Kiểm tra thông tin tài khoản, quyền quản trị và cấu hình máy chủ rồi thử lại.',
+                            );
                           });
                         }
                       },

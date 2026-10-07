@@ -9,15 +9,17 @@ class NewsCategories extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onSelected,
+    this.categories = NewsArticle.categories,
   });
   final String selected;
   final ValueChanged<String> onSelected;
+  final List<String> categories;
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     child: Row(
       children: [
-        for (final category in ['Tất cả', ...NewsArticle.categories])
+        for (final category in ['Tất cả', ...categories])
           InkWell(
             onTap: () => onSelected(category),
             child: Container(

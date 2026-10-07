@@ -7,6 +7,7 @@ import '../../models/bai_viet_tin_tuc.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../services/nghiep_vu/dich_vu_tin_tuc.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
+import '../../widgets/thong_bao_loi.dart';
 import '../../widgets/tien_ich_tin_tuc.dart';
 import 'chi_tiet_tin_tuc.dart';
 
@@ -30,14 +31,18 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
     super.dispose();
   }
 
-  Future<void> filter() async {
-    final daChon = await showModalBottomSheet<(int, bool)>(
+  Future<void> filter(List<String> categories) async {
+    final daChon = await showModalBottomSheet<(int, bool, String)>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (context) {
         var selectedDays = days;
         var selectedOldest = oldest;
+        var selectedCategory =
+            category == 'Tất cả' || categories.contains(category)
+            ? category
+            : 'Tất cả';
         return StatefulBuilder(
           builder: (context, setSheetState) => SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -50,6 +55,19 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 20),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedCategory,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Loại tin'),
+                  items: [
+                    for (final category in ['Tất cả', ...categories])
+                      DropdownMenuItem(value: category, child: Text(category)),
+                  ],
+                  onChanged: (giaTri) => setSheetState(
+                    () => selectedCategory = giaTri ?? 'Tất cả',
+                  ),
+                ),
+                const SizedBox(height: 16),
                 DropdownButtonFormField<int>(
                   initialValue: selectedDays,
                   decoration: const InputDecoration(
@@ -81,11 +99,15 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () =>
-                      Navigator.pop(context, (selectedDays, selectedOldest)),
+                      Navigator.pop(
+                        context,
+                        (selectedDays, selectedOldest, selectedCategory),
+                      ),
                   child: const Text('Áp dụng'),
                 ),
                 TextButton(
-                  onPressed: () => Navigator.pop(context, (0, false)),
+                  onPressed: () =>
+                      Navigator.pop(context, (0, false, 'Tất cả')),
                   child: const Text('Xóa bộ lọc'),
                 ),
               ],
@@ -99,6 +121,7 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
       setState(() {
         days = daChon.$1;
         oldest = daChon.$2;
+        category = daChon.$3;
       });
     }
   }
@@ -110,81 +133,85 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
       title: const Text('Tin tức'),
       backgroundColor: AppTheme.red,
     ),
-    body: Column(
-      children: [
-        NewsCategories(
-          selected: category,
-          onSelected: (giaTri) => setState(() => category = giaTri),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: search,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: 'Tìm kiếm tin tức',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: const Color(0xFFF4F3F8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(32),
-                      borderSide: BorderSide.none,
+    body: StreamBuilder<List<NewsArticle>>(
+      stream: articles,
+      builder: (context, duLieuNhan) {
+        if (duLieuNhan.hasError) {
+          return AppErrorNotice(
+            error: duLieuNhan.error!,
+            feature: 'Tải danh sách tin tức',
+            fallbackAction:
+                'Kiểm tra kết nối và cấu hình máy chủ rồi tải lại.',
+          );
+        }
+        if (!duLieuNhan.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final all = duLieuNhan.data!;
+        return Column(
+          children: [
+            NewsCategories(
+              selected: category,
+              categories: NewsArticle.quickCategoriesFor(all),
+              onSelected: (giaTri) => setState(() => category = giaTri),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: search,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Tìm kiếm tin tức',
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: const Color(0xFFF4F3F8),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(32),
+                          borderSide: BorderSide.none,
+                        ),
+                        suffixIcon: search.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Xóa tìm kiếm',
+                                icon: const Icon(Icons.close),
+                                onPressed: () => setState(search.clear),
+                              ),
+                      ),
                     ),
-                    suffixIcon: search.text.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: 'Xóa tìm kiếm',
-                            icon: const Icon(Icons.close),
-                            onPressed: () => setState(search.clear),
-                          ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    tooltip: 'Lọc tin tức',
+                    onPressed: () =>
+                        filter(NewsArticle.categoriesFor(all)),
+                    icon: Icon(
+                      days > 0 || oldest || category != 'Tất cả'
+                          ? Icons.filter_alt
+                          : Icons.filter_alt_outlined,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (days > 0 || oldest)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${days > 0 ? '$days ngày gần đây' : 'Mọi thời gian'} • ${oldest ? 'Tin cũ trước' : 'Tin mới trước'}',
+                    style: const TextStyle(color: AppTheme.red, fontSize: 12),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton.filledTonal(
-                tooltip: 'Lọc tin tức',
-                onPressed: filter,
-                icon: Icon(
-                  days > 0 || oldest
-                      ? Icons.filter_alt
-                      : Icons.filter_alt_outlined,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (days > 0 || oldest)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '${days > 0 ? '$days ngày gần đây' : 'Mọi thời gian'} • ${oldest ? 'Tin cũ trước' : 'Tin mới trước'}',
-                style: const TextStyle(color: AppTheme.red, fontSize: 12),
-              ),
-            ),
-          ),
-        Expanded(
-          child: StreamBuilder<List<NewsArticle>>(
-            stream: articles,
-            builder: (context, duLieuNhan) {
-              if (duLieuNhan.hasError) {
-                return const Center(
-                  child: Text('Không tải được tin tức. Kiểm tra kết nối.'),
-                );
-              }
-              if (!duLieuNhan.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return _danhSach(duLieuNhan.data!);
-            },
-          ),
-        ),
-      ],
+            Expanded(child: _danhSach(all)),
+          ],
+        );
+      },
     ),
   );
 

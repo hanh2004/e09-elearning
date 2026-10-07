@@ -7,38 +7,106 @@ import '../app/chu_de_ung_dung.dart';
 import '../models/dinh_danh_tai_khoan.dart';
 
 class AdminUi {
-  static ThemeData get theme => AppTheme.light.copyWith(
-    cardTheme: AppTheme.light.cardTheme.copyWith(
-      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-    ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: AppTheme.red,
-      foregroundColor: Colors.white,
-      surfaceTintColor: AppTheme.red,
-      centerTitle: false,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      titleTextStyle: TextStyle(
-        fontFamily: 'Arial',
-        color: Colors.white,
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
+  static ThemeData get theme {
+    final base = AppTheme.light;
+    return base.copyWith(
+      textTheme: base.textTheme.apply(fontFamily: 'Arial'),
+      visualDensity: VisualDensity.compact,
+      cardTheme: base.cardTheme.copyWith(
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AdminUi.border),
+        ),
       ),
-      iconTheme: IconThemeData(color: Colors.white),
-      actionsIconTheme: IconThemeData(color: Colors.white),
-    ),
-    tabBarTheme: const TabBarThemeData(
-      indicatorColor: Colors.white,
-      indicatorSize: TabBarIndicatorSize.label,
-      labelColor: Colors.white,
-      unselectedLabelColor: Color(0xCCFFFFFF),
-      labelStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-      unselectedLabelStyle: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppTheme.red,
+        foregroundColor: Colors.white,
+        surfaceTintColor: AppTheme.red,
+        centerTitle: false,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        titleTextStyle: TextStyle(
+          fontFamily: 'Arial',
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+        iconTheme: IconThemeData(color: Colors.white),
+        actionsIconTheme: IconThemeData(color: Colors.white),
       ),
-    ),
-  );
+      tabBarTheme: const TabBarThemeData(
+        indicatorColor: Colors.white,
+        indicatorSize: TabBarIndicatorSize.label,
+        labelColor: Colors.white,
+        unselectedLabelColor: Color(0xCCFFFFFF),
+        labelStyle: TextStyle(
+          fontFamily: 'Arial',
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontFamily: 'Arial',
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(40, 40),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          textStyle: const TextStyle(
+            fontFamily: 'Arial',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(40, 38),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          textStyle: const TextStyle(
+            fontFamily: 'Arial',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(40, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          textStyle: const TextStyle(
+            fontFamily: 'Arial',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(40, 40),
+          padding: const EdgeInsets.all(8),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+
   static const page = Color(0xFFF4F7FC);
   static const border = Color(0xFFDDE6F2);
   static AppBar appBar(
@@ -51,12 +119,13 @@ class AdminUi {
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
       style: const TextStyle(
+        fontFamily: 'Arial',
         color: Colors.white,
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: FontWeight.w800,
       ),
     ),
-    toolbarHeight: 72,
+    toolbarHeight: 64,
     backgroundColor: AppTheme.red,
     foregroundColor: Colors.white,
     surfaceTintColor: AppTheme.red,
@@ -64,8 +133,9 @@ class AdminUi {
     elevation: 0,
     scrolledUnderElevation: 0,
     titleTextStyle: const TextStyle(
+      fontFamily: 'Arial',
       color: Colors.white,
-      fontSize: 22,
+      fontSize: 20,
       fontWeight: FontWeight.w800,
     ),
     iconTheme: const IconThemeData(color: Colors.white),
@@ -81,14 +151,14 @@ class AdminUi {
           final ngay =
               '${hienTai.day.toString().padLeft(2, '0')}/${hienTai.month.toString().padLeft(2, '0')}/${hienTai.year}';
           return Padding(
-            padding: const EdgeInsets.only(right: 20, left: 8),
+            padding: const EdgeInsets.only(right: 16, left: 8),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
+                    horizontal: 12,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.white70),
@@ -113,20 +183,20 @@ class AdminUi {
                     ],
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 const VerticalDivider(
                   width: 1,
                   indent: 14,
                   endIndent: 14,
                   color: Colors.white54,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 const CircleAvatar(
-                  radius: 20,
+                  radius: 18,
                   backgroundColor: Color(0x33FFFFFF),
                   child: Icon(Icons.person_outline, color: Colors.white),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 160),
                   child: Text(
@@ -159,7 +229,7 @@ class AdminCard extends StatelessWidget {
     elevation: 0,
     color: Colors.white,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       side: const BorderSide(color: AdminUi.border),
     ),
     child: child,
@@ -177,20 +247,14 @@ class AdminLoading extends StatelessWidget {
 }
 
 class AdminPageHeading extends StatelessWidget {
-  const AdminPageHeading({
-    super.key,
-    required this.title,
-    required this.subtitle,
-    this.action,
-  });
+  const AdminPageHeading({super.key, required this.title, this.action});
 
   final String title;
-  final String subtitle;
   final Widget? action;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(28, 28, 28, 18),
+    padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
     child: LayoutBuilder(
       builder: (context, constraints) {
         final vanBan = Column(
@@ -201,16 +265,9 @@ class AdminPageHeading extends StatelessWidget {
               textAlign: TextAlign.start,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 color: AppTheme.navy,
-                fontSize: 32,
+                fontSize: 28,
                 fontWeight: FontWeight.w800,
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              textAlign: TextAlign.start,
-              style: Theme.of(context).textTheme.bodyLarge
-                  ?.copyWith(color: const Color(0xFF60779A), fontSize: 18),
             ),
           ],
         );
@@ -219,7 +276,7 @@ class AdminPageHeading extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               vanBan,
-              if (action != null) ...[const SizedBox(height: 14), action!],
+              if (action != null) ...[const SizedBox(height: 10), action!],
             ],
           );
         }
@@ -252,17 +309,17 @@ class AdminMetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AdminCard(
     child: Padding(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final iconBox = Container(
-            width: 64,
-            height: 64,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               color: color.withValues(alpha: .1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 32),
+            child: Icon(icon, color: color, size: 28),
           );
           final labels = Column(
             crossAxisAlignment: constraints.maxWidth < 210
@@ -273,13 +330,13 @@ class AdminMetricCard extends StatelessWidget {
                 value,
                 style: const TextStyle(
                   color: AppTheme.navy,
-                  fontSize: 26,
+                  fontSize: 24,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               Text(
                 label,
-                style: const TextStyle(color: Color(0xFF60779A), fontSize: 16),
+                style: const TextStyle(color: Color(0xFF60779A), fontSize: 15),
               ),
             ],
           );
@@ -291,7 +348,7 @@ class AdminMetricCard extends StatelessWidget {
           return Row(
             children: [
               iconBox,
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               Expanded(child: labels),
             ],
           );

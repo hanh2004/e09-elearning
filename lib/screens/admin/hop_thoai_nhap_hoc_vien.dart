@@ -95,7 +95,7 @@ class _TrangThaiNhapHocVien extends State<AdminUserImportDialog> {
           () => _thongDiep = loi is WorkbookPickerException
               ? loi.message
               : stage == 'decode'
-              ? 'Không đọc được nội dung Excel. Chọn file .xlsx không mã hóa và đúng 3 cột.'
+              ? 'Không đọc được file Excel. Hãy chọn .xlsx không mã hóa hoặc tải lại mẫu Excel.'
               : loi is MissingPluginException || loi is UnimplementedError
               ? 'Bộ chọn file chưa được khởi tạo. Dừng ứng dụng rồi chạy lại Flutter (không chỉ hot reload); trên web hãy tải lại trang.'
               : 'Không mở hoặc đọc được file từ máy (mã: ${loi.runtimeType}). Hãy gửi mã lỗi này để kiểm tra; trên web thử mở bằng Chrome hoặc Edge.',
@@ -224,7 +224,7 @@ class _TrangThaiNhapHocVien extends State<AdminUserImportDialog> {
                         child: Padding(
                           padding: const EdgeInsets.only(top: 16),
                           child: Text(
-                            _thongDiep ?? 'Điền 4 cột theo mẫu. Mã người dùng là phần đuôi, có thể để trống để dùng tên đăng nhập. Các cột đã định dạng Text để giữ số 0 đầu.',
+                            _thongDiep ?? 'Điền ở sheet Users từ dòng 2 theo đúng tiêu đề mẫu. Nhập đủ Họ và tên, Tên đăng nhập, Mật khẩu; Mã người dùng là phần đuôi và có thể để trống. Các ô nhập đã định dạng Text để giữ số 0 đầu.',
                           ),
                         ),
                       )

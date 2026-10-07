@@ -15,6 +15,7 @@ import '../../services/du_lieu/dich_vu_firestore.dart';
 import '../../services/xuat_excel_bao_cao_quan_tri.dart';
 import '../../services/lay_du_lieu_bao_cao_quan_tri.dart';
 import '../../services/nguon_du_lieu_bao_cao_quan_tri.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'khung_giao_dien_quan_tri.dart';
 
 part "bang_du_lieu_bao_cao.dart";
@@ -92,7 +93,12 @@ class _TrangThaiBaoCaoQuanTri extends State<AdminReportScreen> {
               stream: _reportStream,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return _dungThongBaoLoi('Không tải được dữ liệu báo cáo.');
+                  return AppErrorNotice(
+                    error: snapshot.error!,
+                    feature: 'Tải báo cáo tổng hợp',
+                    padding: const EdgeInsets.all(24),
+                    fallbackAction: 'Kiểm tra quyền quản trị, kết nối và cấu hình máy chủ rồi tải lại.',
+                  );
                 }
                 if (!snapshot.hasData) return const AdminLoading();
                 return _dungDuLieu(snapshot.data!);

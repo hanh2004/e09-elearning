@@ -7,6 +7,7 @@ import '../../app/cau_hinh_ung_dung.dart';
 import '../../app/chu_de_ung_dung.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../services/tai_khoan/phien_dang_nhap_quan_tri_web.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'khung_giao_dien_quan_tri.dart';
 
 class AdminFeedbackScreen extends StatefulWidget {
@@ -108,8 +109,11 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return const Center(
-                child: Text('Không tải được góp ý. Kiểm tra quyền truy cập.'),
+              return AppErrorNotice(
+                error: snapshot.error!,
+                feature: 'Tải góp ý của học viên',
+                fallbackAction:
+                    'Kiểm tra quyền Admin tổng và kết nối máy chủ rồi tải lại.',
               );
             }
             if (!snapshot.hasData) {

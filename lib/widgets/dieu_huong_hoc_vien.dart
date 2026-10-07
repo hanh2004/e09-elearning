@@ -41,7 +41,7 @@ class LearnerNavigation extends StatelessWidget {
           children: [
             for (final (index, item) in const [
               (0, (Icons.home_outlined, 'Trang chủ')),
-              (5, (Icons.info_outline, 'Thông tin')),
+              (5, (Icons.newspaper_outlined, 'Tin tức')),
               (1, (Icons.menu_book_outlined, 'Học tập')),
               (2, (Icons.assignment_outlined, 'Kiểm tra')),
               (6, (Icons.grid_view_rounded, 'Tiện ích')),

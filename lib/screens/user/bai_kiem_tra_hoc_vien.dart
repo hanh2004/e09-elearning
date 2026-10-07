@@ -75,6 +75,7 @@ class _TrangThaiHocVaKiemTra extends State<UserLearningTestsScreen> {
     ),
     body: LearningList(
       stream: courses,
+      errorTitle: 'Tải khóa học có bài kiểm tra',
       builder: (cacBanGhi) {
         final tuKhoa = _searchController.text.toLowerCase();
         final khoaHocPhuHop = cacBanGhi.where((khoaHoc) {
@@ -154,6 +155,7 @@ class _TrangThaiKiemTraKhoaHoc extends State<_KiemTraKhoaHoc> {
     final duLieu = widget.course.data();
     return LearningList(
       stream: lessons,
+      errorTitle: 'Tải danh sách bài kiểm tra',
       builder: (cacBanGhi) {
         final courseExam = duLieu['learningMode'] == 'study_exam';
         final orderedLessons = LearningPolicy.sortLessons(cacBanGhi);
@@ -239,6 +241,7 @@ class _TrangThaiChiTietKiemTraKhoaHoc extends State<_ChiTietKiemTraKhoaHoc> {
     appBar: LearnerHeader(title: Text(widget.course.data()['title'] ?? '')),
     body: LearningList(
       stream: progress,
+      errorTitle: 'Tải tiến độ bài kiểm tra',
       builder: (cacMauTin) {
         final courseData = widget.course.data();
         final doneIds = cacMauTin

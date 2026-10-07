@@ -25,7 +25,7 @@ void main() {
       (await db.collection('learning_notifications').get()).docs.length,
       1,
     );
-    final start = DateTime(2026, 10, 1, 10);
+    final start = DateTime.now().add(const Duration(hours: 2));
     await service.saveContent(
       'admin',
       db.collection('learning_events').doc('e'),

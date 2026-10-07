@@ -16,6 +16,7 @@ import '../../models/bieu_mau_bai_hoc.dart';
 import '../../models/tham_so_nguoi_dung.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../widgets/tien_ich_giao_dien_hoc_tap.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'cac_khoa_hoc.dart';
 import 'tin_tuc_hoc_vien.dart';
 import '../../widgets/khung_tin_tuc_trang_chu.dart';
@@ -191,8 +192,10 @@ class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
             stream: profile,
             builder: (context, duLieuNhan) {
               if (duLieuNhan.hasError) {
-                return const Center(
-                  child: Text('Không tải được hồ sơ học tập.'),
+                return AppErrorNotice(
+                  error: duLieuNhan.error!,
+                  feature: 'Tải hồ sơ học tập',
+                  fallbackAction: 'Kiểm tra phiên đăng nhập và kết nối máy chủ rồi thử lại.',
                 );
               }
               if (!duLieuNhan.hasData) {
@@ -203,6 +206,7 @@ class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
                 stream: service.courses(
                   classId: nguoiDung['classId'] as String? ?? '',
                 ),
+                errorTitle: 'Tải khóa học trong bảng tiến độ',
                 builder: (cacKhoaHoc) {
                   final khoaHocDangMo = cacKhoaHoc
                       .where(
@@ -282,7 +286,12 @@ class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
                         future: _lessonsFor(khoaHocDangMo),
                         builder: (context, lessonSnapshot) {
                           if (lessonSnapshot.hasError) {
-                            return const Text('Chưa tải được tiến độ học tập.');
+                            return AppErrorNotice(
+                              error: lessonSnapshot.error!,
+                              feature: 'Tải bài học trong tiến độ',
+                              centered: false,
+                              fallbackAction: 'Kiểm tra quyền truy cập và cấu hình máy chủ rồi thử lại.',
+                            );
                           }
                           if (!lessonSnapshot.hasData) {
                             return const SizedBox(
@@ -297,8 +306,10 @@ class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
                           }
                           return LearningList(
                             stream: learning,
+                            errorTitle: 'Tải tiến độ khóa học',
                             builder: (cacMauTin) => LearningList(
                               stream: examAttempts,
+                              errorTitle: 'Tải kết quả kiểm tra',
                               builder: (cacLuotLamBai) {
                                 final counts = _progressCounts(
                                   courses: khoaHocDangMo,

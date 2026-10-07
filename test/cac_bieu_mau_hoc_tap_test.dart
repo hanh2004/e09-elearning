@@ -117,18 +117,18 @@ void main() {
       'learningMode': 'study_only',
     });
     await db.doc('courses/c/lessons/first').set({'title': 'Bài 1', 'order': 1});
-    await db.doc('courses/c/lessons/fourth').set({'title': 'Bài 4', 'order': 4});
+    await db.doc('courses/c/lessons/fourth').set({
+      'title': 'Bài 4',
+      'order': 4,
+    });
     final course = (await db.collection('courses').get()).docs.single;
     await tester.pumpWidget(
       MaterialApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
-              onPressed: () => showLessonEditor(
-                context,
-                service: service,
-                course: course,
-              ),
+              onPressed: () =>
+                  showLessonEditor(context, service: service, course: course),
               child: const Text('Thêm bài'),
             ),
           ),
@@ -153,7 +153,14 @@ void main() {
       'endsAt': Timestamp.fromDate(end),
       // Bản ghi cũ chưa có deploymentMode vẫn phải mở đúng form.
     });
-    final saved = CourseForm.toFirestore(fields, published: true);
+    final saved = CourseForm.toFirestore(
+      fields,
+      published: true,
+      previousCourse: {
+        'startsAt': Timestamp.fromDate(start),
+        'endsAt': Timestamp.fromDate(end),
+      },
+    );
     expect(saved['deploymentMode'], 'scheduled');
     expect((saved['startsAt'] as Timestamp).toDate(), start);
     expect((saved['endsAt'] as Timestamp).toDate(), end);

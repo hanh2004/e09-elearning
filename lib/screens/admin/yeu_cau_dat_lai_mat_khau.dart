@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../services/du_lieu/dich_vu_firestore.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'khung_giao_dien_quan_tri.dart';
 
 class AdminPasswordResetScreen extends StatefulWidget {
@@ -100,32 +101,35 @@ class _TrangThaiCapLaiMatKhauQuanTri extends State<AdminPasswordResetScreen> {
       stream: _dichVu.getPasswordResetRequestsStream(),
       builder: (context, duLieuNhan) {
         if (duLieuNhan.hasError) {
-          return const Center(
-            child: Text('Không tải được yêu cầu cấp lại mật khẩu.'),
+          return AppErrorNotice(
+            error: duLieuNhan.error!,
+            feature: 'Tải yêu cầu cấp lại mật khẩu',
+            fallbackAction:
+                'Kiểm tra quyền quản trị và kết nối máy chủ rồi tải lại.',
           );
         }
         if (!duLieuNhan.hasData) {
           return const AdminLoading();
         }
-        final cacBanGhi = duLieuNhan.data!.docs.where((banGhi) {
-          final request = banGhi.data();
-          if (request['type'] == 'root_recovery') {
-            return actor.isRoot && request['userId'] != actor.id;
-          }
-          return request['managerId'] == actor.id ||
-              (actor.isRoot && request['userRole'] == 'admin');
-        }).toList()
-          ..sort(
-            (a, b) =>
-                ((b.data()['requestedAt'] as Timestamp?)
-                            ?.millisecondsSinceEpoch ??
-                        0)
-                    .compareTo(
-                      (a.data()['requestedAt'] as Timestamp?)
+        final cacBanGhi =
+            duLieuNhan.data!.docs.where((banGhi) {
+              final request = banGhi.data();
+              if (request['type'] == 'root_recovery') {
+                return actor.isRoot && request['userId'] != actor.id;
+              }
+              return request['managerId'] == actor.id ||
+                  (actor.isRoot && request['userRole'] == 'admin');
+            }).toList()..sort(
+              (a, b) =>
+                  ((b.data()['requestedAt'] as Timestamp?)
                               ?.millisecondsSinceEpoch ??
-                          0,
-                    ),
-          );
+                          0)
+                      .compareTo(
+                        (a.data()['requestedAt'] as Timestamp?)
+                                ?.millisecondsSinceEpoch ??
+                            0,
+                      ),
+            );
         if (cacBanGhi.isEmpty) {
           return const Center(
             child: Text('Chưa có yêu cầu cấp lại mật khẩu cần xử lý.'),

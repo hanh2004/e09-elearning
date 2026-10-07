@@ -223,7 +223,15 @@ class _TrangThaiLichSuThi extends State<ExamHistoryScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Đã xảy ra lỗi: ${snapshot.error}'));
+            return Center(
+              child: Text(
+                SecureExamService.error(
+                  snapshot.error!,
+                  feature: 'Tải lịch sử bài kiểm tra',
+                ),
+                textAlign: TextAlign.center,
+              ),
+            );
           }
 
           final grouped = <String, Map<String, dynamic>>{};

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../services/du_lieu/dich_vu_firestore.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'khung_giao_dien_quan_tri.dart';
 
 /// Quản lý tổng duyệt tạo, xóa Quản lý và xem trước học viên liên quan.
@@ -410,8 +411,11 @@ class _TrangThaiYeuCauQuanTri extends State<AdminRequestsScreen> {
       stream: widget.service.getAdminRequestsStream(),
       builder: (context, adminRequests) {
         if (adminRequests.hasError) {
-          return const Center(
-            child: Text('Không tải được yêu cầu duyệt quản lý.'),
+          return AppErrorNotice(
+            error: adminRequests.error!,
+            feature: 'Tải yêu cầu duyệt quản lý',
+            fallbackAction:
+                'Kiểm tra quyền Admin tổng và kết nối máy chủ rồi tải lại.',
           );
         }
         if (!adminRequests.hasData) return const AdminLoading();
@@ -431,8 +435,10 @@ class _TrangThaiYeuCauQuanTri extends State<AdminRequestsScreen> {
           stream: widget.service.getAdminDeletionRequestsStream(),
           builder: (context, deletionRequests) {
             if (deletionRequests.hasError) {
-              return const Center(
-                child: Text('Không tải được yêu cầu xóa Quản lý.'),
+              return AppErrorNotice(
+                error: deletionRequests.error!,
+                feature: 'Tải yêu cầu xóa quản lý',
+                fallbackAction: 'Kiểm tra quyền Admin tổng và cấu hình máy chủ rồi tải lại.',
               );
             }
             if (!deletionRequests.hasData) return const AdminLoading();

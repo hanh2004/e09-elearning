@@ -49,7 +49,7 @@ void main() {
     final examplePreview = parser.parseRows([header, example]);
     expect(examplePreview.canImport, isTrue);
     expect(examplePreview.rows.single.username, 'hv001234');
-    expect(examplePreview.rows.single.userCodeSuffix, '001234');
+    expect(examplePreview.rows.single.userCodeSuffix, 'HV001234');
   });
 
   test(

@@ -69,7 +69,14 @@ class _ElearningAppState extends State<ElearningApp> {
                     child ??
                     const SizedBox.shrink(),
               )
-            : appBuilder,
+            : (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(.92)),
+                child:
+                    appBuilder?.call(context, child) ??
+                    child ??
+                    const SizedBox.shrink(),
+              ),
         home: widget.initialHome ?? const LoginScreen(),
       ),
     );

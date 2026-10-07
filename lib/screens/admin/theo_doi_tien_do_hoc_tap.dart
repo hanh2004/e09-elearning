@@ -54,9 +54,16 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        const AdminPageHeading(
-          title: 'Theo dõi tiến độ',
-          subtitle: 'Theo dõi tình trạng thực hiện và kết quả từng bài thi.',
+        const Padding(
+          padding: EdgeInsets.fromLTRB(28, 16, 28, 12),
+          child: Text(
+            'Theo dõi tiến độ',
+            style: TextStyle(
+              color: AppTheme.navy,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -70,19 +77,19 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
             inProgressCount: inProgressCount,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 28),
           child: Text(
             'Kết quả theo bài thi',
             style: TextStyle(
               color: AppTheme.navy,
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         if (cacBaiThi.isEmpty)
           const Padding(
             padding: EdgeInsets.all(24),
@@ -116,17 +123,17 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     ];
     return LayoutBuilder(
       builder: (context, constraints) => Wrap(
-        spacing: 16,
-        runSpacing: 16,
+        spacing: 12,
+        runSpacing: 10,
         children: [
           for (final card in cards)
             SizedBox(
               width: constraints.maxWidth >= 900
-                  ? (constraints.maxWidth - 48) / 4
+                  ? (constraints.maxWidth - 36) / 4
                   : constraints.maxWidth >= 560
-                  ? (constraints.maxWidth - 16) / 2
+                  ? (constraints.maxWidth - 12) / 2
                   : constraints.maxWidth,
-              child: AdminMetricCard(
+              child: _dungTheTongQuan(
                 value: '${card.$2}',
                 label: card.$1,
                 icon: card.$3,
@@ -137,6 +144,50 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
       ),
     );
   }
+
+  Widget _dungTheTongQuan({
+    required String value,
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) => AdminCard(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 25),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppTheme.navy,
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF60779A), fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 
   Widget _dungTheBaiThi(
     QueryDocumentSnapshot<Map<String, dynamic>> baiThi,
@@ -160,7 +211,7 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     );
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 14),
       color: Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -171,15 +222,15 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
       child: InkWell(
         onTap: () => _hienChiTietBaiThi(baiThi, cacLuotThi, userNames),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 16, 22, 18),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Container(
-                    width: 58,
-                    height: 58,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
                       color: primaryColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
@@ -187,16 +238,16 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
                     child: const Icon(
                       Icons.assignment_rounded,
                       color: primaryColor,
-                      size: 30,
+                      size: 25,
                     ),
                   ),
-                  const SizedBox(width: 18),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       (examData['title'] ?? 'Bài kiểm tra').toString(),
                       style: const TextStyle(
                         color: AppTheme.navy,
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -204,12 +255,12 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
                   const Icon(
                     Icons.chevron_right,
                     color: Color(0xFF292929),
-                    size: 28,
+                    size: 24,
                   ),
                 ],
               ),
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
+                padding: EdgeInsets.symmetric(vertical: 8),
                 child: Divider(height: 1, color: AdminUi.border),
               ),
               Row(
@@ -221,7 +272,7 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
                     ),
                   ),
                   const SizedBox(
-                    height: 48,
+                    height: 40,
                     child: VerticalDivider(
                       width: 1,
                       thickness: 1,
@@ -235,7 +286,7 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
                     ),
                   ),
                   const SizedBox(
-                    height: 48,
+                    height: 40,
                     child: VerticalDivider(
                       width: 1,
                       thickness: 1,
@@ -274,13 +325,13 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
           style: TextStyle(
             color: valueColor,
             fontWeight: FontWeight.w700,
-            fontSize: 22,
+            fontSize: 20,
           ),
           textAlign: TextAlign.center,
         ),
         Text(
           nhan,
-          style: const TextStyle(color: Color(0xFF7185A5), fontSize: 14),
+          style: const TextStyle(color: Color(0xFF7185A5), fontSize: 13),
           textAlign: TextAlign.center,
         ),
       ],

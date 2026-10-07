@@ -63,7 +63,6 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
       children: [
         AdminPageHeading(
           title: 'Tổng quan kết quả học tập',
-          subtitle: 'Theo dõi kết quả theo đơn vị, học viên và bài thi.',
           action: FilledButton.icon(
             onPressed: () =>
                 _moHopThoaiXuat(cacBaiThi, cacLuotThi, cacNguoiDung),
@@ -177,27 +176,10 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
             },
           ),
         ),
-        const SizedBox(height: 12),
-        Text(
-          '${baoCao.studentCount} học viên trong phạm vi lọc • ${baoCao.rows.length} kết quả học viên–bài thi.',
-          style: const TextStyle(color: Colors.blueGrey),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Mỗi học viên được tính một kết quả tốt nhất cho mỗi đề. Tỷ lệ đạt và điểm trung bình tính trên các kết quả này; số lượt đã nộp vẫn tính tất cả lượt.',
-          style: TextStyle(fontSize: 12, color: Colors.blueGrey, height: 1.5),
-        ),
-        if (baoCao.ungraded > 0)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              '${baoCao.ungraded} kết quả thiếu điểm hợp lệ, chưa tính vào điểm trung bình và tỷ lệ đạt.',
-            ),
-          ),
         const SizedBox(height: 22),
         _dauMuc('Tiến độ theo đơn vị'),
         const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.fromLTRB(28, 8, 28, 8),
           child: Text(
             'Đã làm = học viên có ít nhất một lượt đã nộp trong bài thi đang lọc; mỗi người chỉ tính một lần.',
             style: TextStyle(color: Colors.blueGrey, fontSize: 12),
@@ -209,16 +191,17 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
           Builder(
             builder: (context) {
               final thanhVien = cacNguoiDung
-                  .where(
-                    (u) =>
-                        u.data()['role'] == 'user' &&
-                        (u.data()['unit'] ?? '') == donVi &&
-                        '${u.id} ${u.data()['name'] ?? ''} ${u.data()['username'] ?? ''} ${u.data()['unit'] ?? ''} ${u.data()['subUnit'] ?? ''} ${u.data()['subUnit'] ?? ''}-${u.data()['unit'] ?? ''}'
-                            .toLowerCase()
-                            .contains(
-                              searchController.text.trim().toLowerCase(),
-                            ),
-                  )
+                  .where((u) {
+                    final user = u.data();
+                    return user['role'] == 'user' &&
+                        AdminReport.matchesUser(
+                          u.id,
+                          user,
+                          unit: donVi,
+                          subUnit: selectedSubUnit,
+                          search: searchController.text,
+                        );
+                  })
                   .map((u) => u.id)
                   .toSet();
               final daXong = baoCao.rows
@@ -236,35 +219,86 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
                             donVi,
                   )
                   .length;
+              final tiLeHoanThanh = thanhVien.isEmpty
+                  ? 0.0
+                  : daXong / thanhVien.length;
               return Card(
-                child: ListTile(
-                  leading: const Icon(Icons.apartment, color: AppTheme.red),
-                  title: Text(
-                    donVi.isEmpty ? 'Chưa phân đơn vị' : donVi,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    '$adminCount quản lý • ${thanhVien.length} học viên\nĐã làm: $daXong • Chưa làm: ${thanhVien.length - daXong}',
-                  ),
-                  isThreeLine: true,
-                  trailing: Text(
-                    thanhVien.isEmpty
-                        ? '—'
-                        : '${(daXong * 100 / thanhVien.length).round()}%',
+                margin: const EdgeInsets.symmetric(horizontal: 28, vertical: 6),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFCECEE),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.apartment_rounded,
+                          color: AppTheme.red,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    donVi.isEmpty ? 'Chưa phân đơn vị' : donVi,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  thanhVien.isEmpty
+                                      ? '—'
+                                      : '${(tiLeHoanThanh * 100).round()}%',
+                                  style: const TextStyle(
+                                    color: AppTheme.navy,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$adminCount quản lý • ${thanhVien.length} học viên',
+                              style: const TextStyle(color: Colors.blueGrey),
+                            ),
+                            const SizedBox(height: 12),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: LinearProgressIndicator(
+                                minHeight: 8,
+                                value: tiLeHoanThanh,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               );
             },
           ),
         const SizedBox(height: 20),
+        _dauMuc('Phân bố điểm'),
         Card(
+          margin: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _dauMuc('Phân bố điểm tốt nhất'),
-                const SizedBox(height: 16),
+                const SizedBox(height: 4),
                 for (var i = 0; i < 5; i++)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 7),
@@ -309,7 +343,8 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
         _dauMuc('Kết quả chi tiết (${baoCao.rows.length})'),
         const SizedBox(height: 8),
         if (baoCao.rows.isEmpty)
-          const Card(
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 28, vertical: 6),
             child: Padding(
               padding: EdgeInsets.all(28),
               child: Text('Chưa có kết quả phù hợp với bộ lọc.'),
@@ -371,6 +406,7 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
                 );
               }
               return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 28, vertical: 6),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
@@ -438,15 +474,22 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
           )
         else
           Card(
+            margin: const EdgeInsets.symmetric(horizontal: 28, vertical: 6),
             child: Column(
               children: [
                 for (var i = 0; i < rank.length && i < 10; i++)
                   ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: const Color(0xFFF9E8E8),
+                      backgroundColor: i == 0
+                          ? const Color(0xFFFFF3CD)
+                          : const Color(0xFFF9E8E8),
                       child: Text(
                         '#${i + 1}',
-                        style: const TextStyle(color: AppTheme.red),
+                        style: TextStyle(
+                          color: i == 0
+                              ? const Color(0xFFAA7600)
+                              : AppTheme.red,
+                        ),
                       ),
                     ),
                     title: Text(
@@ -470,12 +513,15 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
     );
   }
 
-  Widget _dauMuc(String giaTri) => Text(
-    giaTri,
-    style: const TextStyle(
-      fontSize: 18,
-      fontWeight: FontWeight.w800,
-      color: AppTheme.navy,
+  Widget _dauMuc(String giaTri) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 28),
+    child: Text(
+      giaTri,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+        color: AppTheme.navy,
+      ),
     ),
   );
   String _ngayHienThi(DateTime? giaTri) => giaTri == null
@@ -518,7 +564,15 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(bieuTuong, color: mau),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: mau.withValues(alpha: .08),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(bieuTuong, color: mau),
+            ),
             const SizedBox(height: 12),
             Text(
               giaTri,
@@ -532,12 +586,6 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
           ],
         ),
       ),
-    ),
-  );
-  Widget _dungThongBaoLoi(String thongDiep) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Text(thongDiep, textAlign: TextAlign.center),
     ),
   );
 }

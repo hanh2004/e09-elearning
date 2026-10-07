@@ -8,6 +8,7 @@ import '../../models/dinh_danh_tai_khoan.dart';
 import '../../models/bieu_mau_tin_tuc.dart';
 import '../../models/bai_viet_tin_tuc.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
+import '../../services/thong_bao_loi_ung_dung.dart';
 import '../../services/tep/dich_vu_tai_anh.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import '../../widgets/anh_bia_khoa_hoc.dart';
@@ -30,36 +31,103 @@ class _TrangThaiTinTucQuanTri extends State<AdminNewsScreen> {
       .collection('news')
       .orderBy('updatedAt', descending: true)
       .snapshots();
+  final _dangXoaTinTuc = <String>{};
+  final _dangXacNhanXoaTinTuc = <String>{};
 
-  Future<void> edit([
+  Future<void> edit({
     QueryDocumentSnapshot<Map<String, dynamic>>? banGhi,
-  ]) async {
+    List<String> categoryOptions = const [],
+    List<String> enabledCategories = const [],
+  }) async {
     final taiKhoan = AccountSession.current;
     if (taiKhoan?.isRoot != true) return;
     final duLieu = banGhi?.data() ?? <String, dynamic>{};
     final existingCategory = duLieu['category']?.toString() ?? '';
-    final customCategory =
-        !NewsArticle.categories.contains(existingCategory) &&
-        existingCategory.isNotEmpty;
+    final availableCategories = <String>{
+      ...NewsArticle.categories,
+      ...categoryOptions,
+      if (existingCategory.isNotEmpty) existingCategory,
+    }.toList(growable: false);
     await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _HopThoaiSuaTinTuc(
         title: banGhi == null ? 'Thêm tin tức' : 'Sửa tin tức',
         initialData: duLieu,
-        initialCategory: customCategory
-            ? 'Tự nhập'
-            : existingCategory.isEmpty
+        categoryOptions: availableCategories,
+        enabledCategories: enabledCategories,
+        initialCategory: existingCategory.isEmpty
             ? NewsArticle.categories.first
             : existingCategory,
-        initialCustomCategory: customCategory ? existingCategory : '',
         onSave: (cacGiaTri) => service.saveContent(
           taiKhoan!.id,
           banGhi?.reference ?? service.db.collection('news').doc(),
-          NewsForm.toFirestore(cacGiaTri),
+          NewsForm.toFirestore(cacGiaTri, knownCategories: availableCategories),
         ),
       ),
     );
+  }
+
+  Future<void> delete(
+    QueryDocumentSnapshot<Map<String, dynamic>> banGhi,
+  ) async {
+    if (AccountSession.current?.isRoot != true ||
+        !_dangXacNhanXoaTinTuc.add(banGhi.id)) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa vĩnh viễn tin tức'),
+        content: Text(
+          'Xóa vĩnh viễn tin tức "${banGhi.data()['title'] ?? ''}"? '
+          'Không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa vĩnh viễn'),
+          ),
+        ],
+      ),
+    );
+    _dangXacNhanXoaTinTuc.remove(banGhi.id);
+    if (confirmed != true || !mounted || !_dangXoaTinTuc.add(banGhi.id)) {
+      return;
+    }
+    setState(() {});
+    try {
+      await banGhi.reference.delete();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Đã xóa tin tức.')));
+      }
+    } catch (loi) {
+      debugPrint('Xóa tin tức ${banGhi.id} thất bại: $loi');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                loi,
+                feature: 'Xóa tin tức',
+                fallbackAction: 'Hãy tải lại danh sách rồi thử lại.',
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      _dangXoaTinTuc.remove(banGhi.id);
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -71,7 +139,13 @@ class _TrangThaiTinTucQuanTri extends State<AdminNewsScreen> {
       appBar: AdminUi.appBar('Quản lý tin tức'),
       body: LearningList(
         stream: stream,
+        errorTitle: 'Tải danh sách tin tức',
         builder: (cacBanGhi) {
+          final articles = cacBanGhi.map(
+            (banGhi) => NewsArticle(banGhi.id, banGhi.data()),
+          );
+          final categoryOptions = NewsArticle.categoriesFor(articles);
+          final enabledCategories = NewsArticle.enabledCategoriesFor(articles);
           final published = cacBanGhi
               .where((banGhi) => banGhi.data()['published'] == true)
               .length;
@@ -80,10 +154,13 @@ class _TrangThaiTinTucQuanTri extends State<AdminNewsScreen> {
             children: [
               AdminPageHeading(
                 title: 'Danh sách tin tức',
-                subtitle: 'Tạo và quản lý bài viết, thông báo trên hệ thống.',
                 action: AccountSession.current?.isRoot == true
                     ? FilledButton.icon(
-                        onPressed: edit,
+                        onPressed: () =>
+                            edit(
+                              categoryOptions: categoryOptions,
+                              enabledCategories: enabledCategories,
+                            ),
                         icon: const Icon(Icons.add),
                         label: const Text('Thêm tin tức'),
                       )
@@ -140,7 +217,17 @@ class _TrangThaiTinTucQuanTri extends State<AdminNewsScreen> {
                         children: [
                           for (final banGhi in cacBanGhi)
                             AdminCard(
-                              child: _DongTinTuc(doc: banGhi, onEdit: edit),
+                              key: ValueKey('news:${banGhi.id}'),
+                              child: _DongTinTuc(
+                                doc: banGhi,
+                                onEdit: (banGhi) => edit(
+                                  banGhi: banGhi,
+                                  categoryOptions: categoryOptions,
+                                  enabledCategories: enabledCategories,
+                                ),
+                                onDelete: delete,
+                                deleting: _dangXoaTinTuc.contains(banGhi.id),
+                              ),
                             ),
                         ],
                       ),
@@ -154,56 +241,104 @@ class _TrangThaiTinTucQuanTri extends State<AdminNewsScreen> {
 }
 
 class _DongTinTuc extends StatelessWidget {
-  const _DongTinTuc({required this.doc, required this.onEdit});
+  const _DongTinTuc({
+    required this.doc,
+    required this.onEdit,
+    required this.onDelete,
+    required this.deleting,
+  });
 
   final QueryDocumentSnapshot<Map<String, dynamic>> doc;
   final Future<void> Function(QueryDocumentSnapshot<Map<String, dynamic>>)
   onEdit;
+  final Future<void> Function(QueryDocumentSnapshot<Map<String, dynamic>>)
+  onDelete;
+  final bool deleting;
 
   @override
   Widget build(BuildContext context) {
     final duLieu = doc.data();
     final laQuanTriTong = AccountSession.current?.isRoot == true;
+    final thongTinTin = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          duLieu['title'] ?? '',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${duLieu['category'] ?? NewsArticle.categories.first} • ${duLieu['summary'] ?? ''}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Color(0xFF60779A)),
+        ),
+      ],
+    );
+    final nutThaoTac = <Widget>[
+      if (laQuanTriTong) ...[
+        IconButton(
+          tooltip: 'Sửa tin tức',
+          onPressed: () => onEdit(doc),
+          icon: const Icon(Icons.edit_outlined),
+        ),
+        IconButton(
+          tooltip: 'Xóa tin tức',
+          onPressed: deleting ? null : () => onDelete(doc),
+          icon: deleting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.delete_outline),
+        ),
+      ],
+    ];
+    final trangThai = _TrangThaiTinTuc(published: duLieu['published'] == true);
     return InkWell(
       onTap: laQuanTriTong ? () => onEdit(doc) : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        child: Row(
-          children: [
-            CourseCover(url: duLieu['coverUrl'] ?? '', width: 64, height: 56),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    duLieu['title'] ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${duLieu['category'] ?? NewsArticle.categories.first} • ${duLieu['summary'] ?? ''}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Color(0xFF60779A)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            _TrangThaiTinTuc(published: duLieu['published'] == true),
-            if (laQuanTriTong) ...[
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Sửa tin tức',
-                onPressed: () => onEdit(doc),
-                icon: const Icon(Icons.edit_outlined),
-              ),
-            ],
-          ],
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final noiDung = constraints.maxWidth < 560
+              ? Column(
+                  children: [
+                    Row(
+                      children: [
+                        CourseCover(
+                          url: duLieu['coverUrl'] ?? '',
+                          width: 64,
+                          height: 56,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(child: thongTinTin),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(children: [trangThai, const Spacer(), ...nutThaoTac]),
+                  ],
+                )
+              : Row(
+                  children: [
+                    CourseCover(
+                      url: duLieu['coverUrl'] ?? '',
+                      width: 64,
+                      height: 56,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(child: thongTinTin),
+                    const SizedBox(width: 12),
+                    trangThai,
+                    ...nutThaoTac,
+                  ],
+                );
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            child: noiDung,
+          );
+        },
       ),
     );
   }
@@ -236,15 +371,17 @@ class _HopThoaiSuaTinTuc extends StatefulWidget {
   const _HopThoaiSuaTinTuc({
     required this.title,
     required this.initialData,
+    required this.categoryOptions,
+    required this.enabledCategories,
     required this.initialCategory,
-    required this.initialCustomCategory,
     required this.onSave,
   });
 
   final String title;
   final Map<String, dynamic> initialData;
+  final List<String> categoryOptions;
+  final List<String> enabledCategories;
   final String initialCategory;
-  final String initialCustomCategory;
   final Future<void> Function(Map<String, String>) onSave;
 
   @override
@@ -263,6 +400,11 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
   late final _noiDung = TextEditingController(
     text: widget.initialData['content']?.toString() ?? '',
   );
+  late final _loaiTinTuNhap = TextEditingController();
+  late String _loaiTin = widget.initialCategory;
+  late bool _hienLoaiTinTrenThanh =
+      widget.initialData['showCategoryTab'] as bool? ??
+      NewsArticle.categories.contains(widget.initialCategory);
   late String _duongDanAnh = widget.initialData['coverUrl']?.toString() ?? '';
   SelectedUploadImage? _anhDaChon;
   double? _tienDoTaiLen;
@@ -277,6 +419,7 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
     _tieuDe.dispose();
     _tomTat.dispose();
     _noiDung.dispose();
+    _loaiTinTuNhap.dispose();
     super.dispose();
   }
 
@@ -295,9 +438,16 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
       });
     } on ImageUploadException catch (loi) {
       if (mounted) setState(() => _loi = loi.message);
-    } catch (_) {
+    } catch (loi) {
       if (mounted) {
-        setState(() => _loi = 'Không thể chọn ảnh. Vui lòng thử lại.');
+        setState(
+          () => _loi = AppErrorMessage.from(
+            loi,
+            feature: 'Chọn ảnh tin tức',
+            fallbackAction:
+                'Kiểm tra quyền truy cập ảnh và kết nối máy chủ rồi thử lại.',
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _dangXuLy = false);
@@ -306,6 +456,17 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
 
   Future<void> _luu() async {
     if (_dangXuLy || !_bieuMau.currentState!.validate()) return;
+    final loaiTinDaChon = _loaiTin == NewsForm.customCategorySelection
+        ? _loaiTinTuNhap.text.trim()
+        : _loaiTin;
+    if (_hienLoaiTinTrenThanh &&
+        !widget.enabledCategories.contains(loaiTinDaChon) &&
+        widget.enabledCategories.length >= 3) {
+      setState(
+        () => _loi = 'Thanh nhanh đã đủ 3 loại. Loại này vẫn dùng được trong bộ lọc.',
+      );
+      return;
+    }
     setState(() {
       _dangXuLy = true;
       _loi = null;
@@ -325,8 +486,9 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
         'title': _tieuDe.text.trim(),
         'summary': _tomTat.text.trim(),
         'content': _noiDung.text.trim(),
-        'category': widget.initialCategory,
-        'categoryCustom': widget.initialCustomCategory,
+        'category': _loaiTin,
+        'categoryCustom': _loaiTinTuNhap.text.trim(),
+        'showCategoryTab': _hienLoaiTinTrenThanh ? 'Có' : 'Không',
         'featured': _noiBat ? 'Có' : 'Không',
         'status': _luuBanNhap ? NewsForm.draft : NewsForm.published,
         'imageUrl': _duongDanAnh,
@@ -346,10 +508,14 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
           _tienDoTaiLen = null;
         });
       }
-    } catch (_) {
+    } catch (loi) {
       if (mounted) {
         setState(() {
-          _loi = 'Không thể lưu tin tức. Kiểm tra kết nối rồi thử lại.';
+          _loi = AppErrorMessage.from(
+            loi,
+            feature: 'Lưu tin tức',
+            fallbackAction: 'Kiểm tra quyền quản trị, nội dung và kết nối máy chủ rồi thử lại.',
+          );
           _tienDoTaiLen = null;
         });
       }
@@ -434,8 +600,8 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
                             _dangXuLy && _tienDoTaiLen == null
                                 ? 'Đang xử lý…'
                                 : _anhDaChon == null && _duongDanAnh.isEmpty
-                                ? 'Chọn ảnh từ thiết bị (tối đa 20 MB)'
-                                : 'Đổi ảnh từ thiết bị (tối đa 20 MB)',
+                            ? 'Chọn ảnh từ thiết bị'
+                            : 'Đổi ảnh từ thiết bị',
                           ),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppTheme.red,
@@ -469,6 +635,76 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
                             vanBan == null || vanBan.trim().isEmpty
                             ? 'Vui lòng nhập tiêu đề tin tức.'
                             : null,
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: _loaiTin,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Loại tin tức',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          for (final category in widget.categoryOptions)
+                            DropdownMenuItem(
+                              value: category,
+                              child: Text(category),
+                            ),
+                          const DropdownMenuItem(
+                            value: NewsForm.customCategorySelection,
+                            child: Text('＋ Thêm loại mới'),
+                          ),
+                        ],
+                        validator: (value) => value == null || value.isEmpty
+                            ? 'Vui lòng chọn loại tin tức.'
+                            : null,
+                        onChanged: _dangXuLy
+                            ? null
+                            : (value) {
+                                if (value != null) {
+                                  setState(() {
+                                    _loaiTin = value;
+                                    _hienLoaiTinTrenThanh = value !=
+                                            NewsForm.customCategorySelection &&
+                                        widget.enabledCategories.contains(value);
+                                  });
+                                }
+                              },
+                      ),
+                      if (_loaiTin == NewsForm.customCategorySelection) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _loaiTinTuNhap,
+                          maxLength: 100,
+                          decoration: const InputDecoration(
+                            labelText: 'Tên loại mới',
+                            hintText: 'Ví dụ: Hoạt động đơn vị',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (_loaiTin != NewsForm.customCategorySelection) {
+                              return null;
+                            }
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Vui lòng nhập tên loại tin.';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Hiện loại này trên thanh nhanh'),
+                        subtitle: const Text(
+                          'Tối đa 3 loại bên cạnh “Tất cả”. Loại khác vẫn có trong bộ lọc.',
+                        ),
+                        value: _hienLoaiTinTrenThanh,
+                        onChanged: _dangXuLy
+                            ? null
+                            : (value) => setState(() {
+                                _hienLoaiTinTrenThanh = value;
+                                _loi = null;
+                              }),
                       ),
                       const SizedBox(height: 16),
                       const _NhanTrinhSua('Tóm tắt'),

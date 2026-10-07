@@ -276,8 +276,9 @@ service cloud.firestore {
     match /news/{id} {
       allow read: if admin() || (active() && resource.data.published == true);
       allow create, update: if root() &&
-        request.resource.data.keys().hasOnly(['title','summary','content','contentFormat','coverUrl','published','updatedBy','updatedAt','publishedAt','category','featured','homeBanner']) &&
+        request.resource.data.keys().hasOnly(['title','summary','content','contentFormat','coverUrl','published','updatedBy','updatedAt','publishedAt','category','showCategoryTab','featured','homeBanner']) &&
         validNewsCategory(request.resource.data) &&
+        request.resource.data.get('showCategoryTab', false) is bool &&
         request.resource.data.get('featured', false) is bool && request.resource.data.get('homeBanner', false) is bool &&
         (!request.resource.data.get('homeBanner', false) || hasCover(request.resource.data)) &&
         (!(request.resource.data.get('publishedAt', null) != null) ||
@@ -288,6 +289,7 @@ service cloud.firestore {
         request.resource.data.published is bool &&
         (request.resource.data.get('coverUrl','') == '' || hasCover(request.resource.data)) &&
         request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedAt == request.time;
+      allow delete: if root();
     }
     match /home_banners/{id} {
       allow read: if admin() || (active() && resource.data.get('active', true) == true);

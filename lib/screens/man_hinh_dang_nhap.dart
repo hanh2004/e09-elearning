@@ -10,6 +10,7 @@ import '../models/dinh_danh_tai_khoan.dart';
 import '../services/tai_khoan/xac_thuc_tai_khoan.dart';
 import '../services/tai_khoan/phien_dang_nhap_quan_tri_web.dart';
 import '../services/kiem_tra_phien_ban_ung_dung.dart';
+import '../services/thong_bao_loi_ung_dung.dart';
 import 'hop_thoai_dat_lai_mat_khau.dart';
 import '../widgets/hop_thoai_phien_dang_nhap.dart';
 
@@ -168,7 +169,7 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
       if (canCleanupUnclaimedLogin) {
         await AccountAuth.signOut();
       }
-      debugPrint('[Đăng nhập] ${accountLoginErrorCode(loi)}');
+      debugPrint('[Đăng nhập] ${AppErrorMessage.technicalCodeFor(loi)}');
       if (mounted) {
         setState(() => _loiDangNhap = accountLoginErrorMessage(loi));
       }

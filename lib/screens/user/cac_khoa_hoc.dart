@@ -60,8 +60,10 @@ class _TrangThaiKhoaHocHocVien extends State<UserCoursesScreen> {
     appBar: LearnerHeader(title: const Text('Thư viện học tập')),
     body: LearningList(
       stream: courses,
+      errorTitle: 'Tải thư viện khóa học',
       builder: (cacBanGhi) => LearningList(
         stream: progress,
+        errorTitle: 'Tải tiến độ học tập',
         builder: (cacMauTin) {
           final subjects =
               cacBanGhi
@@ -181,6 +183,7 @@ class _TrangThaiTheThuVienKhoaHoc extends State<_TheThuVienKhoaHoc> {
   @override
   Widget build(BuildContext context) => LearningList(
     stream: lessons,
+    errorTitle: 'Tải nội dung khóa học',
     builder: (allDocs) {
       final duLieu = widget.course.data();
       final releaseDate = CourseForm.formatReleaseDateTime(

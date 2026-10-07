@@ -62,6 +62,7 @@ class _TrangThaiDanhSachChuong extends State<CourseChapterList> {
   @override
   Widget build(BuildContext context) => LearningList(
     stream: lessons,
+    errorTitle: 'Tải nội dung khóa học',
     builder: (allDocs) {
       final courseData = widget.course.data();
       final records = LearningPolicy.sortLessons(allDocs);
@@ -82,6 +83,7 @@ class _TrangThaiDanhSachChuong extends State<CourseChapterList> {
   Widget _progress(List<LessonDoc> records) =>
       LearningList(
         stream: progress,
+        errorTitle: 'Tải tiến độ nội dung khóa học',
         builder: (progressDocs) {
           final completed = progressDocs
               .where(

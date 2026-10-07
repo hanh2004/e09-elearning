@@ -9,6 +9,45 @@ class NewsArticle {
     'Chủ trương chính sách',
     'Thông tin học tập',
   ];
+
+  static List<String> categoriesFor(Iterable<NewsArticle> articles) {
+    final available = <String>{...categories};
+    for (final article in articles) {
+      final category = article.category.trim();
+      if (category.isNotEmpty && category != 'Tất cả') available.add(category);
+    }
+    return available.toList(growable: false);
+  }
+
+  static List<String> enabledCategoriesFor(Iterable<NewsArticle> articles) {
+    final all = articles.toList(growable: false);
+    final settings = <String, bool>{};
+    final settingUpdates = <String, DateTime>{};
+    for (final article in all) {
+      final category = article.category.trim();
+      final setting = article.data['showCategoryTab'];
+      if (category.isNotEmpty && setting is bool) {
+        final updatedAt = article.data['updatedAt'];
+        final updatedTime = updatedAt is Timestamp
+            ? updatedAt.toDate()
+            : DateTime(2000);
+        if (!settingUpdates.containsKey(category) ||
+            !updatedTime.isBefore(settingUpdates[category]!)) {
+          settings[category] = setting;
+          settingUpdates[category] = updatedTime;
+        }
+      }
+    }
+    final available = categoriesFor(all);
+    return [
+      for (final category in available)
+        if (settings[category] ?? categories.contains(category)) category,
+    ];
+  }
+
+  static List<String> quickCategoriesFor(Iterable<NewsArticle> articles) =>
+      enabledCategoriesFor(articles).take(3).toList(growable: false);
+
   String get title => data['title'] as String? ?? '';
   String get summary => data['summary'] as String? ?? '';
   String get content => data['content'] as String? ?? '';

@@ -244,7 +244,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      for (final tab in ['Trang chủ', 'Thông tin', 'Tiện ích']) {
+      for (final tab in ['Trang chủ', 'Tin tức', 'Tiện ích']) {
         await tester.tap(find.text(tab).last);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: tab);

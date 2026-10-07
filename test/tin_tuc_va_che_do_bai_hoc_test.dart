@@ -131,8 +131,10 @@ void main() {
           MaterialApp(home: AdminNewsScreen(service: service)),
         );
         await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'news admin screen');
         await tester.tap(find.text('Thêm tin tức'));
         await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'news editor');
         await tester.enterText(find.byType(TextFormField).at(0), 'Tin mới E09');
         await tester.enterText(
           find.byType(TextFormField).at(2),
@@ -142,6 +144,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Lưu'));
         await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'after saving news');
         final saved = (await db.collection('news').get()).docs.single.data();
         expect(saved['published'], true);
         expect(saved['content'], 'Nội dung tin đã đăng');
@@ -160,13 +163,121 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'learner news list');
         expect(find.text('Tin mới E09'), findsOneWidget);
         expect(find.text('Tin chưa đăng'), findsNothing);
         await tester.tap(find.text('Tin mới E09'));
         await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'news detail');
         expect(find.text('Nội dung tin đã đăng'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
   }
+
+  testWidgets('root can cancel and confirm deleting a news article', (
+    tester,
+  ) async {
+    AccountSession.current = const AccountIdentity(
+      id: 'root',
+      role: 'super_admin',
+    );
+    final db = FakeFirebaseFirestore();
+    await db.doc('news/test-draft').set({
+      'title': '[KIỂM THỬ] Tin nháp cần xóa',
+      'summary': 'Tin dùng để kiểm thử xóa',
+      'content': 'Nội dung kiểm thử',
+      'category': 'Thông báo',
+      'published': false,
+      'updatedAt': Timestamp.now(),
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminNewsScreen(service: _WidgetSaveService(db: db)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Xóa tin tức'), findsOneWidget);
+    await tester.tap(find.byTooltip('Xóa tin tức'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Xóa vĩnh viễn tin tức "[KIỂM THỬ] Tin nháp cần xóa"? '
+        'Không thể hoàn tác.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Hủy'));
+    await tester.pumpAndSettle();
+    expect((await db.doc('news/test-draft').get()).exists, isTrue);
+
+    await tester.tap(find.byTooltip('Xóa tin tức'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Xóa vĩnh viễn'));
+    await tester.pumpAndSettle();
+    expect((await db.doc('news/test-draft').get()).exists, isFalse);
+    expect(find.text('Đã xóa tin tức.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('news rows keep image identity when Firestore reorders them', (
+    tester,
+  ) async {
+    AccountSession.current = const AccountIdentity(
+      id: 'root',
+      role: 'super_admin',
+    );
+    final db = FakeFirebaseFirestore();
+    final older = Timestamp.fromDate(DateTime(2026, 9, 1));
+    await db.doc('news/story-a').set({
+      'title': 'Tin A',
+      'summary': '',
+      'content': 'Nội dung A',
+      'coverUrl': 'https://example.org/story-a.png',
+      'published': true,
+      'updatedAt': older,
+    });
+    await db.doc('news/story-b').set({
+      'title': 'Tin B',
+      'summary': '',
+      'content': 'Nội dung B',
+      'coverUrl': 'https://example.org/story-b.png',
+      'published': true,
+      'updatedAt': Timestamp.fromDate(DateTime(2026, 9, 2)),
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminNewsScreen(service: _WidgetSaveService(db: db)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('news:story-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('news:story-b')), findsOneWidget);
+
+    await db.doc('news/story-a').update({
+      'updatedAt': Timestamp.fromDate(DateTime(2026, 9, 3)),
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('news:story-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('news:story-b')), findsOneWidget);
+    for (final pair in {
+      'news:story-a': 'https://example.org/story-a.png',
+      'news:story-b': 'https://example.org/story-b.png',
+    }.entries) {
+      final imageFinder = find.descendant(
+        of: find.byKey(ValueKey(pair.key)),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Image && widget.image is NetworkImage,
+        ),
+      );
+      expect(imageFinder, findsOneWidget);
+      final image = tester.widget<Image>(imageFinder);
+      expect((image.image as NetworkImage).url, pair.value);
+    }
+    expect(tester.takeException(), isNull);
+  });
 }

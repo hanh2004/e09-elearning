@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../app/chu_de_ung_dung.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
+import '../../services/thong_bao_loi_ung_dung.dart';
 import '../../widgets/tien_ich_giao_dien_hoc_tap.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import 'khung_giao_dien_quan_tri.dart';
@@ -118,10 +119,19 @@ class _TrangThaiThongBaoQuanTri extends State<AdminNotificationsScreen> {
     if (confirmed != true) return;
     try {
       await banGhi.reference.delete();
-    } catch (_) {
+    } catch (loi) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không xóa được thông báo.')),
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                loi,
+                feature: 'Xóa thông báo',
+                fallbackAction:
+                    'Kiểm tra quyền quản trị và kết nối máy chủ rồi thử lại.',
+              ),
+            ),
+          ),
         );
       }
     }
@@ -136,6 +146,7 @@ class _TrangThaiThongBaoQuanTri extends State<AdminNotificationsScreen> {
       appBar: AdminUi.appBar('Quản lý thông báo'),
       body: LearningList(
         stream: stream,
+        errorTitle: 'Tải danh sách thông báo',
         builder: (cacBanGhi) {
           final sent = cacBanGhi.length;
           final sentCount = cacBanGhi.where((record) {
@@ -147,7 +158,6 @@ class _TrangThaiThongBaoQuanTri extends State<AdminNotificationsScreen> {
             children: [
               AdminPageHeading(
                 title: 'Quản lý thông báo',
-                subtitle: 'Tạo và quản lý thông báo gửi đến người dùng.',
                 action: AccountSession.current?.isRoot == true
                     ? FilledButton.icon(
                         onPressed: edit,

@@ -76,7 +76,7 @@ class _TrangThaiKhungHocVien extends State<UserMainLayout> {
         service: service,
         active: _viTriDaChon == 4,
       ),
-      UserInformationScreen(uid: widget.args.userId, service: service),
+      UserInformationScreen(service: service),
       UserUtilitiesScreen(
         args: widget.args,
         service: service,

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../models/bieu_mau_khoa_hoc.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
+import '../../widgets/thong_bao_loi.dart';
 import '../../widgets/tien_ich_giao_dien_hoc_tap.dart';
 import 'cac_khoa_hoc.dart';
 
@@ -72,14 +73,19 @@ class _TrangThaiBaiHocDaLuu extends State<SavedLessonsScreen> {
     appBar: LearnerHeader(title: const Text('Bài đã lưu')),
     body: LearningList(
       stream: courses,
+      errorTitle: 'Tải khóa học đã lưu',
       builder: (cacKhoaHoc) => LearningList(
         stream: progress,
+        errorTitle: 'Tải tiến độ bài đã lưu',
         builder: (cacMauTin) => FutureBuilder(
           future: load(cacKhoaHoc, cacMauTin),
           builder: (context, duLieuNhan) {
             if (duLieuNhan.hasError) {
-              return const Center(
-                child: Text('Chưa tải được bài đã lưu. Hãy mở lại để thử lại.'),
+              return AppErrorNotice(
+                error: duLieuNhan.error!,
+                feature: 'Tải khóa học đã lưu',
+                fallbackAction:
+                    'Kiểm tra kết nối và cấu hình máy chủ rồi tải lại trang.',
               );
             }
             if (!duLieuNhan.hasData) {

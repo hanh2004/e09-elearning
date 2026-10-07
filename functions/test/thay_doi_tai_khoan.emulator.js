@@ -228,20 +228,23 @@ test('collision and unapproved manager abort transfer without partial changes', 
   await db.doc('users/m2').update({approvedBy:'root1'});
   await denied(handlers.reassignUser('root1',{userId:first.id,managerId:'m2',userCodeSuffix:'002'}),'failed-precondition');
 });
-test('root changes only the code unit; owning manager changes only the suffix', async()=>{
+test('learner unit changes only through transfer; owning manager changes only the suffix', async()=>{
   const learner = await create('m1', 'codeowner', '0007');
-  await handlers.updateUser('root1', {userId:learner.id,name:'Học viên',unit:'NEW'});
+  await denied(handlers.updateUser('root1', {
+    userId:learner.id,name:'Học viên',unit:'NEW',
+  }), 'invalid-argument');
   let data = (await learner.ref.get()).data();
-  assert.equal(data.userCode, 'NEW-0007');
+  assert.equal(data.unit, 'D1');
+  assert.equal(data.userCode, 'D1-0007');
   assert.equal(data.userCodeSuffix, '0007');
-  assert.equal((await db.doc(`user_codes/${userCodeKey('D1-0007')}`).get()).exists, false);
-  assert.equal((await db.doc(`user_codes/${userCodeKey('NEW-0007')}`).get()).data().uid, learner.id);
+  assert.equal((await db.doc(`user_codes/${userCodeKey('D1-0007')}`).get()).data().uid, learner.id);
+  assert.equal((await db.doc(`user_codes/${userCodeKey('NEW-0007')}`).get()).exists, false);
   await denied(handlers.updateUser('m2', {
     userId:learner.id,name:'Forbidden',userCodeSuffix:'0099',
   }));
   await denied(handlers.updateUser('m1', {
     userId:learner.id,name:'Forbidden',unit:'OTHER',
-  }));
+  }), 'invalid-argument');
   await denied(handlers.updateUser('root1', {
     userId:learner.id,name:'Forbidden',userCodeSuffix:'0099',
   }));
@@ -249,11 +252,11 @@ test('root changes only the code unit; owning manager changes only the suffix', 
     userId:learner.id,name:'Updated',userCodeSuffix:'0099',
   });
   data = (await learner.ref.get()).data();
-  assert.equal(data.userCode, 'NEW-0099');
-  assert.equal(data.unit, 'NEW');
+  assert.equal(data.userCode, 'D1-0099');
+  assert.equal(data.unit, 'D1');
   assert.equal(data.userCodeSuffix, '0099');
-  assert.equal((await db.doc(`user_codes/${userCodeKey('NEW-0007')}`).get()).exists, false);
-  assert.equal((await db.doc(`user_codes/${userCodeKey('NEW-0099')}`).get()).data().uid, learner.id);
+  assert.equal((await db.doc(`user_codes/${userCodeKey('D1-0007')}`).get()).exists, false);
+  assert.equal((await db.doc(`user_codes/${userCodeKey('D1-0099')}`).get()).data().uid, learner.id);
 });
 test('unit rename updates every prefix, confirmation and reserves unique unit', async()=>{
   const first=await create(); const second=await create('m1','second','002');
