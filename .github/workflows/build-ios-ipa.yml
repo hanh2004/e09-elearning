@@ -1,0 +1,45 @@
+name: Build iOS IPA for sideloading
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - admin-web
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter packages
+        run: flutter pub get
+
+      - name: Build iOS app without signing
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned app as IPA
+        shell: bash
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          ditto build/ios/iphoneos/Runner.app build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          /usr/bin/zip -qry e09_elearning.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: e09-elearning-unsigned-ipa
+          path: build/ios/ipa/e09_elearning.ipa
+          if-no-files-found: error
+          retention-days: 3
