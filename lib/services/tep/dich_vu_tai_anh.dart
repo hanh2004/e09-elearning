@@ -34,6 +34,8 @@ class ImageUploadService {
       allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
     );
     if (tep == null) return null;
+    final knownSize = tep.lengthSync();
+    if (knownSize != null) _validateSize(knownSize);
     final duLieuByte = await tep.readAsBytes();
     final anh = SelectedUploadImage(bytes: duLieuByte, name: tep.name);
     validate(anh);
@@ -57,13 +59,17 @@ class ImageUploadService {
   }
 
   static void validate(SelectedUploadImage anh) {
-    if (anh.bytes.isEmpty || anh.bytes.length > maxBytes) {
+    _validateSize(anh.bytes.length);
+    if (!['jpg', 'jpeg', 'png', 'webp'].contains(anh.extension)) {
+      throw const ImageUploadException('Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.');
+    }
+  }
+
+  static void _validateSize(int bytes) {
+    if (bytes < 1 || bytes > maxBytes) {
       throw const ImageUploadException(
         'Chọn ảnh có dung lượng từ 1 byte đến 20 MB.',
       );
-    }
-    if (!['jpg', 'jpeg', 'png', 'webp'].contains(anh.extension)) {
-      throw const ImageUploadException('Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.');
     }
   }
 

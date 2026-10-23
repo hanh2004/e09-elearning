@@ -24,25 +24,30 @@ String accountLoginErrorMessage(Object error) {
 }
 
 class AccountAuth {
+  AccountAuth({this._auth, this._firestore});
+
+  final FirebaseAuth? _auth;
+  final FirebaseFirestore? _firestore;
+
   Future<Map<String, dynamic>?> login(
     String tenDangNhap,
     String matKhau,
   ) async {
+    final auth = _auth ?? FirebaseAuth.instance;
     try {
-      final auth = FirebaseAuth.instance;
       final credential = await auth.signInWithEmailAndPassword(
         email: accountLoginEmail(tenDangNhap),
         password: matKhau,
       );
       final maNguoiDung = credential.user!.uid;
-      final banGhi = await FirebaseFirestore.instance
+      final banGhi = await (_firestore ?? FirebaseFirestore.instance)
           .collection('users')
           .doc(maNguoiDung)
           .get(const GetOptions(source: Source.server));
       final duLieu = banGhi.data();
       if (duLieu == null || duLieu['status'] != 'active') {
-        await auth.signOut();
         AccountSession.current = null;
+        await auth.signOut();
         return null;
       }
       return {...duLieu, 'id': maNguoiDung};
@@ -60,12 +65,14 @@ class AccountAuth {
       }
       rethrow;
     } on FirebaseException {
-      await FirebaseAuth.instance.signOut();
+      AccountSession.current = null;
+      await auth.signOut();
       // Không biến lỗi Rules/kết nối Firestore thành lỗi sai mật khẩu. Sau khi
       // Auth đã xác thực, đây là lỗi hồ sơ hoặc cấu hình máy chủ cần báo rõ.
       rethrow;
     } catch (_) {
-      await FirebaseAuth.instance.signOut();
+      AccountSession.current = null;
+      await auth.signOut();
       rethrow;
     }
   }

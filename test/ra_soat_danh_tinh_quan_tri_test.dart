@@ -60,7 +60,7 @@ void main() {
     );
   }
   testWidgets(
-    'root hidden, code searchable and transfer uses selected manager at phone width',
+    'root hidden, username searchable and transfer uses selected manager at phone width',
     (tester) async {
       tester.view.physicalSize = const Size(390, 900);
       tester.view.devicePixelRatio = 1;
@@ -70,7 +70,7 @@ void main() {
       for (final id in ['root', 'm1', 'm2', 'u']) {
         await db.doc('users/$id').set({
           'name': id == 'root' ? 'Hidden Root' : id,
-          'username': id,
+          'username': id == 'u' ? 'learner01' : id,
           'role': id == 'root'
               ? 'super_admin'
               : id == 'u'
@@ -99,7 +99,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Hidden Root'), findsNothing);
       expect(tester.takeException(), isNull);
-      await tester.enterText(find.byType(TextField), 'D1-001');
+      await tester.enterText(find.byType(TextField), 'LEARNER01');
       await tester.pumpAndSettle();
       expect(find.text('u'), findsOneWidget);
       expect(find.text('m2'), findsNothing);
@@ -196,10 +196,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Mã người dùng: Chưa được cấp'), findsOneWidget);
+    expect(find.text('Tài khoản: legacy'), findsOneWidget);
     expect(find.textContaining('D1-legacy'), findsNothing);
     await db.doc('users/u').update({'userCode': 'D1-001'});
     await tester.pumpAndSettle();
-    expect(find.text('Mã người dùng: D1-001'), findsOneWidget);
+    expect(find.text('Tài khoản: legacy'), findsOneWidget);
   });
 }

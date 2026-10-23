@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/chu_de_ung_dung.dart';
+import '../../models/bao_cao_quan_tri.dart';
 import '../../models/quy_tac_hoc_tap.dart';
 import '../../services/nguon_du_lieu_bao_cao_quan_tri.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
@@ -30,8 +31,7 @@ class _CourseDefinition {
   final List<_LessonDefinition> lessons;
 
   bool get hasExam =>
-      LearningPolicy.requiresExam(data, const {}) ||
-      lessons.any((lesson) => LearningPolicy.requiresExam(data, lesson.data));
+      LearningPolicy.isExamCourse(data, lessons.map((lesson) => lesson.data));
 }
 
 class _CourseProgress {
@@ -139,7 +139,7 @@ class _TrangThaiTongQuanHocTapQuanTri extends State<AdminLearningDashboard> {
       final courseProgress = <_CourseProgress>[];
 
       for (final course in courses.where(
-        (course) => LearningPolicy.canRead(course.data, hoSo['classId'] ?? ''),
+        (course) => LearningPolicy.canRead(course.data),
       )) {
         final progressByLesson = {
           for (final record in records)
@@ -705,22 +705,25 @@ class _TrangThaiTongQuanHocTapQuanTri extends State<AdminLearningDashboard> {
           if ((exam.data()['courseId']?.toString().trim() ?? '').isNotEmpty)
             exam.id: exam.data()['courseId'].toString().trim(),
       };
-      final scoresByUser = <String, double>{};
-      for (final attempt in data.visibleAttempts) {
+      final attemptsInScope = data.visibleAttempts.where((attempt) {
         final attemptData = attempt.data();
-        final userId = attemptData['userId']?.toString();
-        final score = attemptData['diemSo'];
         final rawCourseId = attemptData['courseId']?.toString().trim() ?? '';
         final courseId = rawCourseId.isNotEmpty
             ? rawCourseId
             : examCourseIds[attemptData['examId']?.toString()];
-        if (userId != null &&
-            score is num &&
-            courseId != null &&
-            selectedCourseIds.contains(courseId)) {
-          final value = score.toDouble();
+        return courseId != null && selectedCourseIds.contains(courseId);
+      });
+      final examReport = AdminReport.build(
+        users: {for (final user in data.users) user.id: user.data()},
+        exams: {for (final exam in data.visibleExams) exam.id: exam.data()},
+        attempts: attemptsInScope.map((attempt) => attempt.data()).toList(),
+      );
+      final scoresByUser = <String, double>{};
+      for (final row in examReport.rows) {
+        final value = row.score;
+        if (value != null) {
           scoresByUser.update(
-            userId,
+            row.userId,
             (previous) => previous > value ? previous : value,
             ifAbsent: () => value,
           );

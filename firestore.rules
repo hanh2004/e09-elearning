@@ -189,8 +189,11 @@ service cloud.firestore {
         }
         function normalizeStudyOnlyCompletion() {
           let course = get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data;
+          let lesson = get(/databases/$(database)/documents/courses/$(resource.data.courseId)/lessons/$(resource.data.lessonId)).data;
+          let needsExam = course.get('learningMode', '') != 'study_only' &&
+            (course.get('learningMode', '') == 'study_exam' || course.get('examId', '') != '' || lesson.get('learningMode', '') == 'study_exam');
           return resource.data.completed == false && resource.data.get('studyCompleted', false) == true &&
-            course.get('learningMode', 'study_only') == 'study_only' &&
+            !needsExam &&
             request.resource.data.completed == true && request.resource.data.completedAt == request.time &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed','completedAt','updatedAt']);
         }

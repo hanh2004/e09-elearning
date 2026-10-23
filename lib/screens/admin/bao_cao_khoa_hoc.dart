@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../models/bao_cao_hoan_thanh_khoa_hoc.dart';
+import '../../models/bao_cao_quan_tri.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import '../../widgets/thong_bao_loi.dart';
@@ -60,16 +61,17 @@ class _ThongKeThiCuaKhoa extends StatelessWidget {
         final cacLuotThi = duLieuNhan.data!.docs
             .where((banGhi) => banGhi.data()['examId'] == examId)
             .toList();
-        final daHoanThanh = cacLuotThi
-            .where((banGhi) => banGhi.data()['status'] == 'completed')
+        final report = AdminReport.build(
+          users: const {},
+          exams: {examId: const {}},
+          attempts: cacLuotThi.map((banGhi) => banGhi.data()).toList(),
+        );
+        final totalUsers = cacLuotThi
+            .map((banGhi) => banGhi.data()['userId']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet()
             .length;
-        final scores = cacLuotThi
-            .map((banGhi) => (banGhi.data()['diemSo'] as num?)?.toDouble())
-            .whereType<double>()
-            .toList();
-        final average = scores.isEmpty
-            ? null
-            : scores.reduce((a, b) => a + b) / scores.length;
+        final average = report.average;
         return AdminCard(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -82,7 +84,7 @@ class _ThongKeThiCuaKhoa extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Đã nộp: $daHoanThanh/${cacLuotThi.length}'
+                  'Đã nộp: ${report.participants}/$totalUsers'
                   '${average == null ? '' : ' • Điểm trung bình: ${average.toStringAsFixed(1)}'}',
                 ),
               ],

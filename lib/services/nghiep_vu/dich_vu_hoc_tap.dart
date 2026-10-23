@@ -4,7 +4,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
-import '../../app/cau_hinh_ung_dung.dart';
+import '../../models/dinh_danh_tai_khoan.dart';
 import '../../models/quy_tac_hoc_tap.dart';
 import '../ket_noi_api/api_tai_khoan.dart';
 import '../du_lieu/lo_ghi_firestore.dart';
@@ -15,11 +15,20 @@ export '../../models/quy_tac_hoc_tap.dart';
 class LearningService {
   LearningService({FirebaseFirestore? db, AccountApi? api})
     : db = db ?? FirebaseFirestore.instance,
-      _ketNoiApi =
-          api ??
-          AccountApi(useBackend: db == null && AppConfig.useSecureBackend);
+      _ketNoiApi = api ?? AccountApi(useBackend: db == null);
   final FirebaseFirestore db;
   final AccountApi _ketNoiApi;
+
+  // Cache rỗng chưa chứng minh máy chủ không có dữ liệu. Chờ xác nhận từ
+  // Firebase; cache có nội dung vẫn dùng được khi mạng tạm thời gián đoạn.
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchQuery(
+    Query<Map<String, dynamic>> query,
+  ) => query
+      .snapshots(includeMetadataChanges: true)
+      .where(
+        (snapshot) =>
+            snapshot.docs.isNotEmpty || !snapshot.metadata.isFromCache,
+      );
 
   // Chỉ fallback khi endpoint chưa được triển khai. Lỗi mạng hoặc lỗi nội bộ
   // có thể xảy ra sau khi backend đã bắt đầu xóa, nên không chạy xóa lần hai.
@@ -47,11 +56,9 @@ class LearningService {
 
   Stream<QuerySnapshot<Map<String, dynamic>>> notificationReads(
     String maNguoiDung,
-  ) => db
-      .collection('users')
-      .doc(maNguoiDung)
-      .collection('notification_reads')
-      .snapshots();
+  ) => watchQuery(
+    db.collection('users').doc(maNguoiDung).collection('notification_reads'),
+  );
 
   Future<void> markNotificationRead(
     String maNguoiDung,
@@ -63,28 +70,31 @@ class LearningService {
       .doc(notificationId)
       .set({'readAt': FieldValue.serverTimestamp()});
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> courses({String? classId}) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> courses({
+    bool publishedOnly = false,
+  }) {
     Query<Map<String, dynamic>> truyVan = db.collection('courses');
-    if (classId != null) {
+    if (publishedOnly) {
       truyVan = truyVan.where('published', isEqualTo: true);
     }
-    return truyVan.snapshots();
+    return watchQuery(truyVan);
   }
 
   /// Fetch all lessons and sort them in the UI. Firestore `orderBy('order')`
   /// silently omits older lesson documents that do not have the order field.
   Stream<QuerySnapshot<Map<String, dynamic>>> lessons(String courseId) =>
-      db.collection('courses').doc(courseId).collection('lessons').snapshots();
+      watchQuery(db.collection('courses').doc(courseId).collection('lessons'));
 
   Stream<QuerySnapshot<Map<String, dynamic>>> progress(
     String maNguoiDung,
     String courseId,
-  ) => db
-      .collection('users')
-      .doc(maNguoiDung)
-      .collection('learning')
-      .where('courseId', isEqualTo: courseId)
-      .snapshots();
+  ) => watchQuery(
+    db
+        .collection('users')
+        .doc(maNguoiDung)
+        .collection('learning')
+        .where('courseId', isEqualTo: courseId),
+  );
 
   /// Xóa vĩnh viễn khóa học và toàn bộ dữ liệu con đã biết của khóa học.
   /// Các lô ghi nhỏ hơn giới hạn Firestore để xử lý khóa học có nhiều học viên.
@@ -98,11 +108,10 @@ class LearningService {
   /// Dùng backend khi có thể; đường trực tiếp giữ cho emulator và bản cài
   /// chưa triển khai Functions vẫn hoạt động như các thao tác quản trị khác.
   Future<void> deleteLesson(String courseId, String lessonId) =>
-      _xoaVoiDuongDuPhong(
-        'courseDeleteLesson',
-        {'courseId': courseId, 'lessonId': lessonId},
-        () => _xoaBaiHocTrucTiep(courseId, lessonId),
-      );
+      _xoaVoiDuongDuPhong('courseDeleteLesson', {
+        'courseId': courseId,
+        'lessonId': lessonId,
+      }, () => _xoaBaiHocTrucTiep(courseId, lessonId));
 
   /// Ưu tiên backend; dùng đường trực tiếp khi Functions chưa triển khai.
   Future<void> _xoaVoiDuongDuPhong(
@@ -120,21 +129,7 @@ class LearningService {
         }
       }
     }
-    try {
-      await xoaTrucTiep();
-      return;
-    } catch (directError) {
-      if (!_ketNoiApi.hasTransport) rethrow;
-      try {
-        await _ketNoiApi.call(tenHam, thamSo);
-        return;
-      } on FirebaseFunctionsException catch (loi) {
-        if (_maLoiThuTrucTiep.contains(loi.code)) {
-          Error.throwWithStackTrace(directError, StackTrace.current);
-        }
-        rethrow;
-      }
-    }
+    await xoaTrucTiep();
   }
 
   Future<void> _xoaBaiHocTrucTiep(String courseId, String lessonId) async {
@@ -146,16 +141,7 @@ class LearningService {
         'courseDeleteLesson để xóa an toàn cả dữ liệu lượt thi.',
       );
     }
-    final progressRecords = <DocumentReference<Map<String, dynamic>>>[];
-    final cacNguoiDung = await db.collection('users').get();
-    for (final nguoiDung in cacNguoiDung.docs) {
-      final tienDo = await nguoiDung.reference
-          .collection('learning')
-          .where('courseId', isEqualTo: courseId)
-          .where('lessonId', isEqualTo: lessonId)
-          .get();
-      progressRecords.addAll(tienDo.docs.map((banGhi) => banGhi.reference));
-    }
+    final progressRecords = await _tienDoKhoaHoc(courseId, lessonId: lessonId);
     await deleteFirestoreDocuments(db, [...progressRecords, baiHoc]);
   }
 
@@ -192,15 +178,19 @@ class LearningService {
   /// Đọc dữ liệu con của từng học viên để tránh khác biệt về quyền và chỉ mục
   /// collection-group giữa các môi trường Firebase.
   Future<List<DocumentReference<Map<String, dynamic>>>> _tienDoKhoaHoc(
-    String courseId,
-  ) async {
+    String courseId, {
+    String? lessonId,
+  }) async {
     final cacNguoiDung = await db.collection('users').get();
     final references = <DocumentReference<Map<String, dynamic>>>[];
     for (final nguoiDung in cacNguoiDung.docs) {
-      final cacMauTin = await nguoiDung.reference
+      Query<Map<String, dynamic>> query = nguoiDung.reference
           .collection('learning')
-          .where('courseId', isEqualTo: courseId)
-          .get();
+          .where('courseId', isEqualTo: courseId);
+      if (lessonId != null) {
+        query = query.where('lessonId', isEqualTo: lessonId);
+      }
+      final cacMauTin = await query.get();
       references.addAll(cacMauTin.docs.map((banGhi) => banGhi.reference));
     }
     return references;
@@ -339,11 +329,15 @@ class LearningService {
         final releaseAt = LearningPolicy.readDateTime(khoaHoc['publishedAt']);
         final releaseIsFuture =
             releaseAt != null && releaseAt.isAfter(DateTime.now());
+        final isExamCourse = LearningPolicy.isExamCourse(khoaHoc, const []);
+        final destination = isExamCourse ? 'Kiểm tra' : 'Học tập';
         announcement = {
           'title': 'Khóa học mới: ${khoaHoc['title']}',
+          'courseId': thamChieu.id,
+          'purpose': isExamCourse ? 'Làm bài kiểm tra' : 'Học tập',
           'body': releaseIsFuture
-              ? 'Khóa học sẽ được phát hành lúc $releaseAt. Mở mục Học tập để bắt đầu khi đến thời gian học.'
-              : 'Khóa học đã được triển khai. Mở mục Học tập để bắt đầu khi đến thời gian học.',
+              ? 'Khóa học sẽ được phát hành lúc $releaseAt. Mở mục $destination để bắt đầu khi đến thời gian học.'
+              : 'Khóa học đã được triển khai. Mở mục $destination để bắt đầu khi đến thời gian học.',
           'audience': 'all',
           if (releaseIsFuture) 'sendAt': Timestamp.fromDate(releaseAt),
           if (!releaseIsFuture) 'deliveryMode': 'immediate',
@@ -356,11 +350,15 @@ class LearningService {
           );
           final releaseIsFuture =
               releaseAt != null && releaseAt.isAfter(DateTime.now());
+          final isExamCourse = LearningPolicy.isExamCourse(khoaHoc!, const []);
+          final destination = isExamCourse ? 'Kiểm tra' : 'Học tập';
           announcement = {
             'title': 'Bài học mới: ${duLieu['title']}',
+            'courseId': thamChieu.parent.parent!.id,
+            'purpose': isExamCourse ? 'Làm bài kiểm tra' : 'Học tập',
             'body': releaseIsFuture
-                ? 'Khóa học ${khoaHoc!['title']} có bài học mới. Nội dung mở lúc $releaseAt.'
-                : 'Khóa học ${khoaHoc!['title']} có bài học mới.',
+                ? 'Khóa học ${khoaHoc['title']} có bài học mới. Nội dung mở lúc $releaseAt. Mở mục $destination để tiếp tục.'
+                : 'Khóa học ${khoaHoc['title']} có bài học mới. Mở mục $destination để tiếp tục.',
             'audience': 'all',
             if (releaseIsFuture) 'sendAt': Timestamp.fromDate(releaseAt),
             if (!releaseIsFuture) 'deliveryMode': 'immediate',
@@ -377,6 +375,7 @@ class LearningService {
         final nhacLuc = batDau.subtract(const Duration(hours: 1));
         announcement = {
           'title': 'Nhắc lịch thi: ${duLieu['title']}',
+          'purpose': 'Làm bài kiểm tra',
           'body': 'Bài thi bắt đầu lúc $batDau. ${duLieu['note'] ?? ''}',
           'audience': 'all',
           'sendAt': Timestamp.fromDate(
@@ -387,6 +386,7 @@ class LearningService {
       if (announcement != null) {
         loGhi.set(notificationRef, {
           ...announcement,
+          'senderName': AccountSession.current?.displayName ?? 'Quản trị viên',
           'sendAt': announcement['sendAt'] ?? FieldValue.serverTimestamp(),
           'updatedBy': maNguoiDung,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -416,12 +416,13 @@ class LearningService {
   Stream<QuerySnapshot<Map<String, dynamic>>> notifications(
     String maNguoiDung,
     String classId,
-  ) => db
-      .collection('learning_notifications')
-      .where(
-        'audience',
-        whereIn: ['all', 'class:$classId', 'user:$maNguoiDung'],
-      )
-      .where('sendAt', isLessThanOrEqualTo: Timestamp.now())
-      .snapshots();
+  ) => watchQuery(
+    db
+        .collection('learning_notifications')
+        .where(
+          'audience',
+          whereIn: ['all', 'class:$classId', 'user:$maNguoiDung'],
+        )
+        .where('sendAt', isLessThanOrEqualTo: Timestamp.now()),
+  );
 }

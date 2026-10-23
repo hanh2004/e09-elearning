@@ -90,10 +90,32 @@ powershell -ExecutionPolicy Bypass -File .\tooling\publish_internal_release.ps1
 
 Script build APK đã ký và Admin web, lấy mã phiên bản trực tiếp từ metadata APK,
 tạo `web/app-release.json`, lưu APK vào `outputs/internal/` rồi cập nhật Hosting.
+Trước khi build, script đối chiếu cấu hình Firebase giữa Flutter/Android/Functions,
+kiểm tra quyền Internet và dừng nếu còn biến môi trường emulator hoặc chọn nhầm project.
+Nếu build hoặc triển khai thất bại, script khôi phục manifest cục bộ để có thể thử lại.
+Bản cùng ba số phiên bản vẫn ghi nhận build mới ở máy, không cập nhật Hosting hay nhắc học viên.
 App học viên tự đọc manifest sau khi đăng nhập; không cần Admin nhập phiên bản hay
 gửi thông báo thủ công. Học viên bấm **Đã rõ** vẫn dùng tiếp app cũ. Các APK cũ
 chưa có chức năng kiểm tra này cần được cài bản mới một lần trước khi nhận nhắc
 cập nhật cho các đợt phát hành tiếp theo.
+
+Kiểm tra cấu hình ngoại tuyến bằng `node functions/scripts/kiem_tra_cau_hinh_firebase.mjs`.
+Sau khi đăng nhập Firebase CLI, chạy `node functions/scripts/xac_minh_web.mjs` để đọc
+metadata deployment: đủ index bắt buộc đã READY, callable đang ACTIVE đúng vùng,
+đăng nhập email/mật khẩu đã bật và Hosting trả tài nguyên thành công.
+Lệnh này chỉ đọc metadata và HTTP HEAD, không ghi dữ liệu người dùng hay triển khai.
+
+Khi Firebase không tải được dữ liệu, các trang học viên hiển thị **Không tải được
+dữ liệu** và nút **Tải lại**. Nút này đăng ký lại truy vấn hoặc gọi lại API đọc;
+không tự gửi lại thao tác lưu/nộp bài. Nếu chưa nhận được dữ liệu ban đầu sau
+20 giây, app báo quá thời gian chờ thay vì giữ màn hình tải vô hạn. Cache rỗng
+chưa được máy chủ xác nhận không được hiển thị như danh sách trống.
+
+Lỗi khởi tạo Firebase cũng có màn hình tải lại. Nếu SDK chưa kết thúc thao tác
+kết nối sau nhiều lần thử, người dùng có thể đóng và mở lại ứng dụng theo hướng
+dẫn trên màn hình. Cần kiểm tra lại cấu hình và metadata deployment trước mỗi
+lần phát hành; kết quả kiểm tra tại một thời điểm không thay thế việc thử bản
+APK đã cài trên thiết bị thật.
 
 ## Vai trò và bảo mật — trạng thái hiện tại
 
@@ -139,7 +161,9 @@ cập nhật cho các đợt phát hành tiếp theo.
 - Đăng nhập sai cổng vẫn báo cùng thông báo sai tài khoản/mật khẩu. Đăng xuất xóa phiên Auth.
 - Học viên bấm **Quên mật khẩu?** ở màn hình đăng nhập để gửi yêu cầu thẳng đến quản lý
   hiện tại. Quản lý đó cấp lại mật khẩu cho học viên mình phụ trách; admin tổng chỉ xử lý
-  học viên đang được giao cho mình và các tài khoản admin. Mật khẩu không lưu trong Firestore.
+  học viên đang được giao cho mình. Với admin phụ, cả hai admin tổng phải đồng ý;
+  sau đó cả hai mới thấy nút nhập mật khẩu mới. Một bên cấp lại thành công thì yêu cầu
+  hoàn tất và bên còn lại không thể cấp lại lần nữa. Mật khẩu không lưu trong Firestore.
 - Firestore Rules chặn học viên ghi trực tiếp lượt thi và điểm. App phát hành
   luôn dùng Cloud Functions để bắt đầu, lưu câu trả lời, chấm và nộp bài thi.
 
@@ -153,20 +177,23 @@ Các mật khẩu tạm phải đổi riêng cho từng admin trước khi sử 
 ## Nhập User từ Excel
 
 Trong Web Admin: **Quản lý Tài khoản → Nhập User từ Excel → Tải mẫu Excel**.
-Điền sheet `Users` từ dòng 2 với đúng 3 cột:
+Điền sheet `Users` từ dòng 2 với 3 trường bắt buộc:
 `Họ và tên | Tên đăng nhập | Mật khẩu`.
+Mẫu có thể có thêm cột `STT` ở đầu; giữ công thức tự động của mẫu hoặc nhập số
+nguyên dương tăng dần (dạng số hoặc Text). Không thêm cột khác.
 
 - Chỉ nhận `.xlsx` không mã hóa, tối đa 2 MB và 200 User mỗi lần.
-- Tất cả ô nhập phải là Text. Giữ nguyên số 0 đầu của tên đăng nhập/mật khẩu;
-  không dùng ô số, ngày hay công thức. Không thêm cột vai trò.
+- Ba trường bắt buộc phải là Text. Giữ nguyên số 0 đầu của tên đăng nhập/mật khẩu;
+  không dùng ô số, ngày hay công thức cho các trường này. Không thêm cột vai trò.
 - Tên đăng nhập: 3–64 ký tự gồm chữ không dấu, số, `_`, `.`, `@`, `-`.
 - Mật khẩu: 6–128 ký tự; họ tên tối đa 100 ký tự. Khoảng trắng đầu/cuối được bỏ.
 - Dòng trắng bỏ qua; dòng thiếu dữ liệu hoặc trùng tên (không phân biệt hoa/thường)
-  được báo lỗi. Phải sửa hết lỗi trước khi xác nhận.
+  được báo lỗi. Bộ đọc dừng tại dòng lỗi đầu tiên; sửa lỗi và chọn lại file để
+  kiểm tra tiếp. Phải sửa hết lỗi trước khi xác nhận.
 - Xem trước không hiện mật khẩu và chưa lưu dữ liệu. Nhấn **Xác nhận thêm** mới lưu.
 - Import luôn tạo `role: user`, không ghi đè tài khoản cũ. Cloud Function tạo Firebase
   Auth và hồ sơ; nếu gián đoạn, có thể thử lại cùng dữ liệu trong cùng phiên để tiếp tục.
-- Backend giữ trước tên đăng nhập và mã người dùng, tạo hồ sơ theo nhóm rồi mới kích hoạt
+- Backend giữ trước tên đăng nhập duy nhất, tạo hồ sơ theo nhóm rồi mới kích hoạt
   cả nhóm. Nếu thao tác bị gián đoạn, giữ nguyên dữ liệu và thử lại trong cùng phiên;
   không tạo yêu cầu mới hoặc tự xóa các bản ghi `provisioning`.
 - File chứa mật khẩu: không đưa file đã điền lên GitHub hoặc chia sẻ công khai.
@@ -221,3 +248,62 @@ Test đạt và build thành công không thay thế kiểm thử OTP thật, th
 kiểm thử tải nhiều người dùng, hoặc xác minh bản đã triển khai lên Firebase.
 
 Hướng dẫn cấu trúc và cách sửa cho người mới: [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md).
+
+## Kiểm tra ngày 09/10/2026
+
+Đợt kiểm tra thực hiện trên mã đang làm việc, giữ nguyên các thay đổi có sẵn.
+Các sửa mới gồm thử lại nhập Excel với cùng mã thao tác khi API bị gián đoạn
+(kể cả lỗi có STT), STT dạng Text, hộp thoại trực thuộc khi có nhiều mục/đang lưu,
+trạng thái khôi phục mật khẩu admin tổng, dọn phiên đăng nhập bị hủy và bỏ phản hồi
+heartbeat của phiên cũ. Backend giữ khóa yêu cầu khôi phục khi kết quả đổi mật khẩu
+chưa rõ và trả lỗi dữ liệu hợp lệ cho câu hỏi/đáp án null. Rules chặn tự hoàn thành
+bài cần thi và kiểm tra phiên còn hạn khi dùng Storage SDK.
+
+- `flutter analyze`: không có lỗi; full Flutter unit/widget: 212/212 đạt.
+- Test chọn Excel trên Chrome: 4/4 đạt; đã dọn tài nguyên CanvasKit sao chép tạm.
+- Backend unit: 24/24 đạt. Emulator: cả 94 test trong 15 tệp được xác minh đạt
+  qua full suite và lượt chạy lại tệp tài khoản sau khi sửa hai assertion cũ.
+- Hai entry point build web release với cấu hình emulator đạt; verifier kiểm tra
+  đủ ảnh, manifest, font và CanvasKit cho cả hai bản build.
+- Thử trực tiếp giao diện: đăng nhập quản trị ở 1280 px, mở tài khoản/hộp thoại
+  trực thuộc; học viên ở 390 px đăng nhập, đọc bài, hoàn thành khóa chỉ học,
+  học đủ trước khi thi và nộp bài đạt 10/10. Đọc lại Firestore emulator xác nhận
+  cả hai tiến độ `completed=true`, bài cần thi có `examCompleted=true` và kết quả
+  thi đã lưu. Không thấy lỗi console ở các bước đã thử.
+- HTTP chỉ đọc: hai Hosting trả 200; `examList`, `accountImportUsers`,
+  `maintenanceSet`, `courseDelete` trả 401 `UNAUTHENTICATED` khi chưa đăng nhập.
+
+Log cục bộ trong `.tmp/flutter-final-analyze.log`, `.tmp/flutter-final-test.log`,
+`.tmp/backend-unit-audit.log`, `.tmp/backend-emulators-audit.log` và
+`.tmp/backend-account-rerun.log`. Log full emulator có hai assertion thất bại
+trước sửa; log chạy lại tài khoản xác nhận 21/21 đạt.
+Ảnh kết quả giả lập lưu ở `.tmp/audit-proof/exam-result-mobile.jpg`.
+
+Đã phát hành production `1.0.4+9` ngày 09/10/2026 lên project `e09-elearning`:
+
+- Admin: https://e09-elearning-admin.web.app
+- Học viên: https://e09-elearning.web.app
+- Cập nhật thành công toàn bộ 37 Functions Node.js 22 tại `asia-southeast1`,
+  sau đó phát hành Firestore Rules/indexes, Storage Rules và cả hai Hosting.
+- Kiểm tra online: 12 tài nguyên quan trọng của hai web khớp SHA256 bản build,
+  version/manifest đều `1.0.4+9`; 7 API bảo vệ trả 401 khi chưa đăng nhập.
+  Hai màn hình đăng nhập hiển thị đầy đủ, không có lỗi console khi tải.
+- APK/AAB học viên đã ký bằng khóa phát hành cũ, đúng versionCode 9,
+  lưu tại `outputs/internal/e09-elearning-1.0.4-build9.apk` và `.aab`.
+  Chưa gửi lên Google Play; chưa build iOS vì cần macOS/Xcode và Apple Team.
+- API quên mật khẩu tiếp tục nhận payload `codeSuffix` từ APK cũ nhưng chỉ
+  tra tài khoản theo username trên máy chủ. Backend unit sau sửa: 26/26 đạt.
+- Không chạy migration xóa định danh cũ: 14/14 hồ sơ đã có username reservation
+  đúng. Scheduler thi đã bật, chạy mỗi phút, lần chạy gần nhất thành công.
+
+Cấu hình triển khai cả hai cổng: `firebase.production.release.json` tại gốc.
+Log deploy lưu ở `.tmp/production-functions-deploy-build9.log` và
+`.tmp/production-hosting-rules-deploy-build9.log`. Kết quả HTTP/SHA256 lưu ở
+`outputs/releases/production-1.0.4-build9-verification.json`; backup Rules và
+metadata Hosting/Functions trước phát hành ở `.tmp/release-backup-20261009/`.
+
+Functions và Storage Rules mới đã triển khai cùng đợt; phiên cũ cần heartbeat
+hoặc đăng nhập lại để có metadata `accountSession`. Rules SDK vẫn phân biệt
+phiên bằng `auth_time` và thời hạn, nên hai phiên có cùng `auth_time` chưa được
+phân biệt hoàn toàn khi thay thế phiên; callable API kiểm thêm mã phiên.
+Chưa kiểm thử tải nhiều học viên hoặc Android/iOS trên thiết bị thật.

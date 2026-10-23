@@ -39,26 +39,20 @@ class UserStartupService {
 
   Future<QuerySnapshot<Map<String, dynamic>>?> _docTruyVan(
     Query<Map<String, dynamic>> truyVan,
-  ) async {
-    try {
-      return await truyVan.get(const GetOptions(source: Source.server));
-    } catch (_) {
-      try {
-        return await truyVan.get(const GetOptions(source: Source.cache));
-      } catch (_) {
-        return null;
-      }
-    }
-  }
+  ) => _docDuLieu(truyVan.get);
 
   Future<DocumentSnapshot<Map<String, dynamic>>?> _docBanGhi(
     DocumentReference<Map<String, dynamic>> thamChieu,
-  ) async {
+  ) => _docDuLieu(thamChieu.get);
+
+  Future<T?> _docDuLieu<T>(Future<T> Function(GetOptions) doc) async {
     try {
-      return await thamChieu.get(const GetOptions(source: Source.server));
+      return await doc(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 8));
     } catch (_) {
       try {
-        return await thamChieu.get(const GetOptions(source: Source.cache));
+        return await doc(const GetOptions(source: Source.cache))
+            .timeout(const Duration(seconds: 3));
       } catch (_) {
         return null;
       }

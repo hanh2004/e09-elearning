@@ -9,7 +9,11 @@ class NewsService {
   Stream<List<NewsArticle>> published() => db
       .collection('news')
       .where('published', isEqualTo: true)
-      .snapshots()
+      .snapshots(includeMetadataChanges: true)
+      .where(
+        (snapshot) =>
+            snapshot.docs.isNotEmpty || !snapshot.metadata.isFromCache,
+      )
       .map((duLieuNhan) {
         final cacBaiViet = duLieuNhan.docs
             .map((banGhi) => NewsArticle(banGhi.id, banGhi.data()))

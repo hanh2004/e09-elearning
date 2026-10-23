@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:e09_elearning/app/cong_ung_dung.dart';
 import 'package:e09_elearning/screens/man_hinh_dang_nhap.dart';
@@ -189,4 +190,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Admin signed in'), findsOneWidget);
   });
+
+  testWidgets(
+    'login disposed during release lookup never opens the home screen',
+    (tester) async {
+      final release = Completer<bool>();
+      var homeBuilds = 0;
+      await tester.pumpWidget(
+        PortalScope(
+          portal: AppPortal.user,
+          homeBuilder: (_) {
+            homeBuilds++;
+            return const Text('Signed in');
+          },
+          child: MaterialApp(
+            home: LoginScreen(
+              authenticate: (_, _) async => {'id': 'user', 'role': 'user'},
+              newReleaseChecker: () => release.future,
+            ),
+          ),
+        ),
+      );
+      await tester.enterText(find.byType(TextFormField).at(0), 'test');
+      await tester.enterText(find.byType(TextFormField).at(1), 'password');
+      await tester.tap(find.text('ĐĂNG NHẬP'));
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      release.complete(true);
+      await tester.pumpAndSettle();
+      expect(homeBuilds, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

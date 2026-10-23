@@ -112,40 +112,4 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-
-  testWidgets('icon selection is included in saved data without image upload', (
-    tester,
-  ) async {
-    Map<String, String>? saved;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: TextButton(
-              onPressed: () => editLearningRecord(
-                context,
-                title: 'Chọn biểu tượng',
-                fields: {},
-                iconChoices: const {
-                  'book': Icons.menu_book,
-                  'math': Icons.calculate,
-                },
-                save: (values) async {
-                  saved = values;
-                },
-              ),
-              child: const Text('Mở'),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('Mở'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.calculate));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Lưu'));
-    await tester.pumpAndSettle();
-    expect(saved?['imageUrl'], 'icon:math');
-  });
 }

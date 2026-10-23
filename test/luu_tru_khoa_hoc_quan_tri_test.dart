@@ -12,7 +12,7 @@ void main() {
   tearDown(() => AccountSession.current = null);
   test('a course being deleted is unavailable to learners', () {
     expect(
-      LearningPolicy.canRead({'published': true, 'deleting': true}, ''),
+      LearningPolicy.canRead({'published': true, 'deleting': true}),
       isFalse,
     );
   });

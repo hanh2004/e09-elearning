@@ -145,6 +145,34 @@ test('expiry grades saved answers and allows a new run without deadlock',async()
   const next=await startStudiedExam('u',{examId:'expiry'});assert.notEqual(next.runId,run.runId);
   await assert.rejects(handlers.save('v',{runId:next.runId,revision:0,selectedAnswers:{}}),{code:'permission-denied'});
 });
+
+test('a lower shared-exam score keeps the course context of the best attempt', async () => {
+  const examId = 'shared_best_score';
+  const firstCourseId = `exam_${examId}`;
+  const secondCourseId = 'shared_best_score_other_course';
+  await exam(examId);
+  await db.doc(`courses/${firstCourseId}`).update({title:'First course'});
+  await db.doc(`courses/${secondCourseId}`).set({published:true,title:'Second course'});
+  await db.doc(`courses/${secondCourseId}/lessons/other`).set({learningMode:'study_exam',examId});
+  await db.doc(`users/u/learning/${secondCourseId}_other`).set({
+    courseId:secondCourseId,lessonId:'other',studyCompleted:true,
+  });
+  const first = await startStudiedExam('u', {examId});
+  await handlers.submit('u', {runId:first.runId,revision:0,selectedAnswers:{q:1}});
+  const second = await handlers.start('u', {examId,courseId:secondCourseId,lessonId:'other'});
+  await handlers.submit('u', {runId:second.runId,revision:0,selectedAnswers:{q:0}});
+
+  const session = (await db.collection('exam_sessions').where('examId','==',examId).get()).docs[0];
+  assert.equal(session.data().bestCourseId, firstCourseId);
+  assert.equal(session.data().bestLessonId, 'study');
+  assert.equal(session.data().bestCourseTitle, 'First course');
+  const summary = (await db.doc(`exam_attempts/secure_${session.id}`).get()).data();
+  assert.equal(summary.bestScore, 10);
+  assert.equal(summary.attemptCount, 2);
+  assert.equal(summary.courseId, firstCourseId);
+  assert.equal(summary.lessonId, 'study');
+  assert.equal(summary.courseTitle, 'First course');
+});
 test('abandoned run is graded from saved answers when resumed after its deadline',async()=>{
   await exam('resume_expired');
   await db.doc('courses/exam_resume_expired').update({endsAt:Timestamp.fromMillis(now+5000)});
@@ -224,7 +252,6 @@ test('deleting a blocked account is retryable after Auth failure and cleans read
 });
 
 test('unit assignment is root-only, follows creator on import and cannot be forged by students',async()=>{
-  await db.doc('system/code_indexes').set({status:'complete'});
   await db.doc('users/root1').set({role:'super_admin',status:'active',name:'Root'});
   const accounts=accountHandlers(db,{createUser:async()=>{},updateUser:async()=>{}});
   const proposal=await accounts.proposeAdmin('root1',{unit:'Đơn vị A',account:{name:'Admin A',username:'unitadmin',password:'123456'},operationId:'e'.repeat(32)});
@@ -234,14 +261,14 @@ test('unit assignment is root-only, follows creator on import and cannot be forg
   const learner=(await db.collection('users').where('username','==','unitstudent').get()).docs[0];
   assert.equal(learner.data().unit,'Đơn vị A');
   await assert.rejects(accounts.setUnit(adminId,{userId:adminId,unit:'B'}),{code:'permission-denied'});
-  await accounts.setUnit('root1',{userId:adminId,unit:'Đơn vị B',codes:{[learner.id]:'unitstudent'}});
+  await accounts.setUnit('root1',{userId:adminId,unit:'Đơn vị B'});
   assert.equal((await learner.ref.get()).data().unit,'Đơn vị B');
   const studentClient=env.authenticatedContext(learner.id).firestore();
   await assertSucceeds(updateDoc(doc(studentClient,`users/${learner.id}`),{subUnit:'Đội 1'}));
   await assertFails(updateDoc(doc(studentClient,`users/${learner.id}`),{subUnit:'x'.repeat(201)}));
   await assertFails(updateDoc(doc(studentClient,`users/${adminId}`),{subUnit:'Đội khác'}));
   await assertFails(updateDoc(doc(studentClient,`users/${learner.id}`),{unit:'E09'}));
-  await accounts.setUnit('root1',{userId:adminId,unit:'Đơn vị C',codes:{[learner.id]:'unitstudent'}});
+  await accounts.setUnit('root1',{userId:adminId,unit:'Đơn vị C'});
   assert.equal((await learner.ref.get()).data().unit,'Đơn vị C');
   assert.equal((await learner.ref.get()).data().subUnit,'');
   await accounts.importUsers('root1',{rows:[{name:'Root student',username:'e09student',password:'123456'}],operationId:'a'.repeat(32)});
@@ -262,13 +289,51 @@ test('root deletion cleans snapshots, sessions and reports; students cannot dele
   await db.doc('users/root1').set({role:'super_admin',status:'active',name:'Root'});
   await exam('delete');const run=await startStudiedExam('u',{examId:'delete'});
   await handlers.submit('u',{runId:run.runId,revision:0,selectedAnswers:{q:1}});
+  const nestedRunRef = db.doc(`exam_private_runs/${run.runId}/legacy/details`);
+  await nestedRunRef.set({legacy:true});
   await assert.rejects(handlers.deleteExam('u',{examId:'delete'}),{code:'permission-denied'});
   await handlers.deleteExam('root1',{examId:'delete'});
   assert.equal((await db.doc(`exam_private_runs/${run.runId}`).get()).exists,false);
+  assert.equal((await nestedRunRef.get()).exists,false);
   assert.equal((await db.collection('exam_sessions').where('examId','==','delete').get()).empty,true);
   assert.equal((await db.collection('exam_attempts').where('examId','==','delete').get()).empty,true);
   assert.equal((await db.doc('exams/delete').get()).exists,false);
 });
+test('exam deletion cleans a result submitted while its private run is being removed', async () => {
+  const examId = 'delete_during_submit';
+  await db.doc('users/root1').set({role:'super_admin',status:'active'});
+  await exam(examId);
+  const run = await startStudiedExam('u', {examId});
+  let signalPaused, resume;
+  const paused = new Promise(resolve => {signalPaused = resolve;});
+  const resumed = new Promise(resolve => {resume = resolve;});
+  const pausedDb = new Proxy(db, {
+    get(target, property) {
+      if (property === 'recursiveDelete') return async (reference) => {
+        if (reference.path === `exam_private_runs/${run.runId}`) {
+          signalPaused();
+          await resumed;
+        }
+        return target.recursiveDelete(reference);
+      };
+      const value = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const deletion = examHandlers(pausedDb, () => now).deleteExam('root1', {examId});
+  await paused;
+  try {
+    const result = await handlers.submit('u', {runId:run.runId,revision:0,selectedAnswers:{q:1}});
+    assert.equal(result.score, 10);
+  } finally {
+    resume();
+    await deletion;
+  }
+  assert.equal((await db.doc(`exam_private_runs/${run.runId}`).get()).exists, false);
+  assert.equal((await db.collection('exam_sessions').where('examId','==',examId).get()).empty, true);
+  assert.equal((await db.collection('exam_attempts').where('examId','==',examId).get()).empty, true);
+});
+
 test('course deletion removes its exam, runs, results and learning progress',async()=>{
   await exam('course_cleanup');
   await db.doc('courses/exam_course_cleanup').update({examId:'course_cleanup'});

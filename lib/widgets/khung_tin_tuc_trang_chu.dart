@@ -8,6 +8,7 @@ import '../services/nghiep_vu/dich_vu_tin_tuc.dart';
 import '../services/nghiep_vu/dich_vu_anh_bia_trang_chu.dart';
 import '../screens/user/chi_tiet_tin_tuc.dart';
 import 'anh_bia_khoa_hoc.dart';
+import 'thong_bao_loi.dart';
 
 class HomeNewsBanner extends StatefulWidget {
   const HomeNewsBanner({
@@ -22,8 +23,7 @@ class HomeNewsBanner extends StatefulWidget {
 }
 
 class _TrangThaiBannerTinTuc extends State<HomeNewsBanner> {
-  late final articles = widget.service.published();
-  late final homeBanners = HomeBannerService(widget.service.db).active();
+  late final homeBanners = HomeBannerService(widget.service.db);
   final controller = PageController();
   Timer? autoplay;
   int selected = 0;
@@ -55,24 +55,31 @@ class _TrangThaiBannerTinTuc extends State<HomeNewsBanner> {
   }
 
   @override
-  Widget build(BuildContext context) => StreamBuilder<List<HomeBanner>>(
-    stream: _bannerTinTuc(),
-    builder: (context, duLieuNhan) {
-      final cacAnhNoiBat = duLieuNhan.data ?? <HomeBanner>[];
-      if (cacAnhNoiBat.isNotEmpty) return _bangAnhTruot(cacAnhNoiBat);
-      return StreamBuilder<List<HomeBanner>>(
-        stream: homeBanners,
-        builder: (context, configuredSnapshot) {
-          final configured = configuredSnapshot.data ?? <HomeBanner>[];
-          if (configured.isNotEmpty) return _bangAnhTruot(configured);
-          configureAutoplay(0);
-          return _duPhong();
+  Widget build(BuildContext context) =>
+      ReloadableStreamBuilder<List<HomeBanner>>(
+        streamFactory: _bannerTinTuc,
+        feature: 'Tải tin nổi bật trang chủ',
+        builder: (context, duLieuNhan) {
+          if (!duLieuNhan.hasData) return const LinearProgressIndicator();
+          final cacAnhNoiBat = duLieuNhan.data ?? <HomeBanner>[];
+          if (cacAnhNoiBat.isNotEmpty) return _bangAnhTruot(cacAnhNoiBat);
+          return ReloadableStreamBuilder<List<HomeBanner>>(
+            streamFactory: homeBanners.active,
+            feature: 'Tải ảnh bìa trang chủ',
+            builder: (context, configuredSnapshot) {
+              if (!configuredSnapshot.hasData) {
+                return const LinearProgressIndicator();
+              }
+              final configured = configuredSnapshot.data ?? <HomeBanner>[];
+              if (configured.isNotEmpty) return _bangAnhTruot(configured);
+              configureAutoplay(0);
+              return _duPhong();
+            },
+          );
         },
       );
-    },
-  );
 
-  Stream<List<HomeBanner>> _bannerTinTuc() => articles.map(
+  Stream<List<HomeBanner>> _bannerTinTuc() => widget.service.published().map(
     (cacMuc) => cacMuc
         .where((baiViet) => baiViet.coverUrl.isNotEmpty)
         .take(5)
@@ -166,6 +173,7 @@ class _TrangThaiBannerTinTuc extends State<HomeNewsBanner> {
                       fit: StackFit.expand,
                       children: [
                         CourseCover(
+                          brandFallback: true,
                           url: anhNoiBat.imageUrl,
                           width: double.infinity,
                           height: 230,
@@ -187,11 +195,11 @@ class _TrangThaiBannerTinTuc extends State<HomeNewsBanner> {
                             bottom: 20,
                             child: Text(
                               anhNoiBat.title,
-                              maxLines: 3,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 18,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w800,
                                 height: 1.3,
                               ),

@@ -3,6 +3,7 @@
 import { createHash, randomInt } from 'node:crypto';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { requireThat, requireRoot } from './quy_tac.js';
+import { xoaDuLieuBaiThi } from './xoa_du_lieu_bai_thi.js';
 
 const khoa = (maNguoiDung, maBaiThi) => createHash('sha256').update(JSON.stringify([maNguoiDung, maBaiThi])).digest('hex');
 const ma = (giaTri) => typeof giaTri === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(giaTri);
@@ -36,11 +37,13 @@ export function prepareQuestions(cacCauHoi, policy) {
 }
 
 export function normalizeQuestion(raw, questionId) {
+  requireThat(raw && typeof raw === 'object' && !Array.isArray(raw),
+    'failed-precondition', 'Đề có câu hỏi chưa hợp lệ.');
   const title = raw.questionText ?? raw.noi_dung ?? raw.content;
   const options = raw.options ?? raw.ds_lua_chon ?? raw.answers;
   requireThat(typeof title === 'string' && title.trim() && Array.isArray(options) && options.length >= 2 && options.length <= 20,
     'failed-precondition', 'Đề có câu hỏi chưa hợp lệ.');
-  const cacGiaTri = options.map((option) => typeof option === 'string' ? option : option.noi_dung ?? option.noiDung ?? '');
+  const cacGiaTri = options.map((option) => typeof option === 'string' ? option : option?.noi_dung ?? option?.noiDung ?? '');
   const correct = options.flatMap((option, index) =>
     index === raw.correctAnswerIndex || index === raw.correctIndex || option?.dap_an_dung === true || option?.dapAnDung === true ? [index] : []);
   requireThat(cacGiaTri.every((giaTri) => typeof giaTri === 'string' && giaTri.trim()) && correct.length === 1 &&
@@ -80,7 +83,8 @@ export function examHandlers(coSoDuLieu, dongHo = () => Date.now()) {
       (allowEnded || miliGiay(khoaHoc.endsAt) == null || miliGiay(khoaHoc.endsAt) > dongHo()),
       'failed-precondition', 'Nội dung học chưa mở hoặc đã kết thúc.');
     requireThat(khoaHoc.learningMode !== 'study_only', 'failed-precondition', 'Khóa học này chỉ dùng để học.');
-    const kiemTraTheoKhoa = khoaHoc?.learningMode === 'study_exam';
+    const kiemTraTheoKhoa = khoaHoc.learningMode === 'study_exam' ||
+      (typeof khoaHoc.examId === 'string' && khoaHoc.examId.trim().length > 0);
     let cacBanGhiHoanThanh;
     if (kiemTraTheoKhoa) {
       requireThat(baiHoc && khoaHoc.examId === dauVao.examId, 'failed-precondition', 'Bài kiểm tra không thuộc khóa học này.');
@@ -219,7 +223,8 @@ export function examHandlers(coSoDuLieu, dongHo = () => Date.now()) {
       const luotThi = {id:maLuotThi, userId:maNguoiDung, examId:dauVao.examId, courseId:dauVao.courseId, lessonId:dauVao.lessonId, courseTitle:duLieuHoc.courseTitle, title:baiThi.title ?? 'Bài thi', status:'in_progress', isActive:true, lastActivityAt:FieldValue.serverTimestamp(), questions: cacCauHoi,
         passScore:typeof baiThi.passScore === 'number' ? baiThi.passScore : 5, showSolutions:baiThi.showSolutions === true,
         endsAt:Timestamp.fromMillis(Math.min(dongHo()+thoiLuong*60000,hanKhoaHoc ?? Infinity)), selectedAnswers:{}, revision:0};
-      giaoDich.set(thamChieuPhien,{userId:maNguoiDung,examId:dauVao.examId,issuedCount:soLuotDaCap+1,legacyUsed: soLuotCuDaDung,activeRunId:maLuotThi,completedCount:phien?.completedCount ?? 0,bestScore:phien?.bestScore ?? -1});
+      // Giữ thông tin khóa/bài học của điểm cao nhất khi đề được dùng chung.
+      giaoDich.set(thamChieuPhien,{userId:maNguoiDung,examId:dauVao.examId,issuedCount:soLuotDaCap+1,legacyUsed: soLuotCuDaDung,activeRunId:maLuotThi,completedCount:phien?.completedCount ?? 0,bestScore:phien?.bestScore ?? -1},{merge:true});
       giaoDich.create(coSoDuLieu.doc(`exam_private_runs/${maLuotThi}`),luotThi);
       return luotThiCongKhai(luotThi);
     });
@@ -361,13 +366,7 @@ export function examHandlers(coSoDuLieu, dongHo = () => Date.now()) {
       if(!(await giaoDich.get(thamChieu)).exists)return;
       giaoDich.update(thamChieu,{deleting:true});
     });
-    const cacLuotThiRieng=await coSoDuLieu.collection('exam_private_runs').where('examId','==',dauVao.examId).get();
-    for(const luotThi of cacLuotThiRieng.docs)await luotThi.ref.delete();
-    const cacPhien=await coSoDuLieu.collection('exam_sessions').where('examId','==',dauVao.examId).get();
-    for(const phien of cacPhien.docs)await coSoDuLieu.recursiveDelete(phien.ref);
-    const cacTongHop=await coSoDuLieu.collection('exam_attempts').where('examId','==',dauVao.examId).get();
-    for(const tongHop of cacTongHop.docs)await coSoDuLieu.recursiveDelete(tongHop.ref);
-    await coSoDuLieu.recursiveDelete(thamChieu);
+    await xoaDuLieuBaiThi(coSoDuLieu, dauVao.examId, thamChieu);
     return {deleted:true};
   }
   return {deleteExam: xoaBaiThi,list,start: batDau,save:(maNguoiDung,dauVao) => capNhat(maNguoiDung,dauVao,false),submit:(maNguoiDung,dauVao) => capNhat(maNguoiDung,dauVao,true),heartbeat,history: lichSu,expireRuns};

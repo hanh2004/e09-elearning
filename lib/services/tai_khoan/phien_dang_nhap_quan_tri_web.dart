@@ -35,6 +35,8 @@ class AdminWebSession {
   static StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _sessionSubscription;
   static bool _forcingOut = false;
+  static Object? _reauthentication;
+  static int _heartbeatGeneration = 0;
 
   static String? get token => _token;
 
@@ -58,6 +60,7 @@ class AdminWebSession {
       throw StateError('Không thể tạo phiên đăng nhập. Hãy thử lại.');
     }
 
+    _reauthentication = null;
     _uid = uid;
     _token = _pendingToken;
     _pendingUid = null;
@@ -105,6 +108,63 @@ class AdminWebSession {
     return token == null ? data : {...data, _sessionField: token};
   }
 
+  /// Rebinds the current session to the new auth_time after reauthentication.
+  static Future<void> reauthenticate(
+    Future<void> Function() authenticate,
+  ) async {
+    if (_reauthentication != null) {
+      throw StateError('Đang xác thực tài khoản. Vui lòng chờ.');
+    }
+    final uid = _uid;
+    final token = _token;
+    final operation = Object();
+    _reauthentication = operation;
+    _heartbeatGeneration++;
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    try {
+      final authUid = FirebaseAuth.instance.currentUser?.uid;
+      await authenticate();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || user.uid != authUid) {
+        throw StateError('Phiên đăng nhập đã kết thúc. Hãy đăng nhập lại.');
+      }
+      await user.getIdToken(true);
+      if (!identical(_reauthentication, operation) ||
+          FirebaseAuth.instance.currentUser?.uid != authUid ||
+          _uid != uid ||
+          _token != token ||
+          (uid != null && user.uid != uid)) {
+        throw StateError('Phiên đăng nhập đã thay đổi. Hãy thử lại.');
+      }
+      if (uid == null || token == null) return;
+      final result =
+          await FirebaseFunctions.instanceFor(region: AppConfig.functionsRegion)
+              .httpsCallable('adminSessionClaim')
+              .call<Map<String, dynamic>>({
+                'sessionToken': token,
+                'takeOver': false,
+              });
+      if (!identical(_reauthentication, operation) ||
+          FirebaseAuth.instance.currentUser?.uid != uid ||
+          _uid != uid ||
+          _token != token) {
+        throw StateError('Phiên đăng nhập đã thay đổi. Hãy thử lại.');
+      }
+      if (result.data['claimed'] != true) {
+        await _forceSignOut();
+        throw StateError('Tài khoản đã được đăng nhập trên thiết bị khác.');
+      }
+    } finally {
+      if (identical(_reauthentication, operation)) {
+        _reauthentication = null;
+        if (uid != null && token != null && _uid == uid && _token == token) {
+          _startHeartbeat(uid, token);
+        }
+      }
+    }
+  }
+
   static Future<void> signOut() async {
     final uid = _uid;
     final token = _token;
@@ -147,6 +207,7 @@ class AdminWebSession {
   }
 
   static void _startHeartbeat(String uid, String token) {
+    _heartbeatGeneration++;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
       unawaited(_sendHeartbeat(uid, token));
@@ -154,14 +215,26 @@ class AdminWebSession {
   }
 
   static Future<void> _sendHeartbeat(String uid, String token) async {
-    if (_uid != uid || _token != token) return;
+    if (_uid != uid || _token != token || _reauthentication != null) return;
+    final generation = _heartbeatGeneration;
     try {
       final result =
           await FirebaseFunctions.instanceFor(region: AppConfig.functionsRegion)
               .httpsCallable('adminSessionHeartbeat')
               .call<Map<String, dynamic>>({'sessionToken': token});
+      // Phản hồi phiên cũ có thể về sau khi người dùng đã đăng nhập lại.
+      if (_uid != uid ||
+          _token != token ||
+          generation != _heartbeatGeneration) {
+        return;
+      }
       if (result.data['active'] != true) await _forceSignOut();
     } on FirebaseFunctionsException catch (error) {
+      if (_uid != uid ||
+          _token != token ||
+          generation != _heartbeatGeneration) {
+        return;
+      }
       if (error.code == 'unauthenticated' ||
           error.code == 'permission-denied') {
         await _forceSignOut();
@@ -182,6 +255,7 @@ class AdminWebSession {
   }
 
   static void _stopLocalSession() {
+    _reauthentication = null;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _sessionSubscription?.cancel();

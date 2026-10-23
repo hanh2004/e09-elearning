@@ -1,0 +1,137 @@
+{
+  "checkedAt": "2026-10-09T08:00:11.546Z",
+  "version": "1.0.4+9",
+  "sites": [
+    {
+      "url": "https://e09-elearning-admin.web.app",
+      "checks": [
+        {
+          "path": "/",
+          "status": 200,
+          "bytes": 1640,
+          "sha256": "7b3a0e657f5b5e45a80d9154ffe40db1c0aad39709fb48ff64d9d8344d6c7dc7",
+          "contentType": "text/html; charset=utf-8"
+        },
+        {
+          "path": "/version.json",
+          "status": 200,
+          "bytes": 96,
+          "sha256": "48eeb938c295a0ed98ab8e2bf1f3ef1a821ca8fa6637b80a07ecab5a97ea85d2",
+          "contentType": "application/json"
+        },
+        {
+          "path": "/app-release.json",
+          "status": 200,
+          "bytes": 50,
+          "sha256": "49f5d1da8913c56d7969aa6fac88720946b860b6ccf2c15c4fdf99948ce8d45c",
+          "contentType": "application/json"
+        },
+        {
+          "path": "/flutter_bootstrap.js",
+          "status": 200,
+          "bytes": 13119,
+          "sha256": "c559517d3f03724f154621ad55bcca3a16b2d28bdb824a097879a2e3092e11a2",
+          "contentType": "text/javascript; charset=utf-8"
+        },
+        {
+          "path": "/main.dart.js",
+          "status": 200,
+          "bytes": 4099974,
+          "sha256": "02eeeaeba2d697e2530576a7274a866e599313a0d05f0f343f96c53290fab9b8",
+          "contentType": "text/javascript; charset=utf-8"
+        },
+        {
+          "path": "/canvaskit/canvaskit.wasm",
+          "status": 200,
+          "bytes": 7284349,
+          "sha256": "2898c0795cf4a694e86ee3445c7414c2503fbcb46967154762f50ebde988da04",
+          "contentType": "application/wasm"
+        }
+      ]
+    },
+    {
+      "url": "https://e09-elearning.web.app",
+      "checks": [
+        {
+          "path": "/",
+          "status": 200,
+          "bytes": 1640,
+          "sha256": "7b3a0e657f5b5e45a80d9154ffe40db1c0aad39709fb48ff64d9d8344d6c7dc7",
+          "contentType": "text/html; charset=utf-8"
+        },
+        {
+          "path": "/version.json",
+          "status": 200,
+          "bytes": 96,
+          "sha256": "48eeb938c295a0ed98ab8e2bf1f3ef1a821ca8fa6637b80a07ecab5a97ea85d2",
+          "contentType": "application/json"
+        },
+        {
+          "path": "/app-release.json",
+          "status": 200,
+          "bytes": 50,
+          "sha256": "49f5d1da8913c56d7969aa6fac88720946b860b6ccf2c15c4fdf99948ce8d45c",
+          "contentType": "application/json"
+        },
+        {
+          "path": "/flutter_bootstrap.js",
+          "status": 200,
+          "bytes": 13119,
+          "sha256": "69166450b2635bae64911d8ec9568c4de75175e3f4d0e9728b934e667cbd9074",
+          "contentType": "text/javascript; charset=utf-8"
+        },
+        {
+          "path": "/main.dart.js",
+          "status": 200,
+          "bytes": 3508728,
+          "sha256": "b2c989586009b023b195ef8af3d027e710c049df6ef4ba50319bc56177aaf6d2",
+          "contentType": "text/javascript; charset=utf-8"
+        },
+        {
+          "path": "/canvaskit/canvaskit.wasm",
+          "status": 200,
+          "bytes": 7284349,
+          "sha256": "2898c0795cf4a694e86ee3445c7414c2503fbcb46967154762f50ebde988da04",
+          "contentType": "application/wasm"
+        }
+      ]
+    }
+  ],
+  "api": [
+    {
+      "name": "adminSessionClaim",
+      "status": 401,
+      "error": "UNAUTHENTICATED"
+    },
+    {
+      "name": "adminSessionHeartbeat",
+      "status": 401,
+      "error": "UNAUTHENTICATED"
+    },
+    {
+      "name": "adminSessionRelease",
+      "status": 401,
+      "error": "UNAUTHENTICATED"
+    },
+    {
+      "name": "examList",
+      "status": 401,
+      "error": "UNAUTHENTICATED"
+    },
+    {
+      "name": "accountImportUsers",
+      "status": 401,
+      "error": "UNAUTHENTICATED"
+    },
+    {
+      "name": "maintenanceSet",
+      "status": 401,
+      "error": "UNAUTHENTICATED"
+    },
+    {
+      "name": "courseDelete",
+      "status": 401,
+      "error": "UNAUTHENTICATED"
+    }
+  ]
+}

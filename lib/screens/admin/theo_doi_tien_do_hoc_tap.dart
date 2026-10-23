@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/chu_de_ung_dung.dart';
-import '../../models/ket_qua_bai_kiem_tra.dart';
+import '../../models/bao_cao_quan_tri.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import '../../widgets/anh_dai_dien_mac_dinh.dart';
 
@@ -27,29 +27,22 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
   Widget build(BuildContext context) => _dungDuLieu(widget.reportData);
 
   Widget _dungDuLieu(AdminReportData data) {
-    final userNames = {
-      for (final user in data.users)
-        user.id: (user.data()['name'] ?? user.data()['username'] ?? user.id)
-            .toString(),
-    };
-    return _dungNoiDung(data.visibleExams, data.visibleAttempts, userNames);
+    final report = AdminReport.build(
+      users: {for (final user in data.users) user.id: user.data()},
+      exams: {for (final exam in data.visibleExams) exam.id: exam.data()},
+      attempts: data.visibleAttempts.map((attempt) => attempt.data()).toList(),
+    );
+    return _dungNoiDung(data.visibleExams, data.visibleAttempts, report);
   }
 
   Widget _dungNoiDung(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> cacBaiThi,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> allAttempts,
-    Map<String, String> userNames,
+    AdminReport report,
   ) {
-    final resultRecords = allAttempts
-        .where((luotThi) => _soLuotThi(luotThi) > 0)
-        .toList();
     final inProgressCount = allAttempts
         .where((luotThi) => luotThi.data()['status'] == 'in_progress')
         .length;
-    final completedUsers = resultRecords
-        .map((luotThi) => luotThi.data()['userId']?.toString())
-        .whereType<String>()
-        .toSet();
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -69,11 +62,8 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: _dungTongQuan(
             examCount: cacBaiThi.length,
-            completedUserCount: completedUsers.length,
-            attemptCount: resultRecords.fold(
-              0,
-              (tongSo, luotThi) => tongSo + _soLuotThi(luotThi),
-            ),
+            completedUserCount: report.participants,
+            attemptCount: report.attempts,
             inProgressCount: inProgressCount,
           ),
         ),
@@ -97,12 +87,12 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
           )
         else
           ...cacBaiThi.map((baiThi) {
-            final cacLuotThi = resultRecords
-                .where((luotThi) => luotThi.data()['examId'] == baiThi.id)
+            final cacLuotThi = report.rows
+                .where((luotThi) => luotThi.examId == baiThi.id)
                 .toList();
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: _dungTheBaiThi(baiThi, cacLuotThi, userNames),
+              child: _dungTheBaiThi(baiThi, cacLuotThi),
             );
           }),
       ],
@@ -191,23 +181,19 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
 
   Widget _dungTheBaiThi(
     QueryDocumentSnapshot<Map<String, dynamic>> baiThi,
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
-    Map<String, String> userNames,
+    List<AdminReportRow> cacLuotThi,
   ) {
     final examData = baiThi.data();
-    final cacNguoiDung = cacLuotThi
-        .map((luotThi) => luotThi.data()['userId']?.toString())
-        .whereType<String>()
-        .toSet();
-    final bestScores = _nhomLuotThiTheoHocVien(cacLuotThi).values
-        .map(_diemCaoNhat)
+    final bestScores = cacLuotThi
+        .map((luotThi) => luotThi.score)
+        .whereType<double>()
         .toList();
     final average = bestScores.isEmpty
-        ? 0.0
+        ? null
         : bestScores.reduce((a, b) => a + b) / bestScores.length;
     final totalAttemptCount = cacLuotThi.fold(
       0,
-      (tongSo, luotThi) => tongSo + _soLuotThi(luotThi),
+      (tongSo, luotThi) => tongSo + luotThi.attempts,
     );
 
     return Card(
@@ -220,7 +206,7 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => _hienChiTietBaiThi(baiThi, cacLuotThi, userNames),
+        onTap: () => _hienChiTietBaiThi(baiThi, cacLuotThi),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Column(
@@ -268,7 +254,7 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
                   Expanded(
                     child: _dungChiSoBaiThi(
                       'Người đã làm',
-                      '${cacNguoiDung.length}',
+                      '${cacLuotThi.length}',
                     ),
                   ),
                   const SizedBox(
@@ -296,8 +282,8 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
                   Expanded(
                     child: _dungChiSoBaiThi(
                       'Điểm tốt TB',
-                      average.toStringAsFixed(1),
-                      valueColor: average > 0
+                      average?.toStringAsFixed(1) ?? '—',
+                      valueColor: average != null && average > 0
                           ? const Color(0xFF159B43)
                           : AppTheme.navy,
                     ),
@@ -338,52 +324,16 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     );
   }
 
-  Map<String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>
-  _nhomLuotThiTheoHocVien(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
-  ) {
-    final grouped =
-        <String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>{};
-    for (final luotThi in cacLuotThi) {
-      final userId = luotThi.data()['userId']?.toString() ?? 'unknown';
-      grouped.putIfAbsent(userId, () => []).add(luotThi);
-    }
-    return grouped;
-  }
-
-  double _diemCaoNhat(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
-  ) {
-    var totNhat = 0.0;
-    for (final luotThi in cacLuotThi) {
-      final duLieu = luotThi.data();
-      final diem =
-          (duLieu['bestScore'] as num?)?.toDouble() ??
-          (duLieu['diemSo'] as num?)?.toDouble() ??
-          0;
-      if (diem > totNhat) totNhat = diem;
-    }
-    return totNhat;
-  }
-
-  int _soLuotThi(QueryDocumentSnapshot<Map<String, dynamic>> luotThi) {
-    final duLieu = luotThi.data();
-    return (duLieu['attemptCount'] as num?)?.toInt() ??
-        (duLieu['status'] == 'completed' ? 1 : 0);
-  }
-
   void _hienChiTietBaiThi(
     QueryDocumentSnapshot<Map<String, dynamic>> baiThi,
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
-    Map<String, String> userNames,
+    List<AdminReportRow> cacLuotThi,
   ) {
-    final grouped = _nhomLuotThiTheoHocVien(cacLuotThi);
     final totalAttemptCount = cacLuotThi.fold(
       0,
-      (tongSo, luotThi) => tongSo + _soLuotThi(luotThi),
+      (tongSo, luotThi) => tongSo + luotThi.attempts,
     );
-    final cacCapDuLieu = grouped.entries.toList()
-      ..sort((a, b) => _diemCaoNhat(b.value).compareTo(_diemCaoNhat(a.value)));
+    final cacCapDuLieu = cacLuotThi.toList()
+      ..sort((a, b) => (b.score ?? -1).compareTo(a.score ?? -1));
 
     showModalBottomSheet<void>(
       context: context,
@@ -430,11 +380,7 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
                       padding: const EdgeInsets.all(12),
                       itemCount: cacCapDuLieu.length,
                       itemBuilder: (context, viTri) {
-                        final capDuLieu = cacCapDuLieu[viTri];
-                        return _dungKetQuaHocVien(
-                          userNames[capDuLieu.key] ?? capDuLieu.key,
-                          capDuLieu.value,
-                        );
+                        return _dungKetQuaHocVien(cacCapDuLieu[viTri]);
                       },
                     ),
             ),
@@ -444,49 +390,29 @@ class _TrangThaiTienDoQuanTri extends State<AdminProgressScreen> {
     );
   }
 
-  Widget _dungKetQuaHocVien(
-    String userName,
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
-  ) {
-    final totNhat = _diemCaoNhat(cacLuotThi);
-    final ordered = cacLuotThi.toList()
-      ..sort(
-        (a, b) =>
-            ExamOutcome.score(b.data()).compareTo(ExamOutcome.score(a.data())),
-      );
-    final daDat =
-        ordered.isNotEmpty && ExamOutcome.passed(ordered.first.data());
-    final attemptCount = cacLuotThi.fold(
-      0,
-      (tongSo, luotThi) => tongSo + _soLuotThi(luotThi),
-    );
-    DateTime? bestDate;
-    for (final luotThi in cacLuotThi) {
-      final duLieu = luotThi.data();
-      final ngay =
-          (duLieu['bestCompletedAt'] ?? duLieu['completedAt']) as Timestamp?;
-      if (ngay != null &&
-          (bestDate == null || ngay.toDate().isAfter(bestDate))) {
-        bestDate = ngay.toDate();
-      }
-    }
-
+  Widget _dungKetQuaHocVien(AdminReportRow row) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: ListTile(
         leading: const DefaultUserAvatar(radius: 20),
         title: Text(
-          userName,
+          row.name,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text('Đã làm $attemptCount lần • ${_dinhDangNgay(bestDate)}'),
+        subtitle: Text(
+          'Đã làm ${row.attempts} lần • ${_dinhDangNgay(row.bestAt ?? row.submittedAt)}',
+        ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              totNhat.toStringAsFixed(1),
+              row.score?.toStringAsFixed(1) ?? 'Thiếu điểm',
               style: TextStyle(
-                color: daDat ? Colors.green : Colors.red,
+                color: row.passed == null
+                    ? Colors.blueGrey
+                    : row.passed!
+                    ? Colors.green
+                    : Colors.red,
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
               ),

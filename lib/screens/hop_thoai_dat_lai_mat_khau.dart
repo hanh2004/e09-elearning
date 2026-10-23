@@ -16,11 +16,7 @@ Future<void> showPasswordResetDialog({
   required BuildContext context,
   required String initialUsername,
   required bool canRecoverRootAccount,
-  required Future<bool> Function({
-    required String username,
-    required String codeSuffix,
-  })
-  submitRequest,
+  required Future<bool> Function({required String username}) submitRequest,
   required Future<void> Function(String username) recoverRootAccount,
 }) async {
   final screenContext = context;
@@ -31,10 +27,9 @@ Future<void> showPasswordResetDialog({
     context: context,
     barrierDismissible: false,
     builder: (dialogContext) => _DialogTextControllers(
-      initialValues: [initialUsername, ''],
+      initialValues: [initialUsername],
       builder: (dialogContext, controllers) {
         final username = controllers[0];
-        final codeSuffix = controllers[1];
         return StatefulBuilder(
           builder: (context, update) => AlertDialog(
             title: const Text('Quên mật khẩu?'),
@@ -44,9 +39,7 @@ Future<void> showPasswordResetDialog({
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Nhập tên đăng nhập và mã đuôi. Học viên nhập phần sau dấu gạch trong mã người dùng (ví dụ E09-123 thì nhập 123); admin phụ nhập mã đơn vị được gán.',
-                  ),
+                  const Text('Nhập tài khoản để gửi yêu cầu đặt lại mật khẩu.'),
                   if (canRecoverRootAccount) ...[
                     const SizedBox(height: 6),
                     TextButton.icon(
@@ -72,16 +65,6 @@ Future<void> showPasswordResetDialog({
                       prefixIcon: Icon(Icons.person_outline),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: codeSuffix,
-                    enabled: !busy,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Mã đuôi / mã đơn vị',
-                      prefixIcon: Icon(Icons.badge_outlined),
-                    ),
-                  ),
                   if (error != null) ...[
                     const SizedBox(height: 10),
                     Text(error!, style: const TextStyle(color: Colors.red)),
@@ -103,32 +86,23 @@ Future<void> showPasswordResetDialog({
                           update(() => error = 'Nhập tên đăng nhập hợp lệ.');
                           return;
                         }
-                        final suffix = codeSuffix.text.trim();
-                        if (suffix.isEmpty || suffix.length > 100) {
-                          update(() => error = 'Nhập mã đuôi hợp lệ.');
-                          return;
-                        }
-
                         update(() {
                           busy = true;
                           error = null;
                         });
                         try {
-                          final matched = await submitRequest(
-                            username: value,
-                            codeSuffix: suffix,
-                          );
+                          final matched = await submitRequest(username: value);
                           if (!matched) {
                             if (!dialogContext.mounted) return;
                             update(() {
                               busy = false;
-                              error =
-                                  'Bạn nhập sai tài khoản hoặc mã người dùng';
+                              error = 'Bạn nhập sai tài khoản.';
                             });
                             return;
                           }
                           if (!dialogContext.mounted) return;
                           Navigator.pop(dialogContext);
+                          if (!screenContext.mounted) return;
                           ScaffoldMessenger.of(screenContext).showSnackBar(
                             const SnackBar(
                               content: Text(
@@ -162,10 +136,14 @@ Future<void> showPasswordResetDialog({
 Future<void> showRootPasswordRecoveryDialog({
   required BuildContext screenContext,
   required String initialUsername,
+  FirestoreService? service,
 }) async {
+  late final recoveryService = service ?? FirestoreService();
   String? proof;
   var sent = false;
   var approved = false;
+  var processing = false;
+  var completed = false;
   var busy = false;
   String? error;
   String? notice;
@@ -188,8 +166,12 @@ Future<void> showRootPasswordRecoveryDialog({
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    !sent
+                    completed
+                        ? 'Đã hoàn tất khôi phục mật khẩu. Hãy đăng nhập lại bằng mật khẩu mới.'
+                        : !sent
                         ? 'Nhập tên đăng nhập của admin tổng cần khôi phục. Admin tổng còn lại phải duyệt yêu cầu.'
+                        : processing
+                        ? 'Yêu cầu đang được xử lý. Giữ cửa sổ này và kiểm tra lại. Nếu kéo dài, hãy liên hệ người phụ trách.'
                         : approved
                         ? 'Admin tổng còn lại đã duyệt. Nhập mật khẩu mới để hoàn tất.'
                         : 'Yêu cầu đã gửi. Hãy báo admin tổng còn lại đăng nhập và duyệt. Giữ cửa sổ này mở trong lúc chờ.',
@@ -243,7 +225,7 @@ Future<void> showRootPasswordRecoveryDialog({
                 onPressed: busy ? null : () => Navigator.pop(dialogContext),
                 child: const Text('Hủy'),
               ),
-              if (sent && !approved)
+              if (sent && !approved && !completed)
                 TextButton(
                   onPressed: busy
                       ? null
@@ -254,7 +236,7 @@ Future<void> showRootPasswordRecoveryDialog({
                             notice = null;
                           });
                           try {
-                            final status = await FirestoreService()
+                            final status = await recoveryService
                                 .rootPasswordResetStatus(
                                   username: username.text.trim(),
                                   proof: proof!,
@@ -262,6 +244,8 @@ Future<void> showRootPasswordRecoveryDialog({
                             if (!dialogContext.mounted) return;
                             update(() {
                               approved = status == 'approved';
+                              processing = status == 'processing';
+                              completed = status == 'completed';
                               if (status == 'expired' ||
                                   status == 'not_found') {
                                 sent = false;
@@ -271,6 +255,8 @@ Future<void> showRootPasswordRecoveryDialog({
                                 'pending' => 'Yêu cầu vẫn đang chờ duyệt.',
                                 'expired' || 'not_found' => 'Yêu cầu hết hạn hoặc không hợp lệ. Bạn có thể gửi yêu cầu mới.',
                                 'approved' => null,
+                                'processing' => null,
+                                'completed' => null,
                                 _ =>
                                   'Chưa kiểm tra được trạng thái. Hãy thử lại.',
                               };
@@ -295,9 +281,13 @@ Future<void> showRootPasswordRecoveryDialog({
                   child: const Text('Kiểm tra duyệt'),
                 ),
               FilledButton(
-                onPressed: busy || (sent && !approved)
+                onPressed: busy || (sent && !approved && !completed)
                     ? null
                     : () async {
+                        if (completed) {
+                          Navigator.pop(dialogContext);
+                          return;
+                        }
                         if (!sent &&
                             !AccountIdentity.isValidUsername(
                               username.text.trim(),
@@ -330,7 +320,7 @@ Future<void> showRootPasswordRecoveryDialog({
                                   ),
                                 )
                                 .replaceAll('=', '');
-                            await FirestoreService().requestRootPasswordReset(
+                            await recoveryService.requestRootPasswordReset(
                               username: username.text.trim(),
                               proof: proof!,
                             );
@@ -342,7 +332,7 @@ Future<void> showRootPasswordRecoveryDialog({
                             });
                             return;
                           }
-                          await FirestoreService().finishRootPasswordReset(
+                          await recoveryService.finishRootPasswordReset(
                             username: username.text.trim(),
                             proof: proof!,
                             password: password.text,
@@ -359,14 +349,20 @@ Future<void> showRootPasswordRecoveryDialog({
                           );
                         } catch (loi) {
                           if (!dialogContext.mounted) return;
+                          final wasFinishing = approved;
                           update(() {
                             busy = false;
+                            // Sau lỗi mạng, máy chủ có thể đã đổi mật khẩu.
+                            // Kiểm tra processing/completed trước khi thử lại.
+                            if (wasFinishing) approved = false;
                             error = AppErrorMessage.from(
                               loi,
-                              feature: approved
+                              feature: wasFinishing
                                   ? 'Đặt lại mật khẩu quản trị tổng'
                                   : 'Gửi yêu cầu khôi phục mật khẩu quản trị tổng',
-                              fallbackAction: 'Kiểm tra thông tin tài khoản, quyền quản trị và cấu hình máy chủ rồi thử lại.',
+                              fallbackAction: wasFinishing
+                                  ? 'Bấm Kiểm tra duyệt để xem yêu cầu đã hoàn tất hay đang xử lý.'
+                                  : 'Kiểm tra thông tin tài khoản, quyền quản trị và cấu hình máy chủ rồi thử lại.',
                             );
                           });
                         }
@@ -374,6 +370,8 @@ Future<void> showRootPasswordRecoveryDialog({
                 child: Text(
                   busy
                       ? 'Đang xử lý…'
+                      : completed
+                      ? 'Đăng nhập lại'
                       : approved
                       ? 'Đặt mật khẩu mới'
                       : sent

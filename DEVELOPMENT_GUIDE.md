@@ -55,7 +55,7 @@ chuẩn bị Java 21 cho emulator và kiểm tra lại các lệnh triển khai.
 | Tài khoản, đơn vị, quyền tạo User | `lib/screens/admin/quan_ly_tai_khoan.dart`, `lib/services/du_lieu/dich_vu_firestore.dart`, `lib/services/du_lieu/thao_tac_tai_khoan_firestore.dart` |
 | Quên và cấp lại mật khẩu | `functions/src/cap_lai_mat_khau.js` (yêu cầu và kiểm tra người quản lý hiện tại), `functions/src/tai_khoan.js` (ghép API) |
 | Nhập học viên từ Excel | `lib/screens/admin/hop_thoai_nhap_hoc_vien.dart`, `functions/src/nhap_hoc_vien.js` (luồng nhập), `functions/src/tai_khoan.js` (ghép API) |
-| Đổi đơn vị quản lý và đồng bộ mã học viên | `functions/src/gan_don_vi.js` (nghiệp vụ), `functions/src/tai_khoan.js` (ghép API), `functions/src/quy_tac.js` |
+| Đổi đơn vị quản lý và cập nhật hồ sơ học viên | `functions/src/gan_don_vi.js` (nghiệp vụ), `functions/src/tai_khoan.js` (ghép API), `functions/src/quy_tac.js` |
 | Danh sách, tìm kiếm, xóa khóa học | `lib/screens/admin/quan_ly_khoa_hoc.dart` |
 | Danh sách chương/bài học, nút triển khai/kết thúc | `lib/screens/admin/quan_ly_bai_hoc.dart` |
 | Form tạo/sửa khóa học và bài học | `lib/screens/admin/forms/bieu_mau_khoa_hoc.dart`, `bieu_mau_bai_hoc.dart` |
@@ -212,17 +212,14 @@ Chỉ các APK đã có chức năng kiểm tra phiên bản mới nhận đư�
 ### Thao tác trên nhiều tài khoản
 
 Nhập Excel nhận đến 200 dòng bằng các bước có thể tiếp tục sau lỗi. Đổi đơn vị
-quản lý kiểm tra trùng trước, rồi đồng bộ mỗi đợt 60 hồ sơ; nếu thao tác bị gián
-đoạn, chạy lại cùng mã đơn vị để tiếp tục. Trong lúc chạy, hệ thống tạm khóa các
-thay đổi tài khoản liên quan. Cần hoàn tất backfill trước khi dùng luồng đổi đơn
-vị theo đợt; luồng này dùng reservation để tránh quét toàn bộ hồ sơ.
+quản lý kiểm tra reservation đơn vị rồi đồng bộ mỗi đợt 60 hồ sơ; nếu thao tác bị
+gián đoạn, chạy lại cùng mã đơn vị để tiếp tục. Trong lúc chạy, hệ thống tạm khóa
+các thay đổi tài khoản liên quan.
 
-Backfill chỉ mục mã cũ ở `functions/scripts/bo_sung_ma_hoc_vien.js` xử lý 80 hồ sơ
-mỗi transaction. Nếu bị gián đoạn, chạy lại `--apply` để tiếp tục từ cursor trong
-`system/code_indexes`; chỉ khi hoàn tất mới đặt trạng thái `complete`, cho phép
-thao tác cấp mã dựa vào chỉ mục thay vì quét toàn bộ tài khoản. Chạy preview trước,
-sửa dữ liệu trùng/không hợp lệ nếu được báo lỗi, rồi mới áp dụng. Trên Firebase thật,
-chỉ chạy trong đợt bảo trì sau khi sao lưu và có kế hoạch khôi phục.
+Để xóa định danh cũ khỏi Firestore và bảo đảm mỗi tài khoản có reservation tên
+đăng nhập, chạy `functions/scripts/migrate_user_identifiers.js` trước ở chế độ
+preview. Chỉ thêm `--apply` sau khi sao lưu và xác định đúng dự án Firebase. Script
+này không tạo hoặc kiểm tra mã học viên.
 
 ## Trang chủ, Tin tức và Tiện ích học viên
 

@@ -9,7 +9,7 @@ import {supplement} from '../scripts/bo_sung_du_lieu_hoc_tap.mjs';
 import {examHandlers} from '../src/bai_kiem_tra.js';
 if(!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Local emulator required');
 
-test('supplement adds codes and sample content atomically, preserves existing records and is repeatable',async()=>{
+test('supplement adds sample content atomically, preserves account records and is repeatable',async()=>{
   const env=await initializeTestEnvironment({projectId:'demo-e09',firestore:{rules:readFileSync(new URL('../../firestore.rules',import.meta.url),'utf8')}});
   const app=initializeApp({projectId:'demo-e09'},'supplement-test'),db=getFirestore(app);
   const request=async(method,path,body,options={})=>{
@@ -34,12 +34,15 @@ test('supplement adds codes and sample content atomically, preserves existing re
     };
     for(const [path,data] of Object.entries(existing)) await db.doc(path).set(data);
     const preview=await supplement(client,'demo-e09');
-    assert.equal(preview.codesAdded,1);assert.equal(preview.coursesAdded,2);
+    assert.equal(preview.coursesAdded,2);
     assert.deepEqual((await db.doc('users/u').get()).data(),user);
     assert.equal((await db.doc('courses/sample_math_20260914').get()).exists,false);
     const result=await supplement(client,'demo-e09',true);
-    assert.equal(result.totalWrites,22);
-    assert.deepEqual((await db.doc('users/u').get()).data(),{...user,userCode:'D1-example1',userCodeSuffix:'example1'});
+    assert.deepEqual(result, {
+      mode:'applied', coursesAdded:2, lessonsAdded:6,
+      examsAdded:2, questionsAdded:10, totalWrites:20,
+    });
+    assert.deepEqual((await db.doc('users/u').get()).data(),user);
     for(const [path,data] of Object.entries(existing)) assert.deepEqual((await db.doc(path).get()).data(),data);
     assert.equal((await db.collection('learning_notifications').get()).size,0);
     const pupil=env.authenticatedContext('u').firestore();

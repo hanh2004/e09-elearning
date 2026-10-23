@@ -1,7 +1,7 @@
 // DỮ LIỆU: Tính báo cáo hoàn thành khóa học theo học viên và đơn vị.
 // Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
 
-import '../services/nghiep_vu/dich_vu_hoc_tap.dart';
+import 'quy_tac_hoc_tap.dart';
 
 class CourseCompletionRow {
   const CourseCompletionRow({
@@ -40,6 +40,10 @@ class CourseCompletionReport {
     Map<String, Map<String, dynamic>> lessons = const {},
     String? ownerId,
   }) {
+    final courseEnd = LearningPolicy.readDateTime(course['endsAt']);
+    final cutoff = courseEnd != null && courseEnd.isBefore(endsAt)
+        ? courseEnd
+        : endsAt;
     final cacDong = <CourseCompletionRow>[];
     for (final capDuLieu in users.entries) {
       final nguoiDung = capDuLieu.value;
@@ -48,7 +52,7 @@ class CourseCompletionReport {
       }
       if (ownerId != null && nguoiDung['createdBy'] != ownerId) continue;
       final created = LearningPolicy.readDateTime(nguoiDung['createdAt']);
-      if (created != null && !created.isBefore(endsAt)) continue;
+      if (created != null && !created.isBefore(cutoff)) continue;
       final cacMauTin = (progress[capDuLieu.key] ?? []).where(
         (p) => p['courseId'] == courseId && lessonIds.contains(p['lessonId']),
       );
@@ -61,9 +65,9 @@ class CourseCompletionReport {
                   lessons[p['lessonId']] ?? {},
                 ) &&
                 at != null &&
-                (at.isBefore(endsAt) ||
+                (at.isBefore(cutoff) ||
                     (p['examCompleted'] == true &&
-                        at.isAtSameMomentAs(endsAt)));
+                        at.isAtSameMomentAs(cutoff)));
           })
           .map((p) => p['lessonId'])
           .toSet()
@@ -84,7 +88,7 @@ class CourseCompletionReport {
           started:
               cacMauTin.any((p) {
                 final at = LearningPolicy.readDateTime(p['startedAt']);
-                return at != null && at.isBefore(endsAt);
+                return at != null && at.isBefore(cutoff);
               }) ||
               daHoanThanh > 0,
         ),

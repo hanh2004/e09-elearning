@@ -20,7 +20,6 @@ class NewsScreen extends StatefulWidget {
 
 class _TrangThaiTinTuc extends State<NewsScreen> {
   late final news = NewsService(widget.service.db);
-  late final articles = news.published();
   final search = TextEditingController();
   String category = 'Tất cả';
   int days = 0;
@@ -98,16 +97,15 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: () =>
-                      Navigator.pop(
-                        context,
-                        (selectedDays, selectedOldest, selectedCategory),
-                      ),
+                  onPressed: () => Navigator.pop(context, (
+                    selectedDays,
+                    selectedOldest,
+                    selectedCategory,
+                  )),
                   child: const Text('Áp dụng'),
                 ),
                 TextButton(
-                  onPressed: () =>
-                      Navigator.pop(context, (0, false, 'Tất cả')),
+                  onPressed: () => Navigator.pop(context, (0, false, 'Tất cả')),
                   child: const Text('Xóa bộ lọc'),
                 ),
               ],
@@ -133,29 +131,16 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
       title: const Text('Tin tức'),
       backgroundColor: AppTheme.red,
     ),
-    body: StreamBuilder<List<NewsArticle>>(
-      stream: articles,
+    body: ReloadableStreamBuilder<List<NewsArticle>>(
+      streamFactory: news.published,
+      feature: 'Tải danh sách tin tức',
       builder: (context, duLieuNhan) {
-        if (duLieuNhan.hasError) {
-          return AppErrorNotice(
-            error: duLieuNhan.error!,
-            feature: 'Tải danh sách tin tức',
-            fallbackAction:
-                'Kiểm tra kết nối và cấu hình máy chủ rồi tải lại.',
-          );
-        }
         if (!duLieuNhan.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         final all = duLieuNhan.data!;
         return Column(
           children: [
-            NewsCategories(
-              selected: category,
-              categories: NewsArticle.quickCategoriesFor(all),
-              onSelected: (giaTri) => setState(() => category = giaTri),
-            ),
-            const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -167,12 +152,6 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
                       decoration: InputDecoration(
                         hintText: 'Tìm kiếm tin tức',
                         prefixIcon: const Icon(Icons.search),
-                        filled: true,
-                        fillColor: const Color(0xFFF4F3F8),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(32),
-                          borderSide: BorderSide.none,
-                        ),
                         suffixIcon: search.text.isEmpty
                             ? null
                             : IconButton(
@@ -186,8 +165,7 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
                     tooltip: 'Lọc tin tức',
-                    onPressed: () =>
-                        filter(NewsArticle.categoriesFor(all)),
+                    onPressed: () => filter(NewsArticle.categoriesFor(all)),
                     icon: Icon(
                       days > 0 || oldest || category != 'Tất cả'
                           ? Icons.filter_alt
@@ -197,6 +175,12 @@ class _TrangThaiTinTuc extends State<NewsScreen> {
                 ],
               ),
             ),
+            NewsCategories(
+              selected: category,
+              categories: NewsArticle.quickCategoriesFor(all),
+              onSelected: (giaTri) => setState(() => category = giaTri),
+            ),
+            const Divider(height: 1),
             if (days > 0 || oldest)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),

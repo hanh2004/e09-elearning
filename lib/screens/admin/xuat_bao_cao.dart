@@ -66,18 +66,23 @@ extension _AdminReportExport on _TrangThaiBaoCaoQuanTri {
     );
     final tenTep = _tenTepExcel(cauHinh.fileName);
     final exporter = AdminReportExcelExport();
-    showDialog<void>(
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final progressRoute = DialogRoute<void>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: CircularProgressIndicator(),
+      builder: (context) => const PopScope(
+        canPop: false,
+        child: Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(),
+            ),
           ),
         ),
       ),
     );
+    navigator.push(progressRoute);
     try {
       final filteredAttempts = await AdminReportAttempts.trongKhoang(
         summaries: cacLuotThi,
@@ -121,16 +126,22 @@ extension _AdminReportExport on _TrangThaiBaoCaoQuanTri {
         examTitle: cauHinh.examTitle,
       );
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Đã xuất $tenTep')));
       }
     } catch (loi) {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Không xuất được Excel: $loi')));
+      }
+    } finally {
+      if (navigator.mounted && progressRoute.isActive) {
+        if (progressRoute.isCurrent) {
+          navigator.pop();
+        } else {
+          navigator.removeRoute(progressRoute);
+        }
       }
     }
   }

@@ -25,6 +25,12 @@ class LearnerTheme {
         fontWeight: FontWeight.w700,
       ),
     ),
+    cardTheme: AppTheme.light.cardTheme.copyWith(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: AppTheme.learnerFrameBorderSide,
+      ),
+    ),
     listTileTheme: const ListTileThemeData(
       iconColor: AppTheme.red,
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),

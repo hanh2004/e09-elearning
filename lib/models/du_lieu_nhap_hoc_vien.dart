@@ -4,26 +4,26 @@
 class UserImportRow {
   const UserImportRow({
     required this.rowNumber,
+    this.serialNumber,
     required this.name,
     required this.username,
     required this.password,
-    this.userCodeSuffix,
     this.errors = const [],
   });
 
   final int rowNumber;
+  final int? serialNumber;
   final String name;
   final String username;
   final String password;
-  final String? userCodeSuffix;
   final List<String> errors;
 
   UserImportRow withError(String thongDiep) => UserImportRow(
     rowNumber: rowNumber,
+    serialNumber: serialNumber,
     name: name,
     username: username,
     password: password,
-    userCodeSuffix: userCodeSuffix,
     errors: [...errors, thongDiep],
   );
 }
@@ -41,15 +41,30 @@ class UserImportPreview {
 
   UserImportPreview checkExisting(Iterable<String> usernames) {
     final existing = usernames.map((ten) => ten.trim().toLowerCase()).toSet();
+    final firstExisting = rows.indexWhere(
+      (dong) => existing.contains(dong.username.toLowerCase()),
+    );
+    if (firstExisting < 0) return UserImportPreview(errors: errors, rows: rows);
     return UserImportPreview(
       errors: errors,
-      rows: rows
-          .map(
-            (dong) => existing.contains(dong.username.toLowerCase())
-                ? dong.withError('Tên đăng nhập đã tồn tại.')
-                : dong,
-          )
-          .toList(),
+      rows: [
+        ...rows.take(firstExisting),
+        rows[firstExisting].withError('Tên đăng nhập đã tồn tại.'),
+      ],
+    );
+  }
+
+  UserImportPreview stopAtSerial(int serialNumber, String message) {
+    final failedRow = rows.indexWhere(
+      (dong) => dong.serialNumber == serialNumber,
+    );
+    if (failedRow < 0) return UserImportPreview(errors: [message], rows: rows);
+    return UserImportPreview(
+      errors: errors,
+      rows: [
+        ...rows.take(failedRow),
+        rows[failedRow].withError(message),
+      ],
     );
   }
 }

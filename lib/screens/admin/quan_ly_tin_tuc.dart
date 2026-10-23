@@ -156,11 +156,10 @@ class _TrangThaiTinTucQuanTri extends State<AdminNewsScreen> {
                 title: 'Danh sách tin tức',
                 action: AccountSession.current?.isRoot == true
                     ? FilledButton.icon(
-                        onPressed: () =>
-                            edit(
-                              categoryOptions: categoryOptions,
-                              enabledCategories: enabledCategories,
-                            ),
+                        onPressed: () => edit(
+                          categoryOptions: categoryOptions,
+                          enabledCategories: enabledCategories,
+                        ),
                         icon: const Icon(Icons.add),
                         label: const Text('Thêm tin tức'),
                       )
@@ -308,6 +307,7 @@ class _DongTinTuc extends StatelessWidget {
                     Row(
                       children: [
                         CourseCover(
+                          brandFallback: true,
                           url: duLieu['coverUrl'] ?? '',
                           width: 64,
                           height: 56,
@@ -323,6 +323,7 @@ class _DongTinTuc extends StatelessWidget {
               : Row(
                   children: [
                     CourseCover(
+                      brandFallback: true,
                       url: duLieu['coverUrl'] ?? '',
                       width: 64,
                       height: 56,
@@ -463,7 +464,8 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
         !widget.enabledCategories.contains(loaiTinDaChon) &&
         widget.enabledCategories.length >= 3) {
       setState(
-        () => _loi = 'Thanh nhanh đã đủ 3 loại. Loại này vẫn dùng được trong bộ lọc.',
+        () => _loi =
+            'Thanh nhanh đã đủ 3 loại. Loại này vẫn dùng được trong bộ lọc.',
       );
       return;
     }
@@ -481,6 +483,11 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
             if (mounted) setState(() => _tienDoTaiLen = tienDo);
           },
         );
+        if (!mounted) return;
+        setState(() {
+          _anhDaChon = null;
+          _tienDoTaiLen = null;
+        });
       }
       await widget.onSave({
         'title': _tieuDe.text.trim(),
@@ -600,8 +607,8 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
                             _dangXuLy && _tienDoTaiLen == null
                                 ? 'Đang xử lý…'
                                 : _anhDaChon == null && _duongDanAnh.isEmpty
-                            ? 'Chọn ảnh từ thiết bị'
-                            : 'Đổi ảnh từ thiết bị',
+                                ? 'Chọn ảnh từ thiết bị'
+                                : 'Đổi ảnh từ thiết bị',
                           ),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppTheme.red,
@@ -664,9 +671,12 @@ class _TrangThaiHopThoaiSuaTinTuc extends State<_HopThoaiSuaTinTuc> {
                                 if (value != null) {
                                   setState(() {
                                     _loaiTin = value;
-                                    _hienLoaiTinTrenThanh = value !=
+                                    _hienLoaiTinTrenThanh =
+                                        value !=
                                             NewsForm.customCategorySelection &&
-                                        widget.enabledCategories.contains(value);
+                                        widget.enabledCategories.contains(
+                                          value,
+                                        );
                                   });
                                 }
                               },

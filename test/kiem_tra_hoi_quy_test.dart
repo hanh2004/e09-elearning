@@ -1,92 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:e09_elearning/services/du_lieu/dich_vu_firestore.dart';
 import 'package:e09_elearning/services/nghiep_vu/dich_vu_hoc_tap.dart';
 import 'package:e09_elearning/models/mo_hinh_cau_hoi.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Future<void> seedStudy(FakeFirebaseFirestore db) async {
-  await db.doc('courses/c').set({
-    'published': true,
-    'learningMode': 'study_exam',
-    'examId': 'e',
-  });
-  await db.doc('courses/c/lessons/l').set({
-    'learningMode': 'study_exam',
-    'examId': 'e',
-  });
-  await db.doc('users/u/learning/c_l').set({
-    'courseId': 'c',
-    'lessonId': 'l',
-    'completed': true,
-  });
-}
-
 void main() {
-  test(
-    'server exam duration and attempt limit override stale client values',
-    () async {
-      final db = FakeFirebaseFirestore();
-      final service = FirestoreService(firestore: db);
-      await seedStudy(db);
-      await db.doc('exams/e').set({
-        'durationMinutes': 5,
-        'maxAttempts': 1,
-      });
-      final session = await service.getOrCreateAttempt(
-        courseId: 'c',
-        lessonId: 'l',
-        userId: 'u',
-        examId: 'e',
-        durationMinutes: 60,
-      );
-      expect(
-        session.endsAt.difference(DateTime.now()).inMinutes,
-        lessThanOrEqualTo(5),
-      );
-      await db.doc('exam_attempts/${session.attemptId}').update({
-        'status': 'completed',
-        'attemptCount': 1,
-        'diemSo': 8,
-      });
-      await expectLater(
-        service.getOrCreateAttempt(
-          courseId: 'c',
-          lessonId: 'l',
-          userId: 'u',
-          examId: 'e',
-          durationMinutes: 60,
-          maxAttempts: 99,
-        ),
-        throwsStateError,
-      );
-    },
-  );
-  test('retry preserves legacy attempts and their histories', () async {
-    final db = FakeFirebaseFirestore();
-    final service = FirestoreService(firestore: db);
-    await seedStudy(db);
-    await db.doc('exams/e').set({'durationMinutes': 5});
-    for (final id in ['a', 'b']) {
-      await db.doc('exam_attempts/$id').set({
-        'userId': 'u',
-        'examId': 'e',
-        'status': 'completed',
-        'attemptCount': 1,
-        'diemSo': 8,
-      });
-      await db.doc('exam_attempts/$id/runs/1').set({'score': 8});
-    }
-    await service.getOrCreateAttempt(
-      courseId: 'c',
-      lessonId: 'l',
-      userId: 'u',
-      examId: 'e',
-      durationMinutes: 5,
-    );
-    expect((await db.collection('exam_attempts').get()).docs.length, 2);
-    expect((await db.doc('exam_attempts/b/runs/1').get()).exists, true);
-  });
   test('unsupported or ungradable questions are rejected', () {
     final valid = {
       'questionText': 'Q',

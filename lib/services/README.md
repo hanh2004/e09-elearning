@@ -5,7 +5,9 @@ nghiệp vụ và xử lý tệp. Khi sửa một chức năng, tìm service the
 
 - `tai_khoan/xac_thuc_tai_khoan.dart`: đăng nhập và đăng xuất Firebase Auth.
 - `du_lieu/dich_vu_firestore.dart`: truy vấn Firestore dùng chung; các phần tài
-  khoản, bài thi và bảo trì được khai báo trong các tệp `firestore_*_operations.dart`.
+  khoản, bài thi và bảo trì được khai báo trong các tệp `thao_tac_*_firestore.dart`.
+  Phần bài thi giữ CRUD quản trị và đọc câu hỏi cũ; học viên bắt đầu, lưu, nộp,
+  chấm và xem lịch sử qua `ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart`.
 - `nghiep_vu/dich_vu_hoc_tap.dart`: khóa học, bài học, tiến độ và thông báo học tập.
 - `nghiep_vu/dich_vu_tin_tuc.dart`, `dich_vu_anh_bia_trang_chu.dart`: tin tức và banner.
 - `ket_noi_api/api_tai_khoan.dart`, `dich_vu_bai_kiem_tra_bao_mat.dart`: gọi Cloud Functions.

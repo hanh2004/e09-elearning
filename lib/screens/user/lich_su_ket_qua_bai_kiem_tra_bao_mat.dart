@@ -22,7 +22,6 @@ class SecureExamResultScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         children: [
           LearnerCard(
-            accentColor: passed ? Colors.green : AppTheme.red,
             padding: const EdgeInsets.all(28),
             child: Column(
               children: [
@@ -106,7 +105,6 @@ class _QuestionReviewCard extends StatelessWidget {
         ? options[index].toString()
         : 'Không có dữ liệu';
     return LearnerCard(
-      accentColor: AppTheme.gold,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

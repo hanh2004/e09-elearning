@@ -1,4 +1,4 @@
-// NGHIỆP VỤ TÀI KHOẢN: đổi mã đơn vị và đồng bộ mã học viên theo từng đợt.
+// NGHIỆP VỤ TÀI KHOẢN: đổi đơn vị và cập nhật hồ sơ học viên theo từng đợt.
 import {randomUUID} from 'node:crypto';
 import {FieldPath} from 'firebase-admin/firestore';
 
@@ -12,9 +12,7 @@ export function createSetUnitHandler({
   requireRoot,
   requireThat,
   validateUnit,
-  userCodeKey,
-  makeUserCode,
-  userCodeSuffix,
+  normalizedKey,
   unitReservation,
   assignment,
   stamp,
@@ -27,18 +25,15 @@ export function createSetUnitHandler({
     const started = await coSoDuLieu.runTransaction(async giaoDich => {
       const {actor, config} = await nguCanh(giaoDich, maNguoiDung);
       requireRoot(actor, config);
-      const [managerSnapshot, operationSnapshot, indexSnapshot] = await Promise.all([
+      const [managerSnapshot, operationSnapshot] = await Promise.all([
         giaoDich.get(quanLyRef), giaoDich.get(thaoTacRef),
-        giaoDich.get(coSoDuLieu.doc('system/code_indexes')),
       ]);
       const quanLy = managerSnapshot.data();
       requireThat(quanLy?.role === 'admin' && ['active', 'pending'].includes(quanLy.status),
         'failed-precondition', 'Chọn quản lý đang hoạt động hoặc chờ duyệt.');
       requireThat(quanLy.adminDeletionPending !== true, 'failed-precondition',
         'Không thể đổi đơn vị cho quản lý đang chờ duyệt xóa.');
-      requireThat(indexSnapshot.data()?.status === 'complete', 'failed-precondition',
-        'Cần hoàn tất backfill mã cũ trước khi đổi đơn vị theo đợt.');
-      if (userCodeKey(quanLy.unit || '') === userCodeKey(donVi)) return {complete: true};
+      if (normalizedKey(quanLy.unit || '') === normalizedKey(donVi)) return {complete: true};
 
       const oldOperation = operationSnapshot.data();
       if (oldOperation?.status === 'running') {
@@ -48,6 +43,12 @@ export function createSetUnitHandler({
         'failed-precondition', 'Đang có thao tác đổi đơn vị khác. Hãy tiếp tục thao tác đang chạy trước.');
         return {complete: false};
       }
+
+      // Lượt nhập chưa xong vẫn dùng đơn vị đã giữ chỗ cho các hồ sơ còn thiếu.
+      const imports = await giaoDich.get(coSoDuLieu.collection('account_operations')
+        .where('createdBy', '==', quanLyRef.id));
+      requireThat(!imports.docs.some(banGhi => banGhi.data().status === 'provisioning'),
+        'failed-precondition', 'Quản lý đang nhập học viên. Hãy hoàn tất lượt nhập rồi đổi đơn vị.');
 
       const reserve = await unitReservation(giaoDich, donVi, quanLyRef.id);
       const operationId = randomUUID();
@@ -66,11 +67,9 @@ export function createSetUnitHandler({
         oldUnit: quanLy.unit,
         newUnit: donVi,
         status: 'running',
-        phase: 'checking',
-        checkCursor: null,
+        phase: 'applying',
         learnerCursor: null,
         requestCursor: null,
-        checked: 0,
         processed: 0,
         createdAt: stamp(),
         updatedAt: stamp(),
@@ -97,56 +96,10 @@ export function createSetUnitHandler({
           .orderBy(FieldPath.documentId()).limit(PAGE_SIZE);
 
         if (thaoTac.phase === 'checking') {
-          const pageQuery = thaoTac.checkCursor ? childrenQuery.startAfter(thaoTac.checkCursor) : childrenQuery;
-          const page = await giaoDich.get(pageQuery);
-          if (page.empty) {
-            giaoDich.update(thaoTacRef, {
-              phase: 'applying', learnerCursor: null, requestCursor: null, updatedAt: stamp(),
-            });
-            return {phase: 'applying'};
-          }
-
-          const candidates = new Map();
-          let collision = null;
-          for (const child of page.docs) {
-            const data = child.data();
-            if (data.role !== 'user' || data.status === 'deleting') continue;
-            const suffix = userCodeSuffix(data, child.id);
-            const code = makeUserCode(donVi, suffix);
-            const key = userCodeKey(code);
-            if (candidates.has(key)) {
-              collision = key;
-              break;
-            }
-            candidates.set(key, {uid: child.id, code});
-          }
-          const reservationRefs = collision ? [] : [...candidates.keys()].map(key =>
-            coSoDuLieu.doc(`user_codes/${key}`));
-          const reservations = reservationRefs.length
-            ? await giaoDich.getAll(...reservationRefs) : [];
-          reservations.forEach(snapshot => {
-            if (snapshot.exists && snapshot.data().uid !== candidates.get(snapshot.id)?.uid) {
-              collision = snapshot.id;
-            }
-          });
-          if (collision) {
-            const targetUnitRef = coSoDuLieu.doc(`unit_codes/${userCodeKey(donVi)}`);
-            const targetUnit = await giaoDich.get(targetUnitRef);
-            if (targetUnit.exists && targetUnit.data().managerId === quanLyRef.id) {
-              giaoDich.delete(targetUnitRef);
-            }
-            giaoDich.update(quanLyRef, {
-              unitChangePending: false, unitChangeOperationId: null, unitChangeTarget: null,
-            });
-            giaoDich.update(thaoTacRef, {status: 'failed', errorCode: 'already-exists', updatedAt: stamp()});
-            return {collision};
-          }
           giaoDich.update(thaoTacRef, {
-            checkCursor: page.docs.at(-1).id,
-            checked: (thaoTac.checked || 0) + page.size,
-            updatedAt: stamp(),
+            phase: 'applying', learnerCursor: null, requestCursor: null, updatedAt: stamp(),
           });
-          return {phase: 'checking'};
+          return {phase: 'applying'};
         }
 
         requireThat(thaoTac.phase === 'applying', 'failed-precondition',
@@ -163,7 +116,7 @@ export function createSetUnitHandler({
         ]);
         if (children.empty && requests.empty) {
           const oldUnitRef = thaoTac.oldUnit
-            ? coSoDuLieu.doc(`unit_codes/${userCodeKey(thaoTac.oldUnit)}`) : null;
+            ? coSoDuLieu.doc(`unit_codes/${normalizedKey(thaoTac.oldUnit)}`) : null;
           const oldUnit = oldUnitRef ? await giaoDich.get(oldUnitRef) : null;
           if (oldUnit?.exists && oldUnit.data().managerId === quanLyRef.id) {
             giaoDich.delete(oldUnitRef);
@@ -182,18 +135,14 @@ export function createSetUnitHandler({
         }
 
         const assignments = [];
-        const learners = {docs: []};
         for (const child of children.docs) {
           if (child.data().role !== 'user' || child.data().status === 'deleting') continue;
           assignments.push(await assignment({
             giaoDich, thamChieu: child.ref, dich: child.data(), donVi,
             managerId: quanLyRef.id, actorId: maNguoiDung,
-            existingLearners: learners, unitChangeOperationId: thaoTac.operationId,
+            unitChangeOperationId: thaoTac.operationId,
           }));
         }
-        const oldUnitRef = thaoTac.oldUnit
-          ? coSoDuLieu.doc(`unit_codes/${userCodeKey(thaoTac.oldUnit)}`) : null;
-        if (oldUnitRef) await giaoDich.get(oldUnitRef);
         for (const applyAssignment of assignments) applyAssignment();
         for (const request of requests.docs) giaoDich.update(request.ref, {unit: donVi});
         giaoDich.update(thaoTacRef, {
@@ -205,10 +154,6 @@ export function createSetUnitHandler({
         return {complete: false, processed: (thaoTac.processed || 0) + assignments.length};
       });
 
-      if (result.collision) {
-        requireThat(false, 'already-exists',
-          `Mã học viên ${result.collision} đã được tài khoản khác sử dụng. Chưa đổi hồ sơ nào.`);
-      }
       if (result.complete) return {updated: true, processed: result.processed};
     }
   };

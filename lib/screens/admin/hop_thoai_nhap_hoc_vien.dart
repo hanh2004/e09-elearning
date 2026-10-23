@@ -3,6 +3,7 @@
 
 import 'dart:async';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:flutter/services.dart';
 
 import '../../models/du_lieu_nhap_hoc_vien.dart';
 import '../../services/du_lieu/dich_vu_firestore.dart';
+import '../../services/thong_bao_loi_ung_dung.dart';
 import '../../services/tep/nhap_hoc_vien_tu_excel.dart';
 import '../../services/tep/chon_bang_tinh.dart';
 import '../../services/tep/loi_chon_bang_tinh.dart';
@@ -169,14 +171,49 @@ class _TrangThaiNhapHocVien extends State<AdminUserImportDialog> {
     try {
       await widget.service.importUsers(preview.rows);
       if (mounted) Navigator.pop(context, preview.rows.length);
-    } catch (_) {
+    } catch (loi) {
       if (mounted) {
-        setState(() {
-          _xemTruoc = null;
-          _xemTruocCucBo = null;
-          _daKiemTraTonTai = false;
-          _thongDiep = 'Chưa xác nhận được kết quả nhập (có thể tên đã tồn tại hoặc lỗi kết nối). Chọn lại file để kiểm tra trước khi thử lại. Không ghi đè tài khoản cũ.';
-        });
+        final message = loi is FirebaseFunctionsException ? loi.message : null;
+        final serial = message == null
+            ? null
+            : RegExp(
+                r'STT\s+(\d+)',
+                caseSensitive: false,
+              ).firstMatch(message)?.group(1);
+        final serialNumber = serial == null ? null : int.tryParse(serial);
+        final current = _xemTruocCucBo;
+        final interrupted =
+            loi is FirebaseFunctionsException &&
+            const [
+              'unavailable',
+              'deadline-exceeded',
+              'internal',
+              'unknown',
+            ].contains(loi.code);
+        if (!interrupted && serialNumber != null && current != null) {
+          final stopped = current.stopAtSerial(
+            serialNumber,
+            message ?? 'Đã dừng tại STT $serialNumber.',
+          );
+          setState(() {
+            _xemTruoc = stopped;
+            _xemTruocCucBo = stopped;
+            _daKiemTraTonTai = false;
+            _thongDiep =
+                'Đã dừng tại STT $serialNumber. Sửa tài khoản này trong file rồi chọn lại file.';
+          });
+        } else {
+          setState(() {
+            // API giữ tên đăng nhập trong lúc cấp tài khoản. Giữ nguyên
+            // dữ liệu và mã thao tác để retry tiếp tục lô đang provisioning;
+            // kiểm tra trùng lại sẽ chặn chính các tên đã giữ cho lô này.
+            _thongDiep = AppErrorMessage.from(
+              loi,
+              feature: 'Nhập học viên từ Excel',
+              fallbackAction: 'Giữ nguyên file và bấm Xác nhận thêm để thử lại cùng lượt nhập.',
+            );
+          });
+        }
       }
     } finally {
       if (mounted) setState(() => _dangXuLy = false);
@@ -224,7 +261,7 @@ class _TrangThaiNhapHocVien extends State<AdminUserImportDialog> {
                         child: Padding(
                           padding: const EdgeInsets.only(top: 16),
                           child: Text(
-                            _thongDiep ?? 'Điền ở sheet Users từ dòng 2 theo đúng tiêu đề mẫu. Nhập đủ Họ và tên, Tên đăng nhập, Mật khẩu; Mã người dùng là phần đuôi và có thể để trống. Các ô nhập đã định dạng Text để giữ số 0 đầu.',
+                            _thongDiep ?? 'Điền ở sheet Users từ dòng 2 theo đúng tiêu đề mẫu. Nhập đủ Họ và tên, Tên đăng nhập, Mật khẩu. Họ tên có thể trùng; Tên đăng nhập phải duy nhất trong hệ thống. Các ô nhập đã định dạng Text để giữ số 0 đầu.',
                           ),
                         ),
                       )
@@ -275,10 +312,12 @@ class _TrangThaiNhapHocVien extends State<AdminUserImportDialog> {
                                     : Colors.red,
                               ),
                               title: Text(
-                                'Dòng ${dong.rowNumber}: ${dong.name}',
+                                dong.serialNumber == null
+                                    ? 'Dòng Excel ${dong.rowNumber}: ${dong.name}'
+                                    : 'STT ${dong.serialNumber}: ${dong.name}',
                               ),
                               subtitle: Text(
-                                'TK: ${dong.username} • Đuôi mã: ${dong.userCodeSuffix ?? dong.username}\nMật khẩu: ••••••${dong.errors.isEmpty ? '' : '\n${dong.errors.join('\n')}'}',
+                                'Tên đăng nhập: ${dong.username}\nMật khẩu: ••••••${dong.errors.isEmpty ? '' : '\n${dong.errors.join('\n')}'}',
                               ),
                             ),
                         ],

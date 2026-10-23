@@ -76,7 +76,7 @@ void main() {
       });
       for (final done in [true, false]) {
         await db.doc('courses/$mode/lessons/$done').set({
-          'order': done ? 1 : 2,
+          if (done) 'order': 1,
           'title': '$mode $done',
           'learningMode': 'study_exam',
           'examId': 'old',
@@ -153,6 +153,54 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('saved courses follow lesson edits and exclude legacy exams', (
+    tester,
+  ) async {
+    final db = FakeFirebaseFirestore();
+    await db.doc('courses/legacy').set({
+      'title': 'Khóa cũ đã học',
+      'published': true,
+    });
+    await db.doc('courses/legacy/lessons/first').set({'title': 'Bài đầu'});
+    await db.doc('users/u/learning/legacy_first').set({
+      'courseId': 'legacy',
+      'lessonId': 'first',
+      'completed': true,
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SavedLessonsScreen(
+          uid: 'u',
+          service: LearningService(db: db),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Khóa cũ đã học'), findsOneWidget);
+
+    await db.doc('courses/legacy/lessons/second').set({'title': 'Bài mới'});
+    await tester.pumpAndSettle();
+    expect(find.text('Khóa cũ đã học'), findsNothing);
+
+    await db.doc('users/u/learning/legacy_second').set({
+      'courseId': 'legacy',
+      'lessonId': 'second',
+      'completed': true,
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Khóa cũ đã học'), findsOneWidget);
+
+    await db.doc('courses/legacy/lessons/second').update({'examId': 'exam'});
+    await tester.pumpAndSettle();
+    expect(find.text('Khóa cũ đã học'), findsNothing);
+
+    await db.doc('courses/legacy/lessons/second').delete();
+    await tester.pumpAndSettle();
+    expect(find.text('Khóa cũ đã học'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
     'history groups completed attempts by course including failed scores',
     (tester) async {
@@ -178,13 +226,7 @@ void main() {
         },
       );
       await tester.pumpWidget(
-        MaterialApp(
-          home: ExamHistoryScreen(
-            userId: 'u',
-            secureBackend: true,
-            service: service,
-          ),
-        ),
+        MaterialApp(home: ExamHistoryScreen(service: service)),
       );
       await tester.pumpAndSettle();
       expect(find.text('Khóa c'), findsOneWidget);

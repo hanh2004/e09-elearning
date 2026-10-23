@@ -14,18 +14,13 @@ import '../../models/du_lieu_nhap_hoc_vien.dart';
 class UserExcelImport {
   static const maxFileBytes = 2 * 1024 * 1024;
   static const templateAsset = 'lib/assets/templates/users_template.xlsx';
-  static const headers = [
-    'Họ và tên',
-    'Tên đăng nhập',
-    'Mật khẩu',
-    'Mã người dùng',
-  ];
+  static const headers = ['Họ và tên', 'Tên đăng nhập', 'Mật khẩu'];
   static const _headerAliases = [
     {'họ và tên', 'name'},
     {'tên đăng nhập', 'username'},
     {'mật khẩu', 'password'},
   ];
-  static const _codeAliases = {'mã người dùng', 'user code', 'code'};
+  static const _serialAliases = {'stt', 'số thứ tự'};
 
   String _normalizeHeader(String value) => value
       .replaceAll('\uFEFF', '')
@@ -41,33 +36,39 @@ class UserExcelImport {
   bool _hasSupportedHeaders(List<List<CellValue?>> rows) {
     if (rows.isEmpty) return false;
     final firstRow = rows.first;
+    final offset = _hasSerialColumn(firstRow) ? 1 : 0;
     String headerAt(int index) {
       final cell = index < firstRow.length ? firstRow[index] : null;
       return cell is TextCellValue
           ? _normalizeHeader(cell.value.toString())
           : '';
     }
-    return firstRow.length >= 3 &&
+
+    return firstRow.length >= offset + headers.length &&
         List.generate(3, (index) => index).every(
-          (index) => _headerAliases[index].contains(headerAt(index)),
+          (index) => _headerAliases[index].contains(headerAt(index + offset)),
         ) &&
-        (firstRow.length < 4 || _codeAliases.contains(headerAt(3))) &&
-        firstRow.skip(4).every(_blank);
+        firstRow.skip(offset + headers.length).every(_blank);
   }
+
+  bool _hasSerialColumn(List<CellValue?> header) =>
+      header.isNotEmpty &&
+      header.first is TextCellValue &&
+      _serialAliases.contains(
+        _normalizeHeader((header.first as TextCellValue).value.toString()),
+      );
 
   Sheet? _findUserSheet(Excel workbook) {
     final sheets = workbook.tables.entries.toList();
     for (final entry in sheets) {
       if (_normalizeHeader(entry.key) == 'users') return entry.value;
     }
-    final matchingSheets = sheets
-        .where((entry) {
-          final rows = entry.value.rows
-              .map((row) => row.map((cell) => cell?.value).toList())
-              .toList();
-          return _hasSupportedHeaders(rows);
-        })
-        .toList();
+    final matchingSheets = sheets.where((entry) {
+      final rows = entry.value.rows
+          .map((row) => row.map((cell) => cell?.value).toList())
+          .toList();
+      return _hasSupportedHeaders(rows);
+    }).toList();
     if (matchingSheets.length == 1) return matchingSheets.single.value;
     if (sheets.length == 1) return sheets.single.value;
     return null;
@@ -180,36 +181,64 @@ class UserExcelImport {
     if (!_hasSupportedHeaders(source)) {
       return const UserImportPreview(
         errors: [
-          'Dòng 1 cần đúng mẫu: Họ và tên, Tên đăng nhập, Mật khẩu; cột Mã người dùng là tùy chọn. Không thêm cột vai trò.',
+          'Dòng 1 cần đúng mẫu: Họ và tên, Tên đăng nhập, Mật khẩu. Không thêm cột khác; cột STT ở đầu được bỏ qua.',
         ],
       );
     }
-    final hasCodeColumn = dauTrang.length >= 4;
+    final offset = _hasSerialColumn(dauTrang) ? 1 : 0;
     final cacDong = <UserImportRow>[];
+    final seenUsernames = <String>{};
+    var lastSerialNumber = 0;
     for (var i = 1; i < source.length; i++) {
       final cells = source[i];
-      if (cells.every(blank)) continue;
+      if (cells.skip(offset).every(blank)) continue;
+      final rowNumber = i + 1;
+      final serialCell = offset == 1 && cells.isNotEmpty ? cells.first : null;
+      var serialNumber = offset == 0
+          ? cacDong.length + 1
+          : lastSerialNumber + 1;
+      var serialNumberAvailable = true;
+      String? serialError;
+      if (serialCell != null && !blank(serialCell)) {
+        if (serialCell is IntCellValue && serialCell.value > 0) {
+          serialNumber = serialCell.value;
+        } else if (serialCell is DoubleCellValue &&
+            serialCell.value.isFinite &&
+            serialCell.value > 0 &&
+            serialCell.value == serialCell.value.truncateToDouble()) {
+          serialNumber = serialCell.value.toInt();
+        } else if (serialCell is TextCellValue &&
+            RegExp(r'^\d+$').hasMatch(serialCell.value.toString().trim()) &&
+            (int.tryParse(serialCell.value.toString().trim()) ?? 0) > 0) {
+          serialNumber = int.parse(serialCell.value.toString().trim());
+        } else if (serialCell is FormulaCellValue &&
+            serialCell.formula
+                    .replaceAll(RegExp(r'\s+'), '')
+                    .replaceFirst(RegExp(r'^='), '')
+                    .toUpperCase() ==
+                'ROW()-1') {
+          serialNumber = i;
+        } else {
+          serialNumberAvailable = false;
+          serialError =
+              'STT phải là số nguyên dương hoặc công thức STT tự động của mẫu.';
+        }
+      }
+      if (serialError == null && serialNumber <= lastSerialNumber) {
+        serialError = 'STT phải tăng dần.';
+      }
       if (cacDong.length >= UserImportPreview.maxUsers) {
-        return const UserImportPreview(
-          errors: ['Mỗi lần chỉ nhập tối đa 200 học viên. Hãy chia nhỏ file.'],
+        return UserImportPreview(
+          rows: cacDong,
+          errors: ['STT $serialNumber: Mỗi lần chỉ nhập tối đa 200 học viên.'],
         );
       }
       final errors = <String>[];
+      if (serialError != null) errors.add(serialError);
       final cacGiaTri = <String>[];
-      final codeCell = hasCodeColumn && cells.length > 3 ? cells[3] : null;
-      final userCodeSuffix = text(codeCell).trim();
-      if (!blank(codeCell) && codeCell is! TextCellValue) {
-        errors.add('Mã người dùng phải là Text.');
-      }
-      if (userCodeSuffix.isNotEmpty &&
-          !RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$')
-              .hasMatch(userCodeSuffix)) {
-        errors.add(
-          'Mã người dùng là phần đuôi: 1–64 ký tự không dấu, số, _, ., @ hoặc -.',
-        );
-      }
       for (var col = 0; col < 3; col++) {
-        final giaTri = col < cells.length ? cells[col] : null;
+        final valueIndex = col + offset;
+        final giaTri = valueIndex < cells.length ? cells[valueIndex] : null;
         if (blank(giaTri)) {
           errors.add('Thiếu ${headers[col].toLowerCase()}.');
         } else if (giaTri is! TextCellValue) {
@@ -219,8 +248,12 @@ class UserExcelImport {
         }
         cacGiaTri.add(text(giaTri).trim());
       }
-      if (cells.skip(hasCodeColumn ? 4 : 3).any((oDuLieu) => !blank(oDuLieu))) {
-        errors.add('Có dữ liệu ngoài ${hasCodeColumn ? 4 : 3} cột cho phép.');
+      const allowedColumnCount = 3;
+      final totalAllowedColumnCount = offset + allowedColumnCount;
+      if (cells
+          .skip(totalAllowedColumnCount)
+          .any((oDuLieu) => !blank(oDuLieu))) {
+        errors.add('Có dữ liệu ngoài $totalAllowedColumnCount cột cho phép.');
       }
       if (cacGiaTri[0].length > 100) errors.add('Họ và tên tối đa 100 ký tự.');
       if (cacGiaTri[1].isNotEmpty &&
@@ -233,37 +266,29 @@ class UserExcelImport {
           (cacGiaTri[2].length < 6 || cacGiaTri[2].length > 128)) {
         errors.add('Mật khẩu dài 6–128 ký tự.');
       }
+      if (cacGiaTri[1].isNotEmpty &&
+          AccountIdentity.isValidUsername(cacGiaTri[1]) &&
+          !seenUsernames.add(cacGiaTri[1].toLowerCase())) {
+        errors.add('Tên đăng nhập bị trùng trong file.');
+      }
       cacDong.add(
         UserImportRow(
-          rowNumber: i + 1,
+          rowNumber: rowNumber,
+          serialNumber: serialNumberAvailable ? serialNumber : null,
           name: cacGiaTri[0],
           username: cacGiaTri[1],
           password: cacGiaTri[2],
-          userCodeSuffix: userCodeSuffix.isEmpty ? null : userCodeSuffix,
           errors: errors,
         ),
       );
+      if (serialError == null) lastSerialNumber = serialNumber;
+      if (errors.isNotEmpty) break;
     }
     if (cacDong.isEmpty) {
       return const UserImportPreview(
         errors: ['Chưa có học viên. Điền dữ liệu từ dòng 2 trong sheet Users.'],
       );
     }
-    final counts = <String, int>{};
-    for (final dong in cacDong) {
-      final khoa = dong.username.toLowerCase();
-      counts[khoa] = (counts[khoa] ?? 0) + 1;
-    }
-    return UserImportPreview(
-      rows: cacDong
-          .map(
-            (dong) =>
-                dong.username.isNotEmpty &&
-                    counts[dong.username.toLowerCase()]! > 1
-                ? dong.withError('Tên đăng nhập bị trùng trong file.')
-                : dong,
-          )
-          .toList(),
-    );
+    return UserImportPreview(rows: cacDong);
   }
 }

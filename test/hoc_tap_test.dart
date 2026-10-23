@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:e09_elearning/services/du_lieu/dich_vu_firestore.dart';
 import 'package:e09_elearning/services/nghiep_vu/dich_vu_hoc_tap.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,10 +20,29 @@ void main() {
       'publishedAt': Timestamp.fromDate(releaseAt),
     });
     await service.saveContent('admin', course, {'published': true});
-    expect(
-      (await db.collection('learning_notifications').get()).docs.length,
-      1,
+    var notes = (await db.collection('learning_notifications').get()).docs;
+    expect(notes.length, 1);
+    expect(notes.single.data()['purpose'], 'Học tập');
+    expect(notes.single.data()['body'], contains('mục Học tập'));
+
+    final examCourse = db.collection('courses').doc('exam-course');
+    await service.saveContent('admin', examCourse, {
+      'title': 'Học tập và làm bài kiểm tra',
+      'learningMode': 'study_exam',
+      'examId': 'final',
+      'published': false,
+    });
+    await service.saveContent('admin', examCourse, {
+      'published': true,
+      'publishedAt': Timestamp.fromDate(releaseAt),
+    });
+    notes = (await db.collection('learning_notifications').get()).docs;
+    final courseAnnouncement = notes.singleWhere(
+      (notice) => notice.data()['courseId'] == 'exam-course',
     );
+    expect(courseAnnouncement.data()['purpose'], 'Làm bài kiểm tra');
+    expect(courseAnnouncement.data()['body'], contains('mục Kiểm tra'));
+
     final start = DateTime.now().add(const Duration(hours: 2));
     await service.saveContent(
       'admin',
@@ -36,8 +54,8 @@ void main() {
         'startsAt': Timestamp.fromDate(start),
       },
     );
-    final notes = (await db.collection('learning_notifications').get()).docs;
-    expect(notes.length, 2);
+    notes = (await db.collection('learning_notifications').get()).docs;
+    expect(notes.length, 3);
     final reminder = notes.singleWhere(
       (d) => (d.data()['title'] as String).startsWith('Nhắc'),
     );
@@ -47,51 +65,21 @@ void main() {
     );
     expect(reminder.data()['audience'], 'all');
   });
-  test(
-    'submission preserves every run and duplicate submit is idempotent',
-    () async {
-      final db = FakeFirebaseFirestore();
-      final service = FirestoreService(firestore: db);
-      final ref = db.collection('exam_attempts').doc('attempt');
-      await ref.set({
-        'userId': 'u',
-        'examId': 'e',
-        'status': 'in_progress',
-        'attemptCount': 0,
-      });
-      Future<void> submit(double score) => service.submitExam(
-        maLuot: 'attempt',
-        diemSo: score,
-        dsCauTraLoi: [],
-        examTitle: 'Exam',
-        correctAnswers: score.toInt(),
-        totalQuestions: 10,
-      );
-      await submit(8);
-      await submit(8);
-      expect((await ref.collection('runs').get()).docs.length, 1);
-      await ref.update({'status': 'in_progress'});
-      await submit(5);
-      expect((await ref.collection('runs').get()).docs.length, 2);
-      expect((await ref.get()).data()!['bestScore'], 8);
-      expect((await ref.collection('runs').doc('2').get()).data()!['score'], 5);
-    },
-  );
   test('all published courses are shared and drafts stay private', () {
     expect(
-      LearningPolicy.canRead({'published': false, 'audience': 'all'}, 'A'),
+      LearningPolicy.canRead({'published': false, 'audience': 'all'}),
       false,
     );
     expect(
-      LearningPolicy.canRead({'published': true, 'audience': 'class:B'}, 'A'),
+      LearningPolicy.canRead({'published': true, 'audience': 'class:B'}),
       true,
     );
     expect(
-      LearningPolicy.canRead({'published': true, 'audience': 'class:A'}, 'A'),
+      LearningPolicy.canRead({'published': true, 'audience': 'class:A'}),
       true,
     );
     expect(
-      LearningPolicy.canRead({'published': true, 'audience': 'all'}, 'A'),
+      LearningPolicy.canRead({'published': true, 'audience': 'all'}),
       true,
     );
   });
@@ -99,18 +87,7 @@ void main() {
     expect(LearningPolicy.completion([], ['old']), 0);
     expect(LearningPolicy.completion(['a', 'b'], ['a', 'a', 'deleted']), .5);
   });
-  test('only absolute HTTPS media links accepted', () {
-    expect(LearningPolicy.validateUrl('https://example.org/a.pdf'), null);
-    for (final url in [
-      'javascript:alert(1)',
-      'http://example.org',
-      '/a.pdf',
-      'https:foo',
-    ]) {
-      expect(LearningPolicy.validateUrl(url), isNotNull);
-    }
-  });
-  test('course queries select published courses for correct class', () async {
+  test('course queries select all published courses', () async {
     final db = FakeFirebaseFirestore();
     final service = LearningService(db: db);
     for (final entry in {
@@ -127,7 +104,7 @@ void main() {
       'published': false,
       'audience': 'all',
     });
-    final result = await service.courses(classId: 'A').first;
+    final result = await service.courses(publishedOnly: true).first;
     expect(
       result.docs.map((d) => d.id),
       unorderedEquals(['public', 'own', 'other']),
@@ -156,5 +133,3 @@ void main() {
     },
   );
 }
-
-// Each submission is archived even when it does not beat the best score.

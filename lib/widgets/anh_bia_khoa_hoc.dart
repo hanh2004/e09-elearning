@@ -1,24 +1,37 @@
-// GIAO DIỆN DÙNG CHUNG: Dữ liệu cũ dùng ảnh thương hiệu cho tới khi admin thêm ảnh bìa.
+// GIAO DIỆN DÙNG CHUNG: Khóa học chưa có ảnh bìa dùng biểu tượng sách.
 // Các màn hình import tệp này sẽ dùng chung thay đổi.
 
 import 'package:flutter/material.dart';
 
 import '../app/chu_de_ung_dung.dart';
 
-/// Dữ liệu cũ dùng ảnh thương hiệu cho tới khi admin thêm ảnh bìa.
+/// Tin tức và banner có thể giữ ảnh thương hiệu khi chưa có ảnh riêng.
 class CourseCover extends StatelessWidget {
-  const CourseCover({super.key, this.url = '', this.width, this.height = 90});
+  const CourseCover({
+    super.key,
+    this.url = '',
+    this.width,
+    this.height = 90,
+    this.brandFallback = false,
+  });
   final String url;
   final double? width;
   final double height;
+  final bool brandFallback;
   @override
   Widget build(BuildContext context) {
     Widget fallback() => Container(
       width: width,
       height: height,
       color: const Color(0xFFF6E9E7),
-      padding: const EdgeInsets.all(12),
-      child: Image.asset(AppTheme.appLogo, fit: BoxFit.contain),
+      padding: EdgeInsets.all(brandFallback ? 12 : 0),
+      child: brandFallback
+          ? Image.asset(AppTheme.appLogo, fit: BoxFit.contain)
+          : Icon(
+              Icons.menu_book,
+              color: const Color(0xFFC51F2B),
+              size: height * .5,
+            ),
     );
     if (url.startsWith('icon:')) {
       const icons = {

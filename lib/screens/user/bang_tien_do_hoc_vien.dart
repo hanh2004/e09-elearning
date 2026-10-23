@@ -4,6 +4,7 @@
 import 'dart:async';
 
 import '../../widgets/thong_ke_hoc_vien.dart';
+import '../../widgets/danh_muc_khoa_hoc_hoc_vien.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -12,11 +13,9 @@ import '../../widgets/anh_bia_khoa_hoc.dart';
 
 import '../../app/chu_de_ung_dung.dart';
 import '../../models/bieu_mau_khoa_hoc.dart';
-import '../../models/bieu_mau_bai_hoc.dart';
 import '../../models/tham_so_nguoi_dung.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../widgets/tien_ich_giao_dien_hoc_tap.dart';
-import '../../widgets/thong_bao_loi.dart';
 import 'cac_khoa_hoc.dart';
 import 'tin_tuc_hoc_vien.dart';
 import '../../widgets/khung_tin_tuc_trang_chu.dart';
@@ -43,37 +42,102 @@ class UserDashboardScreen extends StatefulWidget {
 class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
   late final service = widget.service ?? LearningService();
   late final Timer _refreshTimer;
-  late final profile = service.db
-      .collection('users')
-      .doc(widget.args.userId)
-      .snapshots();
-  late final learning = service.db
-      .collection('users')
-      .doc(widget.args.userId)
-      .collection('learning')
-      .snapshots();
-  late final examAttempts = service.db
-      .collection('exam_attempts')
-      .where('userId', isEqualTo: widget.args.userId)
-      .snapshots();
-  String? _cachedCourseIds;
-  Future<List<List<_DashboardLesson>>>? _cachedLessons;
-
-  Future<List<List<_DashboardLesson>>> _lessonsFor(
-    List<_DashboardCourse> courses,
-  ) {
-    final ids = courses.map((course) => course.id).join('|');
-    if (_cachedCourseIds != ids || _cachedLessons == null) {
-      _cachedCourseIds = ids;
-      _cachedLessons = Future.wait(
-        courses.map((course) async {
-          final snapshot = await service.lessons(course.id).first;
-          return LearningPolicy.sortLessons(snapshot.docs);
-        }),
+  late final courses = service.courses(publishedOnly: true);
+  late final learning = service.watchQuery(
+    service.db
+        .collection('users')
+        .doc(widget.args.userId)
+        .collection('learning'),
+  );
+  late final examAttempts = service.watchQuery(
+    service.db
+        .collection('exam_attempts')
+        .where('userId', isEqualTo: widget.args.userId),
+  );
+  bool _isExamCourse(_DashboardCourse course, List<_DashboardLesson> lessons) =>
+      LearningPolicy.isExamCourse(
+        course.data(),
+        lessons.map((lesson) => lesson.data()),
       );
-    }
-    return _cachedLessons!;
+
+  DateTime _publishedAt(_DashboardCourse course) =>
+      LearningPolicy.readDateTime(course.data()['publishedAt']) ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+
+  List<_DashboardCourse> _latestCourses(
+    List<_DashboardCourse> courses,
+    List<List<_DashboardLesson>> lessons, {
+    required bool exams,
+  }) {
+    final matching = [
+      for (var index = 0; index < courses.length; index++)
+        if (_isExamCourse(courses[index], lessons[index]) == exams)
+          courses[index],
+    ]..sort((a, b) => _publishedAt(b).compareTo(_publishedAt(a)));
+    return matching.take(2).toList();
   }
+
+  Widget _courseSection(
+    BuildContext context, {
+    required String title,
+    required List<_DashboardCourse> courses,
+    required bool exams,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        title,
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+      ),
+      if (courses.isEmpty)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Text('Chưa có khóa học.'),
+        )
+      else
+        for (final course in courses)
+          Card(
+            child: ListTile(
+              contentPadding: const EdgeInsets.all(16),
+              leading: CourseCover(
+                url: course.data()['coverUrl'] ?? '',
+                width: 56,
+                height: 56,
+              ),
+              title: Text(
+                course.data()['title'] ?? '',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              subtitle: Text(
+                CourseForm.formatReleaseDateTime(course.data()['publishedAt']),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => exams
+                      ? TestCourseDetailsScreen(
+                          uid: widget.args.userId,
+                          course: course,
+                          service: service,
+                        )
+                      : UserLessonsScreen(
+                          uid: widget.args.userId,
+                          course: course,
+                          service: service,
+                        ),
+                ),
+              ),
+            ),
+          ),
+      const SizedBox(height: 8),
+    ],
+  );
 
   ({int completedCourses, int completedExercises, int totalExercises})
   _progressCounts({
@@ -114,24 +178,22 @@ class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
       final mode = courseData['learningMode'];
       if (mode == 'study_only') continue;
       final courseExamId = (courseData['examId'] ?? '').toString().trim();
-      if (mode == 'study_exam') {
-        if (courseExamId.isNotEmpty) {
-          exerciseIds.add('${course.id}|$courseExamId');
-        }
-        continue;
-      }
-
       final lessonExamIds = courseLessons
-          .where((lesson) => LessonForm.hasExam(lesson.data()))
-          .map((lesson) => (lesson.data()['examId'] ?? '').toString().trim())
+          .where(
+            (lesson) => LearningPolicy.requiresExam(courseData, lesson.data()),
+          )
+          .map(
+            (lesson) =>
+                (lesson.data()['examId'] ?? courseExamId).toString().trim(),
+          )
           .where((examId) => examId.isNotEmpty)
           .toSet();
-      if (lessonExamIds.isNotEmpty) {
+      if (CourseForm.hasExam(courseData) && courseExamId.isNotEmpty) {
+        exerciseIds.add('${course.id}|$courseExamId');
+      } else {
         exerciseIds.addAll(
           lessonExamIds.map((examId) => '${course.id}|$examId'),
         );
-      } else if (CourseForm.hasExam(courseData) && courseExamId.isNotEmpty) {
-        exerciseIds.add('${course.id}|$courseExamId');
       }
     }
 
@@ -169,8 +231,6 @@ class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
     super.initState();
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) {
-        _cachedCourseIds = null;
-        _cachedLessons = null;
         setState(() {});
       }
     });
@@ -182,226 +242,159 @@ class _TrangThaiTongQuanHocVien extends State<UserDashboardScreen> {
     super.dispose();
   }
 
+  Widget _header() => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: const BoxDecoration(color: AppTheme.red),
+    child: Row(
+      children: [
+        Image.asset(AppTheme.appLogo, width: 48, height: 48),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Hệ thống',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'HỌC TẬP SỐ E09',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Thông báo',
+          onPressed: () => widget.onSelect(3),
+          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+        ),
+      ],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1120),
-          child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: profile,
-            builder: (context, duLieuNhan) {
-              if (duLieuNhan.hasError) {
-                return AppErrorNotice(
-                  error: duLieuNhan.error!,
-                  feature: 'Tải hồ sơ học tập',
-                  fallbackAction: 'Kiểm tra phiên đăng nhập và kết nối máy chủ rồi thử lại.',
-                );
-              }
-              if (!duLieuNhan.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final nguoiDung = duLieuNhan.data!.data() ?? {};
-              return LearningList(
-                stream: service.courses(
-                  classId: nguoiDung['classId'] as String? ?? '',
+      child: Column(
+        children: [
+          _header(),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1120),
+                child: LearningList(
+                  stream: courses,
+                  errorTitle: 'Tải khóa học trong bảng tiến độ',
+                  builder: (cacKhoaHoc) {
+                    final khoaHocDangMo = cacKhoaHoc
+                        .where(
+                          (course) => LearningPolicy.canRead(course.data()),
+                        )
+                        .toList();
+                    return ListView(
+                      padding: EdgeInsets.all(
+                        MediaQuery.sizeOf(context).width < 360 ? 16 : 20,
+                      ),
+                      children: [
+                        const SizedBox(height: 16),
+                        HomeNewsBanner(
+                          service: NewsService(service.db),
+                          onStudy: () => widget.onSelect(1),
+                        ),
+                        const SizedBox(height: 20),
+                        UserNews(
+                          service: service,
+                          onViewAll: () => widget.onSelect(5),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Tiến độ học tập',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        LearnerCourseCatalog(
+                          courses: khoaHocDangMo,
+                          service: service,
+                          builder: (entries) {
+                            final lessons = entries
+                                .map((entry) => entry.lessons)
+                                .toList();
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                LearningList(
+                                  stream: learning,
+                                  errorTitle: 'Tải tiến độ khóa học',
+                                  builder: (cacMauTin) => LearningList(
+                                    stream: examAttempts,
+                                    errorTitle: 'Tải kết quả kiểm tra',
+                                    builder: (cacLuotLamBai) {
+                                      final counts = _progressCounts(
+                                        courses: khoaHocDangMo,
+                                        lessons: lessons,
+                                        records: cacMauTin,
+                                        attempts: cacLuotLamBai,
+                                      );
+                                      return LearnerMetrics(
+                                        children: [
+                                          _thongKe(
+                                            '${counts.completedCourses}/${khoaHocDangMo.length}',
+                                            'Khóa học hoàn thành',
+                                            Icons.menu_book_outlined,
+                                          ),
+                                          _thongKe(
+                                            '${counts.completedExercises}/${counts.totalExercises}',
+                                            'Bài tập đã làm',
+                                            Icons.check_circle_outline,
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                _courseSection(
+                                  context,
+                                  title: 'Khóa học kiểm tra',
+                                  courses: _latestCourses(
+                                    khoaHocDangMo,
+                                    lessons,
+                                    exams: true,
+                                  ),
+                                  exams: true,
+                                ),
+                                _courseSection(
+                                  context,
+                                  title: 'Khóa học học tập',
+                                  courses: _latestCourses(
+                                    khoaHocDangMo,
+                                    lessons,
+                                    exams: false,
+                                  ),
+                                  exams: false,
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    );
+                  },
                 ),
-                errorTitle: 'Tải khóa học trong bảng tiến độ',
-                builder: (cacKhoaHoc) {
-                  final khoaHocDangMo = cacKhoaHoc
-                      .where(
-                        (course) => LearningPolicy.canRead(course.data(), ''),
-                      )
-                      .toList();
-                  return ListView(
-                    padding: EdgeInsets.all(
-                      MediaQuery.sizeOf(context).width < 360 ? 16 : 20,
-                    ),
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: AppTheme.red,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          children: [
-                            Image.asset(AppTheme.logo, width: 48, height: 48),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'HỌC TẬP SỐ E09',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    nguoiDung['name'] as String? ??
-                                        widget.args.userName,
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Thông báo',
-                              onPressed: () => widget.onSelect(3),
-                              icon: const Icon(
-                                Icons.notifications_outlined,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      HomeNewsBanner(
-                        service: NewsService(service.db),
-                        onStudy: () => widget.onSelect(1),
-                      ),
-                      const SizedBox(height: 20),
-                      UserNews(
-                        service: service,
-                        onViewAll: () => widget.onSelect(5),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Tiến độ học tập',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      FutureBuilder<List<List<_DashboardLesson>>>(
-                        future: _lessonsFor(khoaHocDangMo),
-                        builder: (context, lessonSnapshot) {
-                          if (lessonSnapshot.hasError) {
-                            return AppErrorNotice(
-                              error: lessonSnapshot.error!,
-                              feature: 'Tải bài học trong tiến độ',
-                              centered: false,
-                              fallbackAction: 'Kiểm tra quyền truy cập và cấu hình máy chủ rồi thử lại.',
-                            );
-                          }
-                          if (!lessonSnapshot.hasData) {
-                            return const SizedBox(
-                              height: 48,
-                              child: Center(
-                                child: SizedBox(
-                                  width: 160,
-                                  child: LinearProgressIndicator(),
-                                ),
-                              ),
-                            );
-                          }
-                          return LearningList(
-                            stream: learning,
-                            errorTitle: 'Tải tiến độ khóa học',
-                            builder: (cacMauTin) => LearningList(
-                              stream: examAttempts,
-                              errorTitle: 'Tải kết quả kiểm tra',
-                              builder: (cacLuotLamBai) {
-                                final counts = _progressCounts(
-                                  courses: khoaHocDangMo,
-                                  lessons: lessonSnapshot.data!,
-                                  records: cacMauTin,
-                                  attempts: cacLuotLamBai,
-                                );
-                                return LearnerMetrics(
-                                  children: [
-                                    _thongKe(
-                                      '${counts.completedCourses}/${khoaHocDangMo.length}',
-                                      'Khóa học hoàn thành',
-                                      Icons.menu_book_outlined,
-                                    ),
-                                    _thongKe(
-                                      '${counts.completedExercises}/${counts.totalExercises}',
-                                      'Bài tập đã làm',
-                                      Icons.check_circle_outline,
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Danh mục học tập',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => widget.onSelect(1),
-                            child: const Text('Xem tất cả'),
-                          ),
-                        ],
-                      ),
-                      if (khoaHocDangMo.isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Text(
-                              'Khóa học được phân cho bạn sẽ xuất hiện tại đây.',
-                            ),
-                          ),
-                        ),
-                      for (final khoaHoc in khoaHocDangMo.take(4))
-                        Card(
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.all(16),
-                            leading: CourseCover(
-                              url: khoaHoc.data()['coverUrl'] ?? '',
-                              width: 56,
-                              height: 56,
-                            ),
-                            title: Text(
-                              khoaHoc.data()['title'] ?? '',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${khoaHoc.data()['subject'] ?? ''}${CourseForm.formatReleaseDateTime(khoaHoc.data()['publishedAt']).isEmpty ? '' : ' • Phát hành: ${CourseForm.formatReleaseDateTime(khoaHoc.data()['publishedAt'])}'}',
-                            ),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (_) => UserLessonsScreen(
-                                  uid: widget.args.userId,
-                                  course: khoaHoc,
-                                  service: service,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                    ],
-                  );
-                },
-              );
-            },
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     ),
   );

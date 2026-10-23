@@ -85,11 +85,18 @@ App User thử nghiệm dùng cùng emulator:
 flutter run -d chrome -t lib/diem_vao_hoc_vien.dart --dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1
 ```
 
-Dùng hai tab trên cùng website để đăng nhập hai admin đồng thời; mỗi tab giữ một phiên riêng
-và đăng xuất ở tab này không đăng xuất tab kia. Phiên được giữ khi tải lại tab và kết thúc
-khi đóng tab. Trong Admin tổng:
+Dùng hai tab trên cùng website để đăng nhập hai tài khoản admin khác nhau; mỗi tab giữ
+một phiên riêng và đăng xuất ở tab này không đăng xuất tab kia. Cổng Admin giữ Auth
+trong bộ nhớ: tải lại hoặc đóng tab sẽ yêu cầu đăng nhập lại. Một tài khoản chỉ có
+một phiên hoạt động; đăng nhập ở nơi khác cần xác nhận thay thế phiên cũ. Trong Admin tổng:
 **Quản lý Tài khoản → Đề xuất Admin phụ**, sau đó tài khoản tổng còn lại vào
-**Duyệt Admin phụ → Đồng ý**. Đổi mật khẩu của chính mình ở **Quản lý Tài khoản → Sửa tài khoản**.
+**Duyệt Admin phụ → Đồng ý**. Hai tài khoản tổng không được sửa mật khẩu trong
+**Quản lý Tài khoản**; luồng khôi phục tại màn hình đăng nhập cần tài khoản tổng còn lại duyệt.
+
+Storage Rules kiểm tra trạng thái phiên qua `users/{uid}.accountSession` do Functions
+ghi cùng transaction khi tạo, gia hạn và kết thúc phiên. Triển khai Functions và
+Storage Rules cùng đợt; các phiên cũ cần đăng nhập lại hoặc chờ heartbeat tạo metadata
+trước khi tải ảnh bằng SDK. Client không có quyền tự ghi metadata phiên.
 
 ## Kích hoạt trên Firebase thật — cần bước phối hợp riêng
 
@@ -122,13 +129,13 @@ trong cùng đợt bảo trì:
    ```powershell
    node scripts/chuyen_doi_du_lieu.js --project e09-elearning --apply
    node scripts/khoi_dong.js --project e09-elearning --apply
-   node scripts/bo_sung_ma_hoc_vien.js --project e09-elearning
-   node scripts/bo_sung_ma_hoc_vien.js --project e09-elearning --apply
+   node scripts/migrate_user_identifiers.js --project e09-elearning
+   node scripts/migrate_user_identifiers.js --project e09-elearning --apply
 npx firebase deploy --config ../firebase.json --project e09-elearning --only functions:accounts,firestore:rules
    ```
 
-   Backfill cần hoàn tất trước khi triển khai backend mới. Nếu bị gián đoạn, chạy lại
-   cùng lệnh `--apply`; script tiếp tục từ cursor đã lưu.
+   Migration định danh hoàn tất trước khi triển khai backend mới. Script có thể chạy
+   lại an toàn sau khi bị gián đoạn.
 
 7. Kiểm thử bằng hai admin tổng, một admin phụ và một User; chỉ mở lại dịch vụ khi tất cả đạt.
    Xóa các biến mật khẩu khỏi terminal sau khi dùng. Không bỏ `--project` trong các lệnh thao tác dữ liệu.
@@ -159,8 +166,10 @@ npx firebase emulators:exec --config ../firebase.json --project demo-e09 --only 
 ```
 
 Các kiểm thử `*.emulator.js` từ chối chạy nếu thiếu emulator; không dùng tài khoản hoặc dữ liệu thật.
-Rules bảo vệ phân quyền quản trị. Luồng làm bài/chấm điểm hiện vẫn giữ cách xử lý client-side cũ;
-đây chưa phải bản nâng cấp chống gian lận thi cử phía server.
+Rules bảo vệ phân quyền quản trị và chặn học viên tự ghi lượt thi/điểm.
+Cloud Functions cấp câu hỏi, lưu đáp án, chấm và kết thúc lượt thi; kiểm tra tiến độ
+học trên server trước khi cho làm bài. Bộ test giả lập không thay thế kiểm thử tải
+nhiều học viên hoặc xác minh tác vụ scheduler trên Firebase thật.
 
 Tài liệu kỹ thuật: [Firebase callable functions](https://firebase.google.com/docs/functions/callable),
 [quản lý Auth bằng Admin SDK](https://firebase.google.com/docs/auth/admin/manage-users),

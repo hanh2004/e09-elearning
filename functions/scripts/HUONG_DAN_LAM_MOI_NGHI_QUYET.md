@@ -14,7 +14,7 @@ Chạy từ thư mục gốc repository. Mặc định chỉ xem trước. Khôn
 - Nguồn bài học: Nghị quyết 57-NQ/TW ngày 22/12/2024, liên kết Cổng Thông tin điện tử Chính phủ trong `noi_dung_nghi_quyet_20260919.mjs`. Nội dung tóm lược và tình huống vận dụng được phân biệt với văn bản gốc.
 - Hai khóa: học nội dung cốt lõi và ôn tập để kiểm tra; mỗi khóa có ba bài. Đề gồm 12 câu, 15 phút, đạt từ 6/10. Khóa kiểm tra yêu cầu học xong các bài trước khi thi.
 - Kết thúc các khóa/đề cũ đang mở bằng mốc `endsAt` và trạng thái đóng, giữ `published` để học viên vẫn mở được nội dung đã lưu và lịch sử. Dùng mã nội dung mới để tránh dùng tiến độ cũ cho nghị quyết.
-- Chỉ đổi tên đăng nhập và đặt lại mật khẩu học viên có trạng thái active/blocked. UID, vai trò, đơn vị, mã học viên, trạng thái và quản lý phụ trách được giữ nguyên. Không sửa quản trị viên.
+- Chỉ đổi tên đăng nhập và đặt lại mật khẩu học viên có trạng thái active/blocked. UID, vai trò, đơn vị, trạng thái và quản lý phụ trách được giữ nguyên. Không sửa quản trị viên.
 - Tên đăng nhập mới có dạng hv01; mật khẩu riêng gồm tám chữ số. Firebase Auth và chỉ mục Firestore được cập nhật đồng bộ theo nhật ký có thể tiếp tục khi gián đoạn.
 - Không ghi vào tin tức hoặc banner. Xác minh toàn bộ bản ghi trước/sau bằng SHA-256, đối chiếu hồ sơ, nội dung và đăng nhập thực tế của tài khoản đang hoạt động.
 

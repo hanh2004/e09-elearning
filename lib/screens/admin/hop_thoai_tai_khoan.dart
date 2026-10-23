@@ -2,10 +2,6 @@
 // Đây là phần xử lý hộp thoại tách riêng của quan_ly_tai_khoan.dart.
 part of "quan_ly_tai_khoan.dart";
 
-bool _maDuoiHopLe(String? value) =>
-    value != null &&
-    RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$').hasMatch(value.trim());
-
 extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
   Future<void> _moHopThoaiTaiKhoan({
     String? id,
@@ -13,36 +9,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
     bool propose = false,
   }) async {
     if (_danhTinh?.isAdmin != true || (propose && !_danhTinh!.isRoot)) return;
-    if (id != null && !_danhTinh!.canEdit(id, user!)) return;
-    String? actorUnit;
-    if (id == null && !propose) {
-      try {
-        actorUnit = _danhTinh!.isRoot
-            ? 'E09'
-            : ((await _dichVu.db.collection('users').doc(_danhTinh!.id).get())
-                              .data()?['unit']
-                          as String? ??
-                      '')
-                  .trim();
-      } catch (loi) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Không tải được mã đơn vị. ${_loiTaiKhoan(loi)}'),
-            ),
-          );
-        }
-        return;
-      }
-      if (actorUnit.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Quản lý chưa được phân mã đơn vị.')),
-          );
-        }
-        return;
-      }
-    }
+    if (id != null && !_danhTinh!.canEdit(user!)) return;
     var availableSubUnits = <String>[];
     if (id == null && !propose && _danhTinh != null) {
       final actorDoc = await _dichVu.db
@@ -60,24 +27,12 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
     final ten = TextEditingController(text: user?['name'] ?? '');
     final tenDangNhap = TextEditingController(text: user?['username'] ?? '');
     final matKhau = TextEditingController();
-    final userCode = TextEditingController(
-      text:
-          user?['userCodeSuffix']?.toString() ??
-          (() {
-            final fullCode = user?['userCode']?.toString() ?? '';
-            final oldUnit = user?['unit']?.toString() ?? '';
-            return fullCode.startsWith('$oldUnit-')
-                ? fullCode.substring(oldUnit.length + 1)
-                : '';
-          })(),
-    );
     final donVi = TextEditingController(text: user?['unit'] ?? '');
+    final isStudentEdit = id != null && user?['role'] == 'user';
     final form = GlobalKey<FormState>();
     var busy = false;
     String? loi;
-    final isStudentEdit = id != null && user?['role'] == 'user';
-    final canChangeCodeSuffix = isStudentEdit;
-    await showDialog<void>(
+    final route = DialogRoute<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
@@ -108,7 +63,8 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                           controller: donVi,
                           decoration: const InputDecoration(
                             labelText: 'Mã đơn vị quản lý',
-                            helperText: 'Mã này sẽ đứng trước mã người dùng.',
+                            helperText:
+                                'Đơn vị quản lý sẽ được gán cho tài khoản.',
                           ),
                           validator: (v) =>
                               v == null || v.trim().isEmpty || v.length > 100
@@ -174,34 +130,6 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                             ? 'Tên đăng nhập 3–64 ký tự không dấu, không khoảng trắng.'
                             : null,
                       ),
-                      if (id == null && !propose)
-                        TextFormField(
-                          controller: userCode,
-                          textCapitalization: TextCapitalization.characters,
-                          decoration: InputDecoration(
-                            labelText: 'Mã người dùng',
-                            prefixText: '$actorUnit-',
-                            helperText: 'Mã hoàn chỉnh: $actorUnit-mã bạn nhập',
-                          ),
-                          validator: (v) => !_maDuoiHopLe(v)
-                              ? 'Mã gồm 1–64 ký tự không dấu, số, _, ., @ hoặc -.'
-                              : null,
-                        ),
-                      if (canChangeCodeSuffix)
-                        TextFormField(
-                          controller: userCode,
-                          textCapitalization: TextCapitalization.characters,
-                          decoration: InputDecoration(
-                            labelText: 'Đuôi mã người dùng',
-                            prefixText: '${user?['unit'] ?? ''}-',
-                            helperText:
-                                'Mã đầy đủ: ${user?['unit'] ?? ''}-${userCode.text}. Chỉ đổi phần đuôi.',
-                          ),
-                          onChanged: (_) => update(() {}),
-                          validator: (v) => !_maDuoiHopLe(v)
-                              ? 'Đuôi mã gồm 1–64 ký tự hợp lệ.'
-                              : null,
-                        ),
                       if (id == null)
                         TextFormField(
                           controller: matKhau,
@@ -246,6 +174,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                 onPressed: busy
                     ? null
                     : () async {
+                        if (busy) return;
                         if (!form.currentState!.validate()) return;
                         update(() {
                           busy = true;
@@ -266,9 +195,6 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                               username: tenDangNhap.text,
                               password: matKhau.text,
                               role: user!['role'].toString(),
-                              userCodeSuffix: canChangeCodeSuffix
-                                  ? userCode.text.trim()
-                                  : null,
                             );
                           } else {
                             await _dichVu.addUser(
@@ -276,8 +202,6 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                               username: tenDangNhap.text,
                               password: matKhau.text,
                               role: 'user',
-                              userCodeSuffix: userCode.text.trim(),
-                              unit: actorUnit,
                               subUnit: selectedSubUnit,
                             );
                           }
@@ -306,12 +230,11 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
         ),
       ),
     );
-    // Hủy controller sau khi hiệu ứng đóng hộp thoại đã gỡ các ô nhập liệu.
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
     ten.dispose();
     tenDangNhap.dispose();
     matKhau.dispose();
-    userCode.dispose();
     donVi.dispose();
   }
 
@@ -331,90 +254,103 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
     final boDieuKhien = TextEditingController();
     var busy = false;
     String? loi;
-    await showDialog<void>(
+    final route = DialogRoute<void>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: const Text('Quản lý mục trực thuộc'),
-          content: SizedBox(
-            width: 430,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: boDieuKhien,
-                  enabled: !busy,
-                  decoration: const InputDecoration(
-                    labelText: 'Tên trực thuộc',
-                    hintText: 'Ví dụ: Đội 1, Tổ Kỹ thuật',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (cacGiaTri.isEmpty)
-                  const Text('Chưa có mục trực thuộc.')
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final giaTri in cacGiaTri)
-                        InputChip(
-                          label: Text(giaTri),
-                          onDeleted: busy
-                              ? null
-                              : () => update(() => cacGiaTri.remove(giaTri)),
-                        ),
-                    ],
-                  ),
-                if (loi != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      loi!,
-                      style: const TextStyle(color: Colors.red),
+        builder: (context, update) => PopScope(
+          canPop: !busy,
+          child: AlertDialog(
+            title: const Text('Quản lý mục trực thuộc'),
+            content: SizedBox(
+              width: 430,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: boDieuKhien,
+                      enabled: !busy,
+                      decoration: const InputDecoration(
+                        labelText: 'Tên trực thuộc',
+                        hintText: 'Ví dụ: Đội 1, Tổ Kỹ thuật',
+                      ),
                     ),
-                  ),
-              ],
+                    const SizedBox(height: 12),
+                    if (cacGiaTri.isEmpty)
+                      const Text('Chưa có mục trực thuộc.')
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final giaTri in cacGiaTri)
+                            InputChip(
+                              label: Text(giaTri),
+                              onDeleted: busy
+                                  ? null
+                                  : () =>
+                                        update(() => cacGiaTri.remove(giaTri)),
+                            ),
+                        ],
+                      ),
+                    if (loi != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          loi!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: busy ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Hủy'),
+              ),
+              FilledButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        if (busy) return;
+                        final giaTri = boDieuKhien.text.trim();
+                        if (giaTri.isNotEmpty && !cacGiaTri.contains(giaTri)) {
+                          update(() {
+                            cacGiaTri.add(giaTri);
+                            cacGiaTri.sort();
+                            boDieuKhien.clear();
+                          });
+                        }
+                        update(() {
+                          busy = true;
+                          loi = null;
+                        });
+                        try {
+                          await _dichVu.setAdminSubUnits(cacGiaTri);
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext);
+                          }
+                        } catch (e) {
+                          if (!dialogContext.mounted) return;
+                          update(() {
+                            busy = false;
+                            loi = _loiTaiKhoan(e);
+                          });
+                        }
+                      },
+                child: Text(busy ? 'Đang lưu…' : 'Lưu'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: busy ? null : () => Navigator.pop(dialogContext),
-              child: const Text('Hủy'),
-            ),
-            FilledButton(
-              onPressed: busy
-                  ? null
-                  : () async {
-                      final giaTri = boDieuKhien.text.trim();
-                      if (giaTri.isNotEmpty && !cacGiaTri.contains(giaTri)) {
-                        update(() {
-                          cacGiaTri.add(giaTri);
-                          cacGiaTri.sort();
-                          boDieuKhien.clear();
-                        });
-                      }
-                      update(() {
-                        busy = true;
-                        loi = null;
-                      });
-                      try {
-                        await _dichVu.setAdminSubUnits(cacGiaTri);
-                        if (dialogContext.mounted) Navigator.pop(dialogContext);
-                      } catch (e) {
-                        update(() {
-                          busy = false;
-                          loi = _loiTaiKhoan(e);
-                        });
-                      }
-                    },
-              child: Text(busy ? 'Đang lưu…' : 'Lưu'),
-            ),
-          ],
         ),
       ),
     );
+    await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
     boDieuKhien.dispose();
   }
 
@@ -480,7 +416,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'Phần đuôi mã người dùng được giữ nguyên; mã đơn vị sẽ theo quản lý mới.',
+                      'Tên đăng nhập của học viên vẫn giữ nguyên khi chuyển đơn vị.',
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -488,7 +424,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Nếu kết nối bị gián đoạn, hãy nhập lại cùng mã đơn vị và bấm Lưu để tiếp tục.',
+                      'Nếu kết nối bị gián đoạn, hãy chọn lại cùng quản lý và bấm Chuyển để tiếp tục.',
                     ),
                     if (loi != null)
                       Padding(
@@ -512,6 +448,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
               onPressed: busy
                   ? null
                   : () async {
+                      if (busy) return;
                       if (!(codeKey.currentState?.validate() ?? false)) return;
                       update(() {
                         busy = true;
@@ -563,7 +500,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
     final formKey = GlobalKey<FormState>();
     var busy = false;
     String? loi;
-    await showDialog<void>(
+    final route = DialogRoute<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
@@ -591,10 +528,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                     ),
                     const SizedBox(height: 14),
                     if (children.isNotEmpty)
-                      const Text(
-                        'Phần đuôi mã của từng học viên sẽ được giữ nguyên. '
-                        'Chỉ mã đơn vị ở đầu mã được đổi.',
-                      ),
+                      const Text('Tên đăng nhập của học viên không đổi.'),
                     if (loi != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
@@ -617,6 +551,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
               onPressed: busy
                   ? null
                   : () async {
+                      if (busy) return;
                       if (!(formKey.currentState?.validate() ?? false)) return;
                       update(() {
                         busy = true;
@@ -632,7 +567,7 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Đã đổi mã đơn vị; đuôi mã học viên được giữ nguyên.',
+                                'Đã đổi mã đơn vị; tên đăng nhập của học viên không đổi.',
                               ),
                             ),
                           );
@@ -652,5 +587,8 @@ extension _AdminAccountDialogs on _TrangThaiTaiKhoanQuanTri {
         ),
       ),
     );
+    await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
+    unitController.dispose();
   }
 }

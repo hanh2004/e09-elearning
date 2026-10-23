@@ -31,10 +31,4 @@ class LuaChonDapAnModel {
           bangAnhXa['isCorrect'] == true,
     );
   }
-
-  Map<String, dynamic> toMap() => {
-    'ma_lua_chon': maLuaChon,
-    'noi_dung': noiDung,
-    'dap_an_dung': dapAnDung,
-  };
 }

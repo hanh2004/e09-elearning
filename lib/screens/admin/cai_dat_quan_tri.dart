@@ -10,6 +10,7 @@ import '../../services/du_lieu/dich_vu_firestore.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import '../../widgets/anh_dai_dien_mac_dinh.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'quan_ly_y_kien_phan_hoi.dart';
 import 'khung_giao_dien_quan_tri.dart';
 
@@ -40,6 +41,7 @@ class _TrangThaiCaiDatQuanTri extends State<AdminSettingsScreen> {
   }
 
   Future<void> _datCheDoBaoTri(bool daBat) async {
+    if (_dangCapNhatBaoTri) return;
     setState(() {
       _dangCapNhatBaoTri = true;
     });
@@ -87,9 +89,7 @@ class _TrangThaiCaiDatQuanTri extends State<AdminSettingsScreen> {
           padding: EdgeInsets.zero,
           child: Column(
             children: [
-              const AdminPageHeading(
-                title: 'Cài đặt hệ thống',
-              ),
+              const AdminPageHeading(title: 'Cài đặt hệ thống'),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Container(
@@ -166,11 +166,14 @@ class _TrangThaiCaiDatQuanTri extends State<AdminSettingsScreen> {
                 const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: StreamBuilder<bool>(
-                    stream: _dichVu.getMaintenanceModeStream(),
-                    initialData: false,
+                  child: ReloadableStreamBuilder<bool>(
+                    streamFactory: _dichVu.getMaintenanceModeStream,
+                    feature: 'Tải trạng thái bảo trì',
                     builder: (context, duLieuNhan) {
-                      final dangBaoTri = duLieuNhan.data ?? false;
+                      if (!duLieuNhan.hasData) {
+                        return const LinearProgressIndicator();
+                      }
+                      final dangBaoTri = duLieuNhan.data!;
                       return Material(
                         color: Colors.white,
                         clipBehavior: Clip.antiAlias,

@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 
-import '../../app/cau_hinh_ung_dung.dart';
 import '../../app/chu_de_ung_dung.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
 import '../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart';
@@ -59,13 +58,7 @@ class UserUtilitiesScreen extends StatelessWidget {
               'Lịch sử bài kiểm tra',
               Icons.history_rounded,
               const Color(0xFF248FC4),
-              () => open(
-                ExamHistoryScreen(
-                  userId: args.userId,
-                  secureBackend: AppConfig.useSecureBackend,
-                  service: examService,
-                ),
-              ),
+              () => open(ExamHistoryScreen(service: examService)),
             ),
           ]),
           _nhom(context, 'Tài khoản', [

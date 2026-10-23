@@ -88,6 +88,7 @@ class _VungChonAnhBia extends StatelessWidget {
         : imageUrl.isNotEmpty
         ? Image.network(
             imageUrl,
+            webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
             fit: BoxFit.cover,
             width: double.infinity,
             errorBuilder: (_, _, _) => const _AnhBiaMacDinh(),

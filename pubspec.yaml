@@ -5,7 +5,7 @@ publish_to: 'none'
 # Đổi 3 số trước dấu + để app nhắc người dùng khi có phiên bản mới.
 # Tăng số sau dấu + cho mỗi APK; đây là Android versionCode nên không được giảm/reset.
 # Chỉ tăng số sau dấu + để sửa nhỏ thì app không nhắc cập nhật.
-version: 1.0.3+7
+version: 1.0.4+9
 environment:
   sdk: ^3.13.1
 
@@ -38,7 +38,6 @@ flutter:
     - lib/assets/images/logo.png
     - lib/assets/images/wed_logo.png
     - lib/assets/images/learner-background-light.png
-    - lib/assets/images/learner-background-red.png
     - lib/assets/images/learner-splash.png
     - lib/assets/templates/users_template.xlsx
     - assets/branding/default-user-avatar.png

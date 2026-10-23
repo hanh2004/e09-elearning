@@ -6,6 +6,11 @@ test('question snapshot requires exactly one correct answer',()=>{
   const q=normalizeQuestion({questionText:'Q',options:['A','B'],correctAnswerIndex:1},'q');
   assert.equal(q.correctIndex,1);
 });
+test('malformed question content raises a policy error before creating a run',()=>{
+  for (const question of [null, {questionText:'Q',options:['A',null],correctAnswerIndex:0}]) {
+    assert.throws(()=>normalizeQuestion(question,'q'), {code:'failed-precondition'});
+  }
+});
 test('grading is exact and solutions are only included when permitted',()=>{
   const q=normalizeQuestion({questionText:'Q',options:['A','B'],correctAnswerIndex:1,explanation:'Reason'},'q');
   const run={questions:[q],passScore:7,showSolutions:false};

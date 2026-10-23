@@ -1,8 +1,5 @@
 part of 'dich_vu_firestore.dart';
 
-Map<String, Object?> _optionalAccountField(String key, Object? value) =>
-    value == null ? const {} : {key: value};
-
 mixin _FirestoreAccountOperations on _FirestoreServiceCore {
   Future<FirebaseAuth> _xacThucCapTaiKhoan() async {
     _ungDungCapTaiKhoan ??= await Firebase.initializeApp(
@@ -75,7 +72,6 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     required String username,
     required String password,
     required String role,
-    String? userCodeSuffix,
     String? unit,
     String? subUnit,
   }) async {
@@ -89,8 +85,6 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
             'name': name,
             'username': username,
             'password': password,
-            if (userCodeSuffix != null && userCodeSuffix.trim().isNotEmpty)
-              'code': userCodeSuffix.trim(),
             if (subUnit != null && subUnit.trim().isNotEmpty)
               'subUnit': subUnit.trim(),
           },
@@ -106,13 +100,7 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     if (resolvedUnit.isEmpty) {
       throw StateError('Quản lý chưa được phân mã đơn vị.');
     }
-    final suffix = (userCodeSuffix ?? username).trim();
-    if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}$').hasMatch(suffix)) {
-      throw ArgumentError(
-        'Mã người dùng gồm 1–64 ký tự không dấu, số, _, ., @ hoặc -.',
-      );
-    }
-    // Không còn đường ghi trực tiếp: mã học viên phải được máy chủ kiểm tra
+    // Không còn đường ghi trực tiếp: tên đăng nhập phải được máy chủ kiểm tra
     // và tạo cùng hồ sơ trong một transaction.
     throw const AccountProvisioningException(
       'Tạo học viên cần kết nối dịch vụ quản lý tài khoản. Vui lòng dùng bản cập nhật mới.',
@@ -196,7 +184,8 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
                 'name': dong.name.trim(),
                 'username': dong.username,
                 'password': dong.password,
-                if (dong.userCodeSuffix != null) 'code': dong.userCodeSuffix,
+                if (dong.serialNumber != null)
+                  'serialNumber': dong.serialNumber,
               },
             )
             .toList(),
@@ -263,12 +252,8 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     });
   }
 
-  /// Máy chủ xác thực tên đăng nhập và mã đuôi, sau đó tự gắn yêu cầu với
-  /// quản lý phụ trách. Trả về false nếu thông tin không khớp.
-  Future<bool> requestPasswordReset({
-    required String username,
-    required String codeSuffix,
-  }) async {
+  /// Máy chủ xác thực tên đăng nhập rồi gắn yêu cầu với quản lý phụ trách.
+  Future<bool> requestPasswordReset({required String username}) async {
     if (!_apiTaiKhoan.hasTransport) {
       throw const AccountProvisioningException(
         'Chức năng quên mật khẩu cần kết nối dịch vụ quản lý tài khoản.',
@@ -276,7 +261,6 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     }
     final result = await _apiTaiKhoan.call('accountRequestPasswordReset', {
       'username': username.trim(),
-      'codeSuffix': codeSuffix.trim(),
     });
     final matched = result['matched'];
     if (matched is! bool) {
@@ -335,7 +319,28 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     });
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> getPasswordResetRequestsStream() {
+  Future<PasswordResetRequest> _normalizePasswordResetRequest(
+    String id,
+    Map<String, dynamic> rawData,
+    AccountIdentity actor,
+  ) async {
+    final data = Map<String, dynamic>.from(rawData);
+    // Yêu cầu cũ chưa lưu userRole; đọc hồ sơ đích để cả hai admin tổng
+    // thấy admin phụ, đồng thời không nhầm với học viên do admin tổng tạo.
+    if (actor.isRoot &&
+        data['type'] != 'root_recovery' &&
+        !const ['user', 'admin'].contains(data['userRole'])) {
+      final userId = data['userId'];
+      if (userId is String && userId.isNotEmpty && !userId.contains('/')) {
+        final profile = await _coSoDuLieu.collection('users').doc(userId).get();
+        final role = profile.data()?['role'];
+        if (const ['user', 'admin'].contains(role)) data['userRole'] = role;
+      }
+    }
+    return PasswordResetRequest(id: id, data: data);
+  }
+
+  Stream<List<PasswordResetRequest>> getPasswordResetRequestsStream() {
     final danhTinh = AccountSession.current;
     if (danhTinh?.isAdmin != true) {
       return Stream.error(StateError('Cần đăng nhập quản trị.'));
@@ -343,20 +348,59 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     Query<Map<String, dynamic>> truyVan = _coSoDuLieu.collection(
       'password_reset_requests',
     );
-    if (danhTinh!.isRoot) {
+    final actor = danhTinh!;
+    if (actor.isRoot) {
       truyVan = truyVan.where(
         'status',
-        whereIn: ['pending', 'approved_once', 'approved', 'processing'],
+        whereIn: PasswordResetRequest.openStatuses,
       );
     } else {
       truyVan = truyVan
-          .where('managerId', isEqualTo: danhTinh.id)
-          .where(
-            'status',
-            whereIn: ['pending', 'approved_once', 'approved', 'processing'],
-          );
+          .where('managerId', isEqualTo: actor.id)
+          .where('status', whereIn: PasswordResetRequest.openStatuses);
     }
-    return truyVan.snapshots();
+    return truyVan.snapshots().asyncMap((snapshot) async {
+      final requests = await Future.wait(
+        snapshot.docs.map(
+          (document) => _normalizePasswordResetRequest(
+            document.id,
+            document.data(),
+            actor,
+          ),
+        ),
+      );
+      return requests.where((request) => request.isVisibleTo(actor)).toList();
+    });
+  }
+
+  Stream<PasswordResetRequest?> getPasswordResetRequestStream(
+    String requestId,
+  ) {
+    final actor = AccountSession.current;
+    if (actor?.isAdmin != true) {
+      return Stream.error(StateError('Cần đăng nhập quản trị.'));
+    }
+    return _coSoDuLieu
+        .collection('password_reset_requests')
+        .doc(requestId)
+        .snapshots()
+        .asyncMap((document) async {
+          final data = document.data();
+          return data == null
+              ? null
+              : _normalizePasswordResetRequest(document.id, data, actor!);
+        });
+  }
+
+  Future<void> approvePasswordReset(String requestId) async {
+    if (!_apiTaiKhoan.hasTransport) {
+      throw const AccountProvisioningException(
+        'Đồng ý cấp lại mật khẩu admin phụ cần kết nối dịch vụ quản lý tài khoản.',
+      );
+    }
+    await _apiTaiKhoan.call('accountApprovePasswordReset', {
+      'requestId': requestId,
+    });
   }
 
   Future<void> approveRootPasswordReset(String requestId) async {
@@ -430,22 +474,16 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     await loGhi.commit();
   }
 
-  Future<void> setAdminUnit(
-    String maNguoiDung,
-    String donVi, {
-    Map<String, String> codeSuffixes = const {},
-  }) async {
+  Future<void> setAdminUnit(String maNguoiDung, String donVi) async {
     await _apiTaiKhoan.call('accountSetUnit', {
       'userId': maNguoiDung,
       'unit': donVi,
-      if (codeSuffixes.isNotEmpty) 'codes': codeSuffixes,
     });
   }
 
   Future<void> reassignUser({
     required String userId,
     required String managerId,
-    String? userCodeSuffix,
   }) async {
     if (!_apiTaiKhoan.hasTransport) {
       throw const AccountProvisioningException(
@@ -455,7 +493,6 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     await _apiTaiKhoan.call('accountReassignUser', {
       'userId': userId,
       'managerId': managerId,
-      ..._optionalAccountField('userCodeSuffix', userCodeSuffix),
     });
   }
 
@@ -503,15 +540,6 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     return _coSoDuLieu.collection('exam_attempts').snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> getUserAttemptsStream(
-    String userId,
-  ) {
-    return _coSoDuLieu
-        .collection('exam_attempts')
-        .where('userId', isEqualTo: userId)
-        .snapshots();
-  }
-
   Future<void> setUserBlocked(String maNguoiDung, bool blocked) async {
     await _apiTaiKhoan.call('accountSetStatus', {
       'userId': maNguoiDung,
@@ -525,14 +553,8 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
     required String username,
     required String password,
     required String role,
-    String? userCodeSuffix,
   }) async {
     if (!_apiTaiKhoan.hasTransport) {
-      if (userCodeSuffix != null) {
-        throw const AccountProvisioningException(
-          'Đổi mã người dùng cần kết nối dịch vụ tài khoản trên máy chủ.',
-        );
-      }
       await _coSoDuLieu.collection('users').doc(docId).update({
         'name': name.trim(),
         'updatedBy': AccountSession.current!.id,
@@ -544,7 +566,6 @@ mixin _FirestoreAccountOperations on _FirestoreServiceCore {
       'userId': docId,
       'name': name,
       if (password.isNotEmpty) 'password': password,
-      ..._optionalAccountField('userCodeSuffix', userCodeSuffix),
     });
   }
 

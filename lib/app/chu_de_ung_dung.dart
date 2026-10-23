@@ -8,18 +8,20 @@ class AppTheme {
   static const navy = Color(0xFF192858);
   static const gold = Color(0xFFD7B558);
   static const background = Color(0xFFF5F7FA);
+  static const learnerFrameBorder = Color(0xFFE6A7A9);
+  static const learnerFrameBorderSide = BorderSide(
+    color: learnerFrameBorder,
+    width: 1.25,
+  );
   static const appLogo = 'lib/assets/images/logo.png';
   static const learnerLightBackground =
       'lib/assets/images/learner-background-light.png';
-  static const learnerRedBackground =
-      'lib/assets/images/learner-background-red.png';
   static const learnerSplashBackground = 'lib/assets/images/learner-splash.png';
   // Ảnh đại diện mặc định dùng cho mọi tài khoản chưa có ảnh riêng.
   static const defaultUserAvatar = 'assets/branding/default-user-avatar.png';
   // Logo huy hiệu của Admin tách riêng logo App học viên.
   // Giữ tên file `wed_logo.png` để dữ liệu cũ vẫn hoạt động.
   static const webLogo = 'lib/assets/images/wed_logo.png';
-  static const logo = appLogo;
 
   static ThemeData get light => ThemeData(
     useMaterial3: true,

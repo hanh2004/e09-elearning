@@ -1,29 +1,19 @@
-// APP HỌC VIÊN: Lịch sử thi dùng chung giao diện cho Firestore và API an toàn.
+// APP HỌC VIÊN: Đọc lịch sử kiểm tra của phiên đăng nhập qua API máy chủ.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../models/ket_qua_bai_kiem_tra.dart';
-import '../../services/du_lieu/dich_vu_firestore.dart';
 import '../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
 import '../../widgets/the_hoc_vien.dart';
+import '../../widgets/thong_bao_loi.dart';
 import 'lam_bai_kiem_tra_bao_mat.dart';
 
-/// Một màn hình lịch sử, chọn nguồn dữ liệu theo chế độ backend của ứng dụng.
+/// Lịch sử kiểm tra do máy chủ cấp cho học viên đang đăng nhập.
 class ExamHistoryScreen extends StatefulWidget {
-  const ExamHistoryScreen({
-    super.key,
-    required this.userId,
-    this.secureBackend = false,
-    this.service,
-    this.firestoreService,
-  });
+  const ExamHistoryScreen({super.key, this.service});
 
-  final String userId;
-  final bool secureBackend;
   final SecureExamService? service;
-  final FirestoreService? firestoreService;
 
   @override
   State<ExamHistoryScreen> createState() => _TrangThaiLichSuThi();
@@ -34,19 +24,24 @@ class _TrangThaiLichSuThi extends State<ExamHistoryScreen> {
 
   final _searchController = TextEditingController();
   String _search = '';
-  late final FirestoreService _firestore =
-      widget.firestoreService ?? FirestoreService();
   late Future<Map<String, dynamic>> _secureHistory;
   SecureExamService get _examService => widget.service ?? SecureExamService();
 
   @override
   void initState() {
     super.initState();
-    if (widget.secureBackend) _secureHistory = _loadSecureHistory();
+    _secureHistory = _loadSecureHistory();
   }
 
   Future<Map<String, dynamic>> _loadSecureHistory() =>
-      _examService.call('examHistory');
+      _examService.call('examHistory').timeout(const Duration(seconds: 20));
+
+  void _reloadHistory() {
+    final history = _loadSecureHistory();
+    setState(() {
+      _secureHistory = history;
+    });
+  }
 
   @override
   void dispose() {
@@ -66,13 +61,11 @@ class _TrangThaiLichSuThi extends State<ExamHistoryScreen> {
         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
       actions: [
-        if (widget.secureBackend)
-          IconButton(
-            tooltip: 'Làm mới',
-            icon: const Icon(Icons.refresh),
-            onPressed: () =>
-                setState(() => _secureHistory = _loadSecureHistory()),
-          ),
+        IconButton(
+          tooltip: 'Làm mới',
+          icon: const Icon(Icons.refresh),
+          onPressed: _reloadHistory,
+        ),
       ],
     ),
     body: Column(
@@ -109,11 +102,7 @@ class _TrangThaiLichSuThi extends State<ExamHistoryScreen> {
             ),
           ),
         ),
-        Expanded(
-          child: widget.secureBackend
-              ? _dungLichSuApi()
-              : _dungLichSuFirestore(),
-        ),
+        Expanded(child: _dungLichSuApi()),
       ],
     ),
   );
@@ -121,8 +110,15 @@ class _TrangThaiLichSuThi extends State<ExamHistoryScreen> {
   Widget _dungLichSuApi() => FutureBuilder<Map<String, dynamic>>(
     future: _secureHistory,
     builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
       if (snapshot.hasError) {
-        return Center(child: Text(SecureExamService.error(snapshot.error!)));
+        return AppErrorNotice(
+          error: snapshot.error!,
+          feature: 'Tải lịch sử bài kiểm tra',
+          onRetry: _reloadHistory,
+        );
       }
       if (!snapshot.hasData) {
         return const Center(child: CircularProgressIndicator());
@@ -170,9 +166,6 @@ class _TrangThaiLichSuThi extends State<ExamHistoryScreen> {
                 children: [
                   for (final run in entry.value)
                     LearnerCard(
-                      accentColor: run['passed'] == true
-                          ? Colors.green
-                          : _primaryColor,
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -214,158 +207,6 @@ class _TrangThaiLichSuThi extends State<ExamHistoryScreen> {
       );
     },
   );
-
-  Widget _dungLichSuFirestore() =>
-      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _firestore.getUserAttemptsStream(widget.userId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                SecureExamService.error(
-                  snapshot.error!,
-                  feature: 'Tải lịch sử bài kiểm tra',
-                ),
-                textAlign: TextAlign.center,
-              ),
-            );
-          }
-
-          final grouped = <String, Map<String, dynamic>>{};
-          for (final record in snapshot.data?.docs ?? const []) {
-            final data = record.data();
-            final attemptCount =
-                (data['attemptCount'] as num?)?.toInt() ??
-                (data['status'] == 'completed' ? 1 : 0);
-            if (attemptCount == 0) continue;
-
-            final examId = data['examId']?.toString() ?? record.id;
-            final score =
-                (data['bestScore'] as num?)?.toDouble() ??
-                (data['diemSo'] as num?)?.toDouble() ??
-                0;
-            final existing = grouped[examId];
-            if (existing == null) {
-              grouped[examId] = {
-                ...data,
-                'displayScore': score,
-                'displayAttemptCount': attemptCount,
-              };
-              continue;
-            }
-
-            final combinedAttempts =
-                (existing['displayAttemptCount'] as int) + attemptCount;
-            if (score > (existing['displayScore'] as double)) {
-              grouped[examId] = {
-                ...data,
-                'displayScore': score,
-                'displayAttemptCount': combinedAttempts,
-              };
-            } else {
-              existing['displayAttemptCount'] = combinedAttempts;
-            }
-          }
-
-          final items = grouped.values.where(_matchesSearch).toList();
-          if (items.isEmpty) {
-            return Center(
-              child: Text(
-                _search.isEmpty
-                    ? 'Chưa có lịch sử làm bài nào.'
-                    : 'Không tìm thấy bài kiểm tra phù hợp.',
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            itemCount: items.length,
-            itemBuilder: (context, index) => _theLichSuFirestore(items[index]),
-          );
-        },
-      );
-
-  Widget _theLichSuFirestore(Map<String, dynamic> data) {
-    final score = (data['displayScore'] as num?)?.toDouble() ?? 0;
-    final passed = ExamOutcome.passed(data);
-    return LearnerCard(
-      accentColor: passed ? Colors.green : _primaryColor,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  data['examTitle']?.toString() ?? 'Bài kiểm tra',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: Colors.black87,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: passed ? Colors.green[50] : Colors.red[50],
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: passed ? Colors.green : Colors.red),
-                ),
-                child: Text(
-                  passed ? 'Đạt' : 'Chưa đạt',
-                  style: TextStyle(
-                    color: passed ? Colors.green[700] : Colors.red[700],
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(Icons.access_time, size: 14, color: Colors.grey),
-              const SizedBox(width: 4),
-              Text(
-                _formatDate(data['bestCompletedAt'] ?? data['completedAt']),
-                style: const TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-            ],
-          ),
-          const Divider(height: 20),
-          Text(
-            'Đã làm ${data['displayAttemptCount']} lần',
-            style: const TextStyle(color: Colors.grey, fontSize: 13),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Điểm cao nhất:'),
-              Text(
-                '${score.toStringAsFixed(1)} / 10',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: _primaryColor,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   bool _matchesSearch(Map<String, dynamic> data) {
     final title = (data['title'] ?? data['examTitle'] ?? 'Bài kiểm tra')

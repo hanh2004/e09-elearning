@@ -43,7 +43,18 @@ class AccountApi {
     String method,
     Map<String, dynamic> duLieu,
   ) async {
-    final digest = '$method:${sha256.convert(utf8.encode(jsonEncode(duLieu)))}';
+    final digestData = method == 'accountImportUsers'
+        ? {
+            ...duLieu,
+            'rows': (duLieu['rows'] as List).map((rawRow) {
+              final row = Map<String, dynamic>.from(rawRow as Map);
+              row.remove('serialNumber');
+              return row;
+            }).toList(),
+          }
+        : duLieu;
+    final digest =
+        '$method:${sha256.convert(utf8.encode(jsonEncode(digestData)))}';
     final operation = _cacThaoTac.putIfAbsent(digest, () {
       final random = Random.secure();
       final operationId = List.generate(

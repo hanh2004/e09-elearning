@@ -46,6 +46,31 @@ Dòng giải thích thứ hai.
       );
     });
 
+    test(
+      'rejects malformed answers instead of discarding their characters',
+      () {
+        for (final answer in ['-1', 'Apple', 'A hoặc B', '5A', '1/']) {
+          final result = BoPhanTichCauHoi.parse(
+            'Câu hỏi mẫu\tMột\tHai\tBa\tBốn\t$answer',
+          );
+
+          expect(result.questions, isEmpty, reason: answer);
+          expect(result.errors, isNotEmpty, reason: answer);
+        }
+      },
+    );
+
+    test('accepts explicit answer labels and simple option punctuation', () {
+      for (final answer in ['a', '1', 'A.', 'Đáp án đúng: A', 'Answer: A']) {
+        final result = BoPhanTichCauHoi.parse(
+          'Câu hỏi mẫu\tMột\tHai\tBa\tBốn\t$answer',
+        );
+
+        expect(result.errors, isEmpty, reason: answer);
+        expect(result.questions.single.correctAnswerIndex, 0, reason: answer);
+      }
+    });
+
     test('reports missing options and invalid correct answers', () {
       final result = BoPhanTichCauHoi.parse('''
 Câu hỏi: Câu chưa đủ dữ liệu

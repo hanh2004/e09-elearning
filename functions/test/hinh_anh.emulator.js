@@ -5,14 +5,17 @@ import {doc,setDoc} from 'firebase/firestore';
 import {ref,uploadBytes,getDownloadURL} from 'firebase/storage';
 test('image uploads enforce identity, role, size and content type',async()=>{
  const env=await initializeTestEnvironment({projectId:'demo-e09',firestore:{rules:readFileSync(new URL('../../firestore.rules',import.meta.url),'utf8')},storage:{rules:readFileSync(new URL('../../storage.rules',import.meta.url),'utf8')}});
+ const authTime=Math.floor(Date.now()/1000);
+ const contextFor=uid=>env.authenticatedContext(uid,{auth_time:authTime});
+ const accountSession={status:'active',authTime,lastSeenAt:new Date()};
  try {
  await env.withSecurityRulesDisabled(async ctx=>{
-  for(const [id,role] of [['pupil','user'],['root1','super_admin']]) await setDoc(doc(ctx.firestore(),`users/${id}`),{role,status:'active'});
+  for(const [id,role] of [['pupil','user'],['root1','super_admin']]) await setDoc(doc(ctx.firestore(),`users/${id}`),{role,status:'active',accountSession});
   await setDoc(doc(ctx.firestore(),'system/access'),{rootUids:['root1','root2']});
-  await setDoc(doc(ctx.firestore(),'users/limited'),{role:'admin',status:'active',createdBy:'root1',approvedBy:'root2'});
+  await setDoc(doc(ctx.firestore(),'users/limited'),{role:'admin',status:'active',createdBy:'root1',approvedBy:'root2',accountSession});
  });
  const storageFor=ctx=>ctx.storage('gs://demo-e09.appspot.com');
- const pupil=storageFor(env.authenticatedContext('pupil')),root=storageFor(env.authenticatedContext('root1'));
+ const pupil=storageFor(contextFor('pupil')),root=storageFor(contextFor('root1'));
  const data=new Uint8Array([137,80,78,71]);
  await assertSucceeds(uploadBytes(ref(pupil,'avatars/pupil/ok.png'),data,{contentType:'image/png'}));
  await assertFails(uploadBytes(ref(pupil,'avatars/other/no.png'),data,{contentType:'image/png'}));
@@ -40,8 +43,8 @@ test('image uploads enforce identity, role, size and content type',async()=>{
  await assertSucceeds(uploadBytes(ref(root,'courses/large.png'),new Uint8Array(20*1024*1024),{contentType:'image/png'}));
  await assertFails(uploadBytes(ref(root,'courses/too-large.png'),new Uint8Array(20*1024*1024+1),{contentType:'image/png'}));
  await assertFails(uploadBytes(ref(pupil,'courses/no.png'),data,{contentType:'image/png'}));
- await assertFails(uploadBytes(ref(storageFor(env.authenticatedContext('limited')),'courses/limited.png'),data,{contentType:'image/png'}));
- await assertFails(uploadBytes(ref(storageFor(env.authenticatedContext('limited')),'lessons/c/limited.png'),data,{contentType:'image/png'}));
+ await assertFails(uploadBytes(ref(storageFor(contextFor('limited')),'courses/limited.png'),data,{contentType:'image/png'}));
+ await assertFails(uploadBytes(ref(storageFor(contextFor('limited')),'lessons/c/limited.png'),data,{contentType:'image/png'}));
  await assertFails(uploadBytes(ref(pupil,'avatars/pupil/no.txt'),data,{contentType:'text/plain'}));
  await assertFails(uploadBytes(ref(storageFor(env.unauthenticatedContext()),'courses/anonymous.png'),data,{contentType:'image/png'}));
  } finally {await env.cleanup();}

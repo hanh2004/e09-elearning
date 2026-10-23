@@ -4,6 +4,38 @@ import 'package:e09_elearning/services/nghiep_vu/dich_vu_hoc_tap.dart';
 
 void main() {
   final end = DateTime(2026, 9, 11, 12);
+  test(
+    'later report dates do not accept progress after the course deadline',
+    () {
+      final report = CourseCompletionReport.build(
+        users: {
+          'late': {'role': 'user'},
+          'new': {
+            'role': 'user',
+            'createdAt': end.add(const Duration(hours: 1)),
+          },
+        },
+        lessonIds: {'l'},
+        progress: {
+          'late': [
+            {
+              'courseId': 'c',
+              'lessonId': 'l',
+              'completed': true,
+              'startedAt': end.add(const Duration(minutes: 1)),
+              'completedAt': end.add(const Duration(minutes: 2)),
+            },
+          ],
+        },
+        courseId: 'c',
+        endsAt: end.add(const Duration(days: 10)),
+        course: {'endsAt': end},
+      );
+      expect(report.rows.single.id, 'late');
+      expect(report.rows.single.completed, 0);
+      expect(report.rows.single.started, false);
+    },
+  );
   test('historical course export respects the exclusive report cutoff', () {
     final cutoff = DateTime(2026, 4, 10);
     expect(
@@ -83,7 +115,6 @@ void main() {
       expect(
         LearningPolicy.canRead(
           course,
-          '',
           now: end.subtract(const Duration(hours: 2)),
         ),
         false,
@@ -91,13 +122,12 @@ void main() {
       expect(
         LearningPolicy.canRead(
           course,
-          '',
           now: end.subtract(const Duration(seconds: 1)),
         ),
         true,
       );
       expect(LearningPolicy.hasEnded(course, now: end), true);
-      expect(LearningPolicy.canRead(course, '', now: end), false);
+      expect(LearningPolicy.canRead(course, now: end), false);
       expect(
         LearningPolicy.deploymentLabel({
           ...course,

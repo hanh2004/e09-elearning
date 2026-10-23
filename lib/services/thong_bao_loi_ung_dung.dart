@@ -1,6 +1,8 @@
 // XỬ LÝ LỖI: Chuyển lỗi Firebase/API thành thông báo tiếng Việt kèm hướng xử lý.
 // Các màn hình truyền tên chức năng để người dùng biết thao tác nào bị lỗi.
 
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -13,6 +15,14 @@ class AppErrorMessage {
     final technicalCode = technicalCodeFor(error);
     final serverMessage = _serverMessage(error);
     final action = fallbackAction ?? 'Hãy tải lại chức năng rồi thử lại.';
+
+    if (error is TimeoutException) {
+      return _format(
+        feature,
+        'máy chủ chưa trả về dữ liệu trong thời gian chờ',
+        fallbackAction ?? 'Kiểm tra kết nối Internet rồi bấm Tải lại.',
+      );
+    }
 
     if (error is FirebaseAuthException) {
       final detail = switch (error.code) {

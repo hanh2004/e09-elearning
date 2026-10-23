@@ -45,7 +45,7 @@ extension _AdminReportTable on _TrangThaiBaoCaoQuanTri {
     final baoCao = AdminReport.build(
       users: userMap,
       exams: examMap,
-      attempts: _luotThiBaoCao(cacLuotThi),
+      attempts: cacLuotThi.map((banGhi) => banGhi.data()).toList(),
       examId: selectedExam,
       unit: selectedUnit,
       subUnit: selectedSubUnit,

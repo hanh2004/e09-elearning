@@ -171,119 +171,142 @@ class _TrangThaiNganHangCauHoiQuanTri extends State<AdminQuestionBankScreen> {
     int selectedCorrectIndex = question?['correctAnswerIndex'] ?? 0;
     bool busy = false;
 
-    final dialogRoute = DialogRoute<void>(
+    late final DialogRoute<void> dialogRoute;
+    dialogRoute = DialogRoute<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
-          return AlertDialog(
-            title: Text(
-              questionId == null ? 'Thêm câu hỏi mới' : 'Chỉnh sửa câu hỏi',
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: questionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nội dung câu hỏi',
+          return PopScope(
+            canPop: !busy,
+            child: AlertDialog(
+              title: Text(
+                questionId == null ? 'Thêm câu hỏi mới' : 'Chỉnh sửa câu hỏi',
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: questionController,
+                      enabled: !busy,
+                      decoration: const InputDecoration(
+                        labelText: 'Nội dung câu hỏi',
+                      ),
+                      maxLines: 2,
                     ),
-                    maxLines: 2,
-                  ),
-                  TextField(
-                    controller: explanationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Lời giải (tùy chọn)',
+                    TextField(
+                      controller: explanationController,
+                      enabled: !busy,
+                      decoration: const InputDecoration(
+                        labelText: 'Lời giải (tùy chọn)',
+                      ),
+                      maxLines: 3,
                     ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 12),
-                  ...List.generate(optionControllers.length, (viTri) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            tooltip: 'Chọn đáp án đúng',
-                            onPressed: () => setModalState(
-                              () => selectedCorrectIndex = viTri,
-                            ),
-                            icon: Icon(
-                              selectedCorrectIndex == viTri
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: selectedCorrectIndex == viTri
-                                  ? primaryColor
-                                  : Colors.grey,
-                            ),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              controller: optionControllers[viTri],
-                              decoration: InputDecoration(
-                                labelText:
-                                    'Đáp án ${String.fromCharCode(65 + viTri)}',
+                    const SizedBox(height: 12),
+                    ...List.generate(optionControllers.length, (viTri) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: 'Chọn đáp án đúng',
+                              onPressed: busy
+                                  ? null
+                                  : () => setModalState(
+                                      () => selectedCorrectIndex = viTri,
+                                    ),
+                              icon: Icon(
+                                selectedCorrectIndex == viTri
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_unchecked,
+                                color: selectedCorrectIndex == viTri
+                                    ? primaryColor
+                                    : Colors.grey,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Hủy'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-                onPressed: () async {
-                  if (busy) return;
-                  final cacLuaChon = optionControllers
-                      .map((e) => e.text.trim())
-                      .toList();
-                  if (questionController.text.isNotEmpty &&
-                      cacLuaChon.every((e) => e.isNotEmpty)) {
-                    setModalState(() => busy = true);
-                    try {
-                      await _dichVuFirestore.addQuestion(
-                        widget.args.examId,
-                        questionText: questionController.text.trim(),
-                        options: cacLuaChon,
-                        correctAnswerIndex: selectedCorrectIndex,
-                        explanation: explanationController.text,
-                        questionId: questionId,
-                      );
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
-                    } catch (_) {
-                      if (context.mounted) {
-                        setModalState(() => busy = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Không lưu được câu hỏi. Vui lòng thử lại.',
+                            Expanded(
+                              child: TextField(
+                                controller: optionControllers[viTri],
+                                enabled: !busy,
+                                decoration: InputDecoration(
+                                  labelText:
+                                      'Đáp án ${String.fromCharCode(65 + viTri)}',
+                                ),
+                              ),
                             ),
-                          ),
-                        );
-                      }
-                    }
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Vui lòng điền đầy đủ câu hỏi và 4 đáp án!',
+                          ],
                         ),
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Lưu', style: TextStyle(color: Colors.white)),
+                      );
+                    }),
+                  ],
+                ),
               ),
-            ],
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.pop(context),
+                  child: const Text('Hủy'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                  ),
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          if (busy) return;
+                          final cacLuaChon = optionControllers
+                              .map((e) => e.text.trim())
+                              .toList();
+                          if (questionController.text.isNotEmpty &&
+                              cacLuaChon.every((e) => e.isNotEmpty)) {
+                            setModalState(() => busy = true);
+                            try {
+                              await _dichVuFirestore.addQuestion(
+                                widget.args.examId,
+                                questionText: questionController.text.trim(),
+                                options: cacLuaChon,
+                                correctAnswerIndex: selectedCorrectIndex,
+                                explanation: explanationController.text,
+                                questionId: questionId,
+                              );
+                              if (!context.mounted || !dialogRoute.isActive) {
+                                return;
+                              }
+                              final navigator = Navigator.of(context);
+                              if (dialogRoute.isCurrent) {
+                                navigator.pop();
+                              } else {
+                                navigator.removeRoute(dialogRoute);
+                              }
+                            } catch (_) {
+                              if (context.mounted) {
+                                setModalState(() => busy = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Không lưu được câu hỏi. Vui lòng thử lại.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Vui lòng điền đầy đủ câu hỏi và 4 đáp án!',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: Text(
+                    busy ? 'Đang lưu…' : 'Lưu',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -302,136 +325,150 @@ class _TrangThaiNganHangCauHoiQuanTri extends State<AdminQuestionBankScreen> {
     final controller = TextEditingController();
     var parsed = const KetQuaPhanTichCauHoi.empty();
     var busy = false;
-    final route = DialogRoute<int>(
+    late final DialogRoute<int> route;
+    route = DialogRoute<int>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Nhập nhiều câu hỏi'),
-          content: SizedBox(
-            width: 620,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Dán theo mẫu dưới đây. Ngăn cách các câu bằng dòng trống hoặc dòng ---; đáp án đúng ghi A, B, C hoặc D.',
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
+        builder: (dialogContext, setDialogState) => PopScope(
+          canPop: !busy,
+          child: AlertDialog(
+            title: const Text('Nhập nhiều câu hỏi'),
+            content: SizedBox(
+              width: 620,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Dán theo mẫu dưới đây. Ngăn cách các câu bằng dòng trống hoặc dòng ---; đáp án đúng ghi A, B, C hoặc D.',
                     ),
-                    child: const SelectableText(
-                      'Câu hỏi: Nội dung câu hỏi\n'
-                      'A. Đáp án thứ nhất\n'
-                      'B. Đáp án thứ hai\n'
-                      'C. Đáp án thứ ba\n'
-                      'D. Đáp án thứ tư\n'
-                      'Đáp án: B\n'
-                      'Giải thích: Không bắt buộc\n'
-                      '---\n'
-                      'Câu hỏi: Câu tiếp theo...\n'
-                      'A. ...',
-                      style: TextStyle(fontFamily: 'monospace', fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Cũng có thể dán trực tiếp từ Excel/Sheets theo cột: Câu hỏi | A | B | C | D | Đáp án đúng | Giải thích (không bắt buộc).',
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: controller,
-                    enabled: !busy,
-                    minLines: 8,
-                    maxLines: 14,
-                    keyboardType: TextInputType.multiline,
-                    decoration: const InputDecoration(
-                      labelText: 'Danh sách câu hỏi',
-                      hintText: 'Dán nội dung câu hỏi vào đây',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (text) => setDialogState(
-                      () => parsed = BoPhanTichCauHoi.parse(text),
-                    ),
-                  ),
-                  if (controller.text.trim().isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      parsed.errors.isEmpty
-                          ? 'Đã nhận ${parsed.questions.length} câu hỏi.'
-                          : '${parsed.questions.length} câu hợp lệ, ${parsed.errors.length} lỗi cần sửa:',
-                      style: TextStyle(
-                        color: parsed.errors.isEmpty
-                            ? Colors.green.shade800
-                            : Colors.red.shade700,
-                        fontWeight: FontWeight.w600,
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const SelectableText(
+                        'Câu hỏi: Nội dung câu hỏi\n'
+                        'A. Đáp án thứ nhất\n'
+                        'B. Đáp án thứ hai\n'
+                        'C. Đáp án thứ ba\n'
+                        'D. Đáp án thứ tư\n'
+                        'Đáp án: B\n'
+                        'Giải thích: Không bắt buộc\n'
+                        '---\n'
+                        'Câu hỏi: Câu tiếp theo...\n'
+                        'A. ...',
+                        style: TextStyle(fontFamily: 'monospace', fontSize: 12),
                       ),
                     ),
-                    for (final error in parsed.errors.take(5))
-                      Text(
-                        '• $error',
-                        style: TextStyle(color: Colors.red.shade700),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Cũng có thể dán trực tiếp từ Excel/Sheets theo cột: Câu hỏi | A | B | C | D | Đáp án đúng | Giải thích (không bắt buộc).',
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      enabled: !busy,
+                      minLines: 8,
+                      maxLines: 14,
+                      keyboardType: TextInputType.multiline,
+                      decoration: const InputDecoration(
+                        labelText: 'Danh sách câu hỏi',
+                        hintText: 'Dán nội dung câu hỏi vào đây',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
                       ),
-                    if (parsed.errors.length > 5)
-                      Text('Còn ${parsed.errors.length - 5} lỗi khác.'),
-                    if (parsed.questions.length > 499 && parsed.errors.isEmpty)
-                      Text(
-                        'Mỗi lần nhập tối đa 499 câu hỏi.',
-                        style: TextStyle(color: Colors.red.shade700),
+                      onChanged: (text) => setDialogState(
+                        () => parsed = BoPhanTichCauHoi.parse(text),
                       ),
+                    ),
+                    if (controller.text.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        parsed.errors.isEmpty
+                            ? 'Đã nhận ${parsed.questions.length} câu hỏi.'
+                            : '${parsed.questions.length} câu hợp lệ, ${parsed.errors.length} lỗi cần sửa:',
+                        style: TextStyle(
+                          color: parsed.errors.isEmpty
+                              ? Colors.green.shade800
+                              : Colors.red.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      for (final error in parsed.errors.take(5))
+                        Text(
+                          '• $error',
+                          style: TextStyle(color: Colors.red.shade700),
+                        ),
+                      if (parsed.errors.length > 5)
+                        Text('Còn ${parsed.errors.length - 5} lỗi khác.'),
+                      if (parsed.questions.length > 499 &&
+                          parsed.errors.isEmpty)
+                        Text(
+                          'Mỗi lần nhập tối đa 499 câu hỏi.',
+                          style: TextStyle(color: Colors.red.shade700),
+                        ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: busy ? null : () => Navigator.pop(dialogContext),
-              child: const Text('Hủy'),
-            ),
-            FilledButton.icon(
-              onPressed:
-                  busy ||
-                      parsed.questions.isEmpty ||
-                      parsed.errors.isNotEmpty ||
-                      parsed.questions.length > 499
-                  ? null
-                  : () async {
-                      setDialogState(() => busy = true);
-                      try {
-                        await _dichVuFirestore.addQuestions(
-                          widget.args.examId,
-                          parsed.questions
-                              .map((question) => question.toMap())
-                              .toList(),
-                        );
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext, parsed.questions.length);
-                        }
-                      } catch (_) {
-                        if (mounted && dialogContext.mounted) {
-                          setDialogState(() => busy = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Không lưu được danh sách câu hỏi. Vui lòng thử lại.',
-                              ),
-                            ),
+            actions: [
+              TextButton(
+                onPressed: busy ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Hủy'),
+              ),
+              FilledButton.icon(
+                onPressed:
+                    busy ||
+                        parsed.questions.isEmpty ||
+                        parsed.errors.isNotEmpty ||
+                        parsed.questions.length > 499
+                    ? null
+                    : () async {
+                        if (busy) return;
+                        setDialogState(() => busy = true);
+                        try {
+                          await _dichVuFirestore.addQuestions(
+                            widget.args.examId,
+                            parsed.questions
+                                .map((question) => question.toMap())
+                                .toList(),
                           );
+                          if (dialogContext.mounted && route.isActive) {
+                            final navigator = Navigator.of(dialogContext);
+                            if (route.isCurrent) {
+                              navigator.pop(parsed.questions.length);
+                            } else {
+                              navigator.removeRoute(
+                                route,
+                                parsed.questions.length,
+                              );
+                            }
+                          }
+                        } catch (_) {
+                          if (mounted && dialogContext.mounted) {
+                            setDialogState(() => busy = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Không lưu được danh sách câu hỏi. Vui lòng thử lại.',
+                                ),
+                              ),
+                            );
+                          }
                         }
-                      }
-                    },
-              icon: const Icon(Icons.cloud_upload_outlined),
-              label: Text(
-                busy ? 'Đang lưu…' : 'Lưu ${parsed.questions.length} câu hỏi',
+                      },
+                icon: const Icon(Icons.cloud_upload_outlined),
+                label: Text(
+                  busy ? 'Đang lưu…' : 'Lưu ${parsed.questions.length} câu hỏi',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

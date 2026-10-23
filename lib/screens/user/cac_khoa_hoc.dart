@@ -8,10 +8,13 @@ import 'package:flutter/material.dart';
 
 import '../../app/chu_de_ung_dung.dart';
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
+import '../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart';
 import '../../widgets/anh_bia_khoa_hoc.dart';
 import '../../models/bieu_mau_khoa_hoc.dart';
 import '../../models/bieu_mau_bai_hoc.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
+import '../../widgets/danh_muc_khoa_hoc_hoc_vien.dart';
+import '../../widgets/the_khoa_hoc_hoc_vien.dart';
 import '../../widgets/tien_ich_giao_dien_hoc_tap.dart';
 import '../../widgets/dieu_huong_hoc_vien.dart';
 import 'doc_bai_hoc.dart';
@@ -32,12 +35,10 @@ class UserCoursesScreen extends StatefulWidget {
 class _TrangThaiKhoaHocHocVien extends State<UserCoursesScreen> {
   late final service = widget.service ?? LearningService();
   late final Timer _refreshTimer;
-  late final courses = service.courses(classId: '');
-  late final progress = service.db
-      .collection('users')
-      .doc(widget.uid)
-      .collection('learning')
-      .snapshots();
+  late final courses = service.courses(publishedOnly: true);
+  late final progress = service.watchQuery(
+    service.db.collection('users').doc(widget.uid).collection('learning'),
+  );
   String search = '';
   String? subject;
 
@@ -61,266 +62,152 @@ class _TrangThaiKhoaHocHocVien extends State<UserCoursesScreen> {
     body: LearningList(
       stream: courses,
       errorTitle: 'Tải thư viện khóa học',
-      builder: (cacBanGhi) => LearningList(
-        stream: progress,
-        errorTitle: 'Tải tiến độ học tập',
-        builder: (cacMauTin) {
-          final subjects =
-              cacBanGhi
-                  .map((d) => (d.data()['subject'] as String? ?? '').trim())
-                  .where((s) => s.isNotEmpty)
-                  .toSet()
-                  .toList()
-                ..sort();
-          final daLoc = cacBanGhi
-              .where(
-                (d) =>
-                    LearningPolicy.canRead(d.data(), '') &&
-                    !CourseForm.hasExam(d.data()) &&
-                    (subject == null || d.data()['subject'] == subject) &&
-                    '${d.data()['title']} ${d.data()['subject']}'
-                        .toLowerCase()
-                        .contains(search),
-              )
-              .toList();
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Tìm bài học, nghiệp vụ…',
-                        prefixIcon: Icon(Icons.search),
+      builder: (cacBanGhi) => LearnerCourseCatalog(
+        courses: cacBanGhi
+            .where((course) => LearningPolicy.canRead(course.data()))
+            .toList(),
+        service: service,
+        builder: (entries) => LearningList(
+          stream: progress,
+          errorTitle: 'Tải tiến độ học tập',
+          builder: (cacMauTin) {
+            final studyEntries = entries
+                .where((entry) => !entry.hasExam)
+                .toList();
+            final subjects =
+                studyEntries
+                    .map(
+                      (entry) =>
+                          (entry.course.data()['subject'] as String? ?? '')
+                              .trim(),
+                    )
+                    .where((value) => value.isNotEmpty)
+                    .toSet()
+                    .toList()
+                  ..sort();
+            final daLoc = studyEntries
+                .where(
+                  (entry) =>
+                      (subject == null ||
+                          (entry.course.data()['subject'] as String? ?? '')
+                                  .trim() ==
+                              subject) &&
+                      '${entry.course.data()['title']} ${entry.course.data()['subject']}'
+                          .toLowerCase()
+                          .contains(search),
+                )
+                .toList();
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Tìm bài học, nghiệp vụ…',
+                          prefixIcon: Icon(Icons.search),
+                        ),
+                        onChanged: (v) =>
+                            setState(() => search = v.toLowerCase()),
                       ),
-                      onChanged: (v) =>
-                          setState(() => search = v.toLowerCase()),
-                    ),
-                    const SizedBox(height: 12),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (final s in <String?>[null, ...subjects])
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                showCheckmark: false,
-                                selectedColor: AppTheme.red,
-                                label: Text(
-                                  s ?? 'Tất cả',
-                                  style: TextStyle(
-                                    color: subject == s
-                                        ? Colors.white
-                                        : AppTheme.navy,
+                      const SizedBox(height: 12),
+                      LearnerSubjectFilter(
+                        subjects: subjects,
+                        selected: subject,
+                        onSelected: (value) => setState(() => subject = value),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: daLoc.isEmpty
+                      ? const Center(child: Text('Chưa có khóa học phù hợp.'))
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                          itemCount: daLoc.length,
+                          itemBuilder: (context, viTri) {
+                            final entry = daLoc[viTri];
+                            final banGhi = entry.course;
+                            return _TheThuVienKhoaHoc(
+                              key: ValueKey(banGhi.id),
+                              course: banGhi,
+                              lessons: entry.lessons,
+                              records: cacMauTin,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) => UserLessonsScreen(
+                                    uid: widget.uid,
+                                    course: banGhi,
+                                    service: service,
                                   ),
                                 ),
-                                selected: subject == s,
-                                onSelected: (_) => setState(() => subject = s),
                               ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
+                            );
+                          },
+                        ),
                 ),
-              ),
-              Expanded(
-                child: daLoc.isEmpty
-                    ? const Center(child: Text('Chưa có khóa học phù hợp.'))
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        itemCount: daLoc.length,
-                        itemBuilder: (context, viTri) {
-                          final banGhi = daLoc[viTri];
-                          return _TheThuVienKhoaHoc(
-                            key: ValueKey(banGhi.id),
-                            course: banGhi,
-                            service: service,
-                            records: cacMauTin,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (_) => UserLessonsScreen(
-                                  uid: widget.uid,
-                                  course: banGhi,
-                                  service: service,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     ),
   );
 }
 
-class _TheThuVienKhoaHoc extends StatefulWidget {
+class _TheThuVienKhoaHoc extends StatelessWidget {
   const _TheThuVienKhoaHoc({
     super.key,
     required this.course,
-    required this.service,
+    required this.lessons,
     required this.records,
     required this.onTap,
   });
   final LessonDoc course;
-  final LearningService service;
+  final List<LessonDoc> lessons;
   final List<LessonDoc> records;
   final VoidCallback onTap;
   @override
-  State<_TheThuVienKhoaHoc> createState() => _TrangThaiTheThuVienKhoaHoc();
-}
-
-class _TrangThaiTheThuVienKhoaHoc extends State<_TheThuVienKhoaHoc> {
-  late final lessons = widget.service.lessons(widget.course.id);
-  @override
-  Widget build(BuildContext context) => LearningList(
-    stream: lessons,
-    errorTitle: 'Tải nội dung khóa học',
-    builder: (allDocs) {
-      final duLieu = widget.course.data();
-      final releaseDate = CourseForm.formatReleaseDateTime(
-        duLieu['publishedAt'],
-      );
-      final explicitCourseMode =
-          duLieu['learningMode'] == 'study_only' ||
-          duLieu['learningMode'] == 'study_exam';
-      final cacBanGhi = LearningPolicy.sortLessons(allDocs)
+  Widget build(BuildContext context) {
+    final duLieu = course.data();
+    final tyLe = LearningPolicy.completion(
+      lessons.map((d) => d.id),
+      records
           .where(
-            (banGhi) => explicitCourseMode
-                ? !CourseForm.hasExam(duLieu)
-                : !LessonForm.hasExam(banGhi.data()),
+            (r) =>
+                r.data()['courseId'] == course.id &&
+                r.data()['completed'] == true,
           )
-          .toList();
-      if (cacBanGhi.isEmpty && allDocs.isNotEmpty) {
-        return const SizedBox.shrink();
-      }
-      final tyLe = LearningPolicy.completion(
-        cacBanGhi.map((d) => d.id),
-        widget.records
-            .where(
-              (r) =>
-                  r.data()['courseId'] == widget.course.id &&
-                  r.data()['completed'] == true,
-            )
-            .map((r) => r.data()['lessonId'] as String),
-      );
-      return Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: widget.onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CourseCover(
-                  url: duLieu['coverUrl'] ?? '',
-                  width: 86,
-                  height: 100,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        (duLieu['subject'] as String? ?? '').toUpperCase(),
-                        style: const TextStyle(
-                          color: AppTheme.red,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        duLieu['title'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.navy,
-                        ),
-                      ),
-                      if ((duLieu['instructor'] as String? ?? '').isNotEmpty)
-                        Text(
-                          'Giảng viên: ${duLieu['instructor']}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.blueGrey,
-                          ),
-                        ),
-                      if (releaseDate.isNotEmpty)
-                        Text(
-                          'Phát hành: $releaseDate',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.blueGrey,
-                          ),
-                        ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 4,
-                        children: [
-                          Text(
-                            cacBanGhi.isEmpty
-                                ? 'Chưa có bài học'
-                                : '${cacBanGhi.length} bài học',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.blueGrey,
-                            ),
-                          ),
-                          Text(
-                            cacBanGhi.isEmpty
-                                ? 'Đang cập nhật nội dung'
-                                : tyLe == 0
-                                ? 'Chưa học'
-                                : tyLe == 1
-                                ? 'Đã hoàn thành'
-                                : 'Đang học (${(tyLe * 100).round()}%)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: tyLe > 0
-                                  ? Colors.green.shade700
-                                  : Colors.blueGrey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: widget.onTap,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.red,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 9,
-                    ),
-                    minimumSize: const Size(0, 38),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text('Vào học', style: TextStyle(fontSize: 12)),
-                ),
-              ],
-            ),
-          ),
+          .map((r) => r.data()['lessonId'] as String),
+    );
+    return LearnerCourseCard(
+      courseData: duLieu,
+      lessonCount: lessons.length,
+      status: lessons.isEmpty
+          ? 'Đang cập nhật nội dung'
+          : tyLe == 0
+          ? 'Chưa học'
+          : tyLe == 1
+          ? 'Đã hoàn thành'
+          : 'Đang học (${(tyLe * 100).round()}%)',
+      statusColor: tyLe > 0 ? Colors.green.shade700 : Colors.blueGrey,
+      onTap: onTap,
+      trailing: FilledButton(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppTheme.red,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          minimumSize: const Size(0, 38),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-      );
-    },
-  );
+        child: const Text('Vào học', style: TextStyle(fontSize: 12)),
+      ),
+    );
+  }
 }
 
 /// Danh sách bài học trong một khóa học để học viên tiếp tục học.
@@ -330,12 +217,28 @@ class UserLessonsScreen extends StatefulWidget {
     required this.uid,
     required this.course,
     this.service,
+    this.examService,
+    this.testMode = false,
   });
   final String uid;
   final LessonDoc course;
   final LearningService? service;
+  final SecureExamService? examService;
+  final bool testMode;
   @override
   State<UserLessonsScreen> createState() => _TrangThaiBaiHocHocVien();
+}
+
+/// Chi tiết khóa học được mở từ mục Kiểm tra, dùng cùng bố cục nhưng giữ đúng
+/// ngữ cảnh điều hướng và hiển thị cả bài học của khóa có bài kiểm tra.
+class TestCourseDetailsScreen extends UserLessonsScreen {
+  const TestCourseDetailsScreen({
+    super.key,
+    required super.uid,
+    required super.course,
+    super.service,
+    super.examService,
+  }) : super(testMode: true);
 }
 
 class _TrangThaiBaiHocHocVien extends State<UserLessonsScreen> {
@@ -350,7 +253,9 @@ class _TrangThaiBaiHocHocVien extends State<UserLessonsScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        bottomNavigationBar: const LearnerNavigation(selectedIndex: 1),
+        bottomNavigationBar: LearnerNavigation(
+          selectedIndex: widget.testMode ? 2 : 1,
+        ),
         appBar: LearnerHeader(
           backgroundColor: AppTheme.red,
           title: const Text('Chi tiết khóa học'),
@@ -397,11 +302,11 @@ class _TrangThaiBaiHocHocVien extends State<UserLessonsScreen> {
                         const SizedBox(height: 8),
                         Text(
                           duLieu['title'] ?? '',
-                          maxLines: 3,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 20,
+                            fontSize: 19,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -410,7 +315,9 @@ class _TrangThaiBaiHocHocVien extends State<UserLessonsScreen> {
                         ).isNotEmpty) ...[
                           const SizedBox(height: 6),
                           Text(
-                            'Phát hành: ${CourseForm.formatReleaseDateTime(duLieu['publishedAt'])}',
+                            CourseForm.formatReleaseDateTime(
+                              duLieu['publishedAt'],
+                            ),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -482,19 +389,25 @@ class _TrangThaiBaiHocHocVien extends State<UserLessonsScreen> {
                       (duLieu['description'] as String? ?? '').isNotEmpty)
                     Text(duLieu['description']),
                   const SizedBox(height: 20),
-                  FilledButton.icon(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => CourseChaptersScreen(
-                          uid: widget.uid,
-                          course: widget.course,
-                          service: service,
-                        ),
-                      ),
+                  Builder(
+                    builder: (tabContext) => FilledButton.icon(
+                      onPressed: widget.testMode
+                          ? () =>
+                                DefaultTabController.of(tabContext).animateTo(1)
+                          : () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => CourseChaptersScreen(
+                                  uid: widget.uid,
+                                  course: widget.course,
+                                  service: service,
+                                  examService: widget.examService,
+                                ),
+                              ),
+                            ),
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('BẮT ĐẦU HỌC NGAY'),
                     ),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('BẮT ĐẦU HỌC NGAY'),
                   ),
                 ],
               ),
@@ -502,6 +415,8 @@ class _TrangThaiBaiHocHocVien extends State<UserLessonsScreen> {
                 uid: widget.uid,
                 course: widget.course,
                 service: service,
+                examService: widget.examService,
+                includeExamLessons: widget.testMode,
               ),
             ],
           ),

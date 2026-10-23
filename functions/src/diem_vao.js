@@ -167,6 +167,12 @@ export const adminSessionClaim = onCall(callableOptions, async (request) => {
       updatedAt: new Date(),
       sessionVersion: (data?.sessionVersion ?? 0) + 1,
     });
+    // Storage Rules can read only two Firestore documents per request.
+    // Mirror non-secret lease data on the protected account so Storage can
+    // validate the same session while still checking system/access for roots.
+    transaction.update(accountRef, {
+      accountSession: { status: 'active', authTime, lastSeenAt: new Date() },
+    });
     return { claimed: true, occupied: false };
   });
 });
@@ -178,6 +184,7 @@ export const adminSessionHeartbeat = onCall(callableOptions, async (request) => 
     throw new HttpsError('invalid-argument', 'Mã phiên đăng nhập không hợp lệ.');
   }
   const reference = adminSessionRef(request.auth.uid);
+  const accountRef = coSoDuLieu.doc(`users/${request.auth.uid}`);
   return coSoDuLieu.runTransaction(async (transaction) => {
     const current = await transaction.get(reference);
     if (!current.exists || current.data()?.status === 'released' ||
@@ -186,6 +193,13 @@ export const adminSessionHeartbeat = onCall(callableOptions, async (request) => 
       return { active: false };
     }
     transaction.update(reference, { lastSeenAt: new Date() });
+    transaction.update(accountRef, {
+      accountSession: {
+        status: 'active',
+        authTime: request.auth.token.auth_time,
+        lastSeenAt: new Date(),
+      },
+    });
     return { active: true };
   });
 });
@@ -197,6 +211,7 @@ export const adminSessionRelease = onCall(callableOptions, async (request) => {
     return { released: false };
   }
   const reference = adminSessionRef(request.auth.uid);
+  const accountRef = coSoDuLieu.doc(`users/${request.auth.uid}`);
   return coSoDuLieu.runTransaction(async (transaction) => {
     const current = await transaction.get(reference);
     if (!current.exists || current.data()?.status === 'released' ||
@@ -209,6 +224,13 @@ export const adminSessionRelease = onCall(callableOptions, async (request) => {
       status: 'released',
       releasedAt: new Date(),
       updatedAt: new Date(),
+    });
+    transaction.update(accountRef, {
+      accountSession: {
+        status: 'released',
+        authTime: request.auth.token.auth_time,
+        lastSeenAt: new Date(),
+      },
     });
     return { released: true };
   });
@@ -246,6 +268,7 @@ export const accountSetSubUnits = callable('setSubUnits');
 export const accountGetSubUnits = callable('getSubUnits');
 export const accountReassignUser = callable('reassignUser');
 export const accountRequestPasswordReset = publicCallable('requestPasswordReset');
+export const accountApprovePasswordReset = callable('approvePasswordReset');
 export const accountResolvePasswordReset = callable('resolvePasswordReset');
 export const feedbackSubmit = recentAuthCallable('submitFeedback');
 export const feedbackDelete = callable('deleteFeedback');

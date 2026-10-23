@@ -46,46 +46,29 @@ void main() {
     const admin = AccountIdentity(id: 'a1', role: 'admin');
     const root = AccountIdentity(id: 'r1', role: 'super_admin');
     const own = {'role': 'user', 'status': 'active', 'createdBy': 'a1'};
-    expect(admin.canDelete('u1', own), isTrue);
+    expect(admin.canDelete(own), isTrue);
+    expect(admin.canDelete({'role': 'user', 'status': 'active'}), isFalse);
     expect(
-      admin.canDelete('u1', {'role': 'user', 'status': 'active'}),
-      isFalse,
-    );
-    expect(
-      admin.canDelete('u2', {
+      admin.canDelete({
         'role': 'user',
         'status': 'active',
         'createdBy': 'other',
       }),
       isFalse,
     );
-    expect(admin.canEdit('u1', own), isTrue);
+    expect(admin.canEdit(own), isTrue);
     expect(
-      admin.canEdit('u2', {
-        'role': 'user',
-        'status': 'active',
-        'createdBy': 'other',
-      }),
+      admin.canEdit({'role': 'user', 'status': 'active', 'createdBy': 'other'}),
       isFalse,
     );
-    expect(admin.canEdit('a2', {'role': 'admin', 'status': 'active'}), isFalse);
+    expect(admin.canEdit({'role': 'admin', 'status': 'active'}), isFalse);
+    expect(admin.canDelete({'role': 'admin', 'status': 'active'}), isFalse);
+    expect(root.canDelete({'role': 'admin', 'status': 'active'}), isTrue);
     expect(
-      admin.canDelete('a2', {'role': 'admin', 'status': 'active'}),
+      root.canDelete({'role': 'super_admin', 'status': 'active'}),
       isFalse,
     );
-    expect(root.canDelete('a2', {'role': 'admin', 'status': 'active'}), isTrue);
-    expect(
-      root.canDelete('r2', {'role': 'super_admin', 'status': 'active'}),
-      isFalse,
-    );
-    expect(
-      root.canEdit('r2', {'role': 'super_admin', 'status': 'active'}),
-      isFalse,
-    );
-    expect(
-      root.canEdit('r1', {'role': 'super_admin', 'status': 'active'}),
-      isFalse,
-    );
+    expect(root.canEdit({'role': 'super_admin', 'status': 'active'}), isFalse);
   });
 
   test('login mapping matches backend SHA-256 mapping', () {

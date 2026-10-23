@@ -20,45 +20,41 @@ class NewsDetailScreen extends StatefulWidget {
 }
 
 class _TrangThaiChiTietTinTuc extends State<NewsDetailScreen> {
-  late final article = widget.service.db
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _articleStream() => widget
+      .service
+      .db
       .collection('news')
       .doc(widget.id)
-      .snapshots();
+      .snapshots(includeMetadataChanges: true);
   @override
-  Widget build(BuildContext context) =>
-      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: article,
-        builder: (context, duLieuNhan) {
-          final duLieu = duLieuNhan.data?.data();
-          final visible = !duLieuNhan.hasError && duLieu?['published'] == true;
-          return Scaffold(
-            backgroundColor: Colors.transparent,
-            appBar: LearnerHeader(
-              title: const Text('Tin tức'),
-              backgroundColor: AppTheme.red,
-            ),
-            body: !duLieuNhan.hasData && !duLieuNhan.hasError
-                ? const Center(child: CircularProgressIndicator())
-                : duLieuNhan.hasError
-                ? AppErrorNotice(
-                    error: duLieuNhan.error!,
-                    feature: 'Tải chi tiết tin tức',
-                    padding: const EdgeInsets.all(24),
-                    fallbackAction: 'Kiểm tra kết nối và cấu hình máy chủ rồi quay lại thử sau.',
-                  )
-                : !visible
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'Bài viết không còn được đăng hoặc chưa thể tải. Vui lòng quay lại danh sách.',
-                      ),
-                    ),
-                  )
-                : _noiDung(NewsArticle(widget.id, duLieu!)),
-          );
-        },
-      );
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.transparent,
+    appBar: LearnerHeader(
+      title: const Text('Tin tức'),
+      backgroundColor: AppTheme.red,
+    ),
+    body: ReloadableStreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      streamFactory: _articleStream,
+      feature: 'Tải chi tiết tin tức',
+      isUsableData: (data) => data.exists || !data.metadata.isFromCache,
+      builder: (context, duLieuNhan) {
+        if (!duLieuNhan.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final duLieu = duLieuNhan.data?.data();
+        return duLieu?['published'] != true
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'Bài viết không còn được đăng hoặc chưa thể tải. Vui lòng quay lại danh sách.',
+                  ),
+                ),
+              )
+            : _noiDung(NewsArticle(widget.id, duLieu!));
+      },
+    ),
+  );
 
   Widget _noiDung(NewsArticle baiViet) => Center(
     child: ConstrainedBox(
@@ -99,7 +95,11 @@ class _TrangThaiChiTietTinTuc extends State<NewsDetailScreen> {
           if (baiViet.coverUrl.isNotEmpty) ...[
             AspectRatio(
               aspectRatio: 16 / 9,
-              child: CourseCover(url: baiViet.coverUrl, width: double.infinity),
+              child: CourseCover(
+                brandFallback: true,
+                url: baiViet.coverUrl,
+                width: double.infinity,
+              ),
             ),
             const SizedBox(height: 20),
           ],

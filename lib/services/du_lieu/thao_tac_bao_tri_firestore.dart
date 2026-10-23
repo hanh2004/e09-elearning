@@ -4,7 +4,8 @@ mixin _FirestoreMaintenanceOperations on _FirestoreServiceCore {
   Stream<bool> getMaintenanceModeStream() => _coSoDuLieu
       .collection('system')
       .doc('app_status')
-      .snapshots()
+      .snapshots(includeMetadataChanges: true)
+      .where((snapshot) => !snapshot.metadata.isFromCache)
       .map((duLieuNhan) => duLieuNhan.data()?['maintenance'] == true);
 
   Future<bool> isMaintenanceMode() async {

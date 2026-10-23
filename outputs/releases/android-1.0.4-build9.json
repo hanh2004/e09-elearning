@@ -1,0 +1,19 @@
+{
+  "version": "1.0.4",
+  "buildNumber": 9,
+  "applicationId": "com.example.e09_elearning",
+  "signingCertificateSHA256": "D01D0DCEBB73464E522127D2D53CC245988EDEE34C71E7F03DD6B24491115CCC",
+  "artifacts": [
+    {
+      "path": "outputs/internal/e09-elearning-1.0.4-build9.apk",
+      "bytes": 68223610,
+      "sha256": "E785790F3F373D82C904A9C37E9A86A8F90D79FA6D74B59890C7F40C87C3E522"
+    },
+    {
+      "path": "outputs/internal/e09-elearning-1.0.4-build9.aab",
+      "bytes": 68258709,
+      "sha256": "E6BD5510E607281219F26BF1F47D7F9A606B9464296AE0C982460538B12907D7"
+    }
+  ],
+  "publishedToStore": false
+}

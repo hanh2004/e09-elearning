@@ -22,7 +22,6 @@ class UserNews extends StatefulWidget {
 
 class _TrangThaiTinTucHocVien extends State<UserNews> {
   late final news = NewsService(widget.service.db);
-  late final articles = news.published();
   String category = 'Tất cả';
   @override
   Widget build(BuildContext context) => Column(
@@ -51,19 +50,10 @@ class _TrangThaiTinTucHocVien extends State<UserNews> {
           ),
         ],
       ),
-      StreamBuilder<List<NewsArticle>>(
-        stream: articles,
+      ReloadableStreamBuilder<List<NewsArticle>>(
+        streamFactory: news.published,
+        feature: 'Tải tin tức trang chủ',
         builder: (context, duLieuNhan) {
-          if (duLieuNhan.hasError) {
-            return AppErrorNotice(
-              error: duLieuNhan.error!,
-              feature: 'Tải tin tức trang chủ',
-              padding: const EdgeInsets.all(16),
-              centered: false,
-              fallbackAction:
-                  'Kiểm tra kết nối và cấu hình máy chủ rồi thử lại.',
-            );
-          }
           if (!duLieuNhan.hasData) {
             return const Padding(
               padding: EdgeInsets.all(16),

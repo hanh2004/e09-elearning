@@ -83,9 +83,9 @@ test('submission completes the course even with a failing score and archives its
   assert.equal((await api.history('study-user')).runs.filter(r=>r.courseId==='completion').length,1);
 });
 
-test('course exam requires all lessons and cannot fall back to an old lesson exam', async () => {
+test('legacy course exam requires all lessons and cannot fall back to an old lesson exam', async () => {
   const course = db.doc('courses/full-course');
-  await course.set({published:true,learningMode:'study_exam',examId:'final-exam'});
+  await course.set({published:true,examId:'final-exam'});
   await course.collection('lessons').doc('a').set({learningMode:'study_exam',examId:'study-exam'});
   await course.collection('lessons').doc('b').set({learningMode:'study_only'});
   await db.doc('exams/final-exam').set({durationMinutes:10});

@@ -63,10 +63,10 @@ class NewsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final tieuDe = Text(
       article.title,
-      maxLines: large ? 3 : 2,
+      maxLines: 2,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        fontSize: large ? 19 : 15,
+        fontSize: large ? 18 : 14,
         height: 1.4,
         fontWeight: large ? FontWeight.w800 : FontWeight.w600,
       ),
@@ -98,6 +98,7 @@ class NewsTile extends StatelessWidget {
                   AspectRatio(
                     aspectRatio: 16 / 9,
                     child: CourseCover(
+                      brandFallback: true,
                       url: article.coverUrl,
                       width: double.infinity,
                     ),
@@ -112,6 +113,7 @@ class NewsTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CourseCover(
+                    brandFallback: true,
                     url: article.coverUrl,
                     width: MediaQuery.sizeOf(context).width < 360 ? 86 : 116,
                     height: 86,

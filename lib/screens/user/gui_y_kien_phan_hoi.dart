@@ -56,6 +56,7 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
           .collection('users')
           .doc(user.uid)
           .get(const GetOptions(source: Source.server));
+      if (!mounted) return;
       final savedUsername = (profile.data()?['username'] as String? ?? '')
           .trim();
       final expectedEmail = accountLoginEmail(typedUsername);
@@ -67,14 +68,16 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
 
       // Đây là thao tác duy nhất nhận mật khẩu. Không đưa mật khẩu vào callable,
       // Firestore, analytics hay log.
-      await user.reauthenticateWithCredential(
-        EmailAuthProvider.credential(
-          email: expectedEmail,
-          password: _password.text,
-        ),
-      );
+      await AdminWebSession.reauthenticate(() async {
+        await user.reauthenticateWithCredential(
+          EmailAuthProvider.credential(
+            email: expectedEmail,
+            password: _password.text,
+          ),
+        );
+      });
+      if (!mounted) return;
       _password.clear();
-      await user.getIdToken(true);
 
       await FirebaseFunctions.instanceFor(region: AppConfig.functionsRegion)
           .httpsCallable('feedbackSubmit')
@@ -95,17 +98,17 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
     } catch (error) {
       if (mounted) {
         setState(() {
-          _error = error is FirebaseAuthException &&
+          _error =
+              error is FirebaseAuthException &&
                   ['invalid-credential', 'wrong-password'].contains(error.code)
               ? 'Tên đăng nhập hoặc mật khẩu không chính xác.'
               : AppErrorMessage.from(
-            error,
-            feature: error is FirebaseAuthException
-                ? 'Xác thực tài khoản để gửi góp ý'
-                : 'Gửi góp ý',
-            fallbackAction:
-                'Kiểm tra thông tin tài khoản, quyền truy cập, kết nối và cấu hình máy chủ rồi thử lại.',
-          );
+                  error,
+                  feature: error is FirebaseAuthException
+                      ? 'Xác thực tài khoản để gửi góp ý'
+                      : 'Gửi góp ý',
+                  fallbackAction: 'Kiểm tra thông tin tài khoản, quyền truy cập, kết nối và cấu hình máy chủ rồi thử lại.',
+                );
         });
       }
     } finally {

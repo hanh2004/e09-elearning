@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:e09_elearning/models/bao_cao_quan_tri.dart';
 import 'package:e09_elearning/services/ket_noi_api/api_tai_khoan.dart';
 import 'package:e09_elearning/services/tai_khoan/thao_tac_tai_khoan_hoc_vien.dart';
@@ -33,6 +35,54 @@ Future<void> _moCapNhatDonVi(
 }
 
 void main() {
+  testWidgets('slow unit options fall back once despite repeated taps', (
+    tester,
+  ) async {
+    final db = FakeFirebaseFirestore();
+    await db.doc('users/u').set({
+      'name': 'An',
+      'unit': 'D',
+      'createdBy': 'm1',
+      'subUnit': '',
+    });
+    await db.doc('users/m1').set({
+      'role': 'admin',
+      'status': 'active',
+      'subUnits': ['C1', 'C2'],
+    });
+    final pending = Completer<Map<String, dynamic>>();
+    var calls = 0;
+    await _moCapNhatDonVi(
+      tester,
+      db,
+      accounts: AccountApi(
+        transport: (_, _) {
+          calls++;
+          return pending.future;
+        },
+      ),
+    );
+    await tester.tap(find.text('Cập nhật đơn vị'));
+    await tester.tap(find.text('Cập nhật đơn vị'));
+    await tester.pump();
+    expect(calls, 1);
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+
+    await tester.pump(const Duration(seconds: 9));
+    await tester.pumpAndSettle();
+    expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+    expect(find.text('C1'), findsOneWidget);
+    await tester.tap(find.text('Hủy'));
+    await tester.pumpAndSettle();
+    pending.complete({
+      'managerId': 'm1',
+      'subUnits': ['Đội cũ'],
+    });
+    await tester.pumpAndSettle();
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'learner selects manager options and cannot select removed unit',
     (tester) async {

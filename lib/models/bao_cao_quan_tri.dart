@@ -2,6 +2,7 @@
 // Giữ tên trường Firebase khi đổi cách hiển thị để đọc được dữ liệu đã lưu.
 
 import 'ket_qua_bai_kiem_tra.dart';
+import 'quy_tac_hoc_tap.dart';
 
 class AdminReportRow {
   AdminReportRow({
@@ -130,7 +131,11 @@ class AdminReport {
         ),
       );
       dong.attempts += soLuong;
-      final latest = duLieu['reportLastAt'] as DateTime?;
+      final latest = LearningPolicy.readDateTime(
+        duLieu['reportLastAt'] ??
+            duLieu['lastAttemptAt'] ??
+            duLieu['completedAt'],
+      );
       if (latest != null &&
           (dong.submittedAt == null || latest.isAfter(dong.submittedAt!))) {
         dong.submittedAt = latest;
@@ -139,7 +144,11 @@ class AdminReport {
       if (giaTri is! num || !giaTri.isFinite || giaTri < 0 || giaTri > 10) {
         continue;
       }
-      final bestAt = duLieu['reportBestAt'] as DateTime?;
+      final bestAt = LearningPolicy.readDateTime(
+        duLieu['reportBestAt'] ??
+            duLieu['bestCompletedAt'] ??
+            duLieu['completedAt'],
+      );
       if (dong.score == null ||
           giaTri > dong.score! ||
           (giaTri == dong.score &&

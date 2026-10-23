@@ -3,7 +3,12 @@ import 'package:e09_elearning/services/lay_du_lieu_bao_cao_quan_tri.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:e09_elearning/models/dinh_danh_tai_khoan.dart';
 import 'package:e09_elearning/screens/admin/bao_cao_thong_ke.dart';
+import 'package:e09_elearning/screens/admin/bao_cao_khoa_hoc.dart';
+import 'package:e09_elearning/services/nghiep_vu/dich_vu_hoc_tap.dart';
+import 'package:e09_elearning/screens/admin/theo_doi_tien_do_hoc_tap.dart';
+import 'package:e09_elearning/screens/admin/tong_quan_hoc_tap.dart';
 import 'package:e09_elearning/services/du_lieu/dich_vu_firestore.dart';
+import 'package:e09_elearning/services/nguon_du_lieu_bao_cao_quan_tri.dart';
 import 'package:e09_elearning/app/chu_de_ung_dung.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -79,6 +84,130 @@ void main() {
     expect(report.average, isNull);
     expect(report.passRate, isNull);
   });
+  test('report reads submission dates directly from summary fields', () {
+    final best = DateTime(2026, 9, 1);
+    final latest = DateTime(2026, 9, 3);
+    final report = AdminReport.build(
+      users: users,
+      exams: exams,
+      attempts: [
+        {
+          'userId': 'u',
+          'examId': 'e',
+          'attemptCount': 2,
+          'bestScore': 8,
+          'bestCompletedAt': Timestamp.fromDate(best),
+          'lastAttemptAt': latest,
+        },
+      ],
+    );
+    expect(report.rows.single.bestAt, best);
+    expect(report.rows.single.submittedAt, latest);
+  });
+
+  testWidgets('course exam statistics merge summaries and retain earlier submissions', (
+    tester,
+  ) async {
+    AccountSession.current = const AccountIdentity(id: 'root', role: 'super_admin');
+    addTearDown(() => AccountSession.current = null);
+    final db = FakeFirebaseFirestore();
+    await db.doc('courses/c').set({
+      'title': 'Khóa đã kết thúc',
+      'endsAt': Timestamp.fromDate(DateTime(2026, 9, 1)),
+      'examId': 'e',
+    });
+    for (final (id, userId, status, count, score) in [
+      ('best', 'u', 'in_progress', 2, 8),
+      ('older', 'u', 'completed', 1, 6),
+      ('pending', 'v', 'in_progress', 0, null),
+      ('ungraded', 'w', 'completed', 1, null),
+    ]) {
+      await db.doc('exam_attempts/$id').set({
+        'userId': userId,
+        'courseId': 'c',
+        'examId': 'e',
+        'status': status,
+        'attemptCount': count,
+        'score': score,
+      });
+    }
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminCourseReportScreen(
+          course: (await db.collection('courses').get()).docs.single,
+          service: LearningService(db: db),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Đã nộp: 2/3 • Điểm trung bình: 8.0'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Đã nộp: 2/3 • Điểm trung bình: 8.0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final dashboard in [false, true]) {
+    testWidgets('report tabs agree on score fields and missing grades ($dashboard)', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final db = FakeFirebaseFirestore();
+      for (final id in ['u', 'v']) {
+        await db.doc('users/$id').set(users[id]!);
+      }
+      await db.doc('courses/c').set({
+        'title': 'Khóa có kiểm tra',
+        'published': true,
+        'learningMode': 'study_exam',
+        'examId': 'e',
+      });
+      await db.doc('courses/c/lessons/l').set({'title': 'Bài học'});
+      await db.doc('exams/e').set({...exams['e']!, 'courseId': 'c'});
+      for (final id in ['u', 'v']) {
+        await db.doc('exam_attempts/$id').set({
+          'userId': id,
+          'examId': 'e',
+          'courseId': 'c',
+          'status': 'completed',
+          if (id == 'u') dashboard ? 'bestScore' : 'score': 8,
+          'completedAt': Timestamp.fromDate(DateTime(2026, 9, 1)),
+        });
+      }
+      final data = AdminReportData.fromSnapshots(
+        users: await db.collection('users').get(),
+        courses: await db.collection('courses').get(),
+        exams: await db.collection('exams').get(),
+        attempts: await db.collection('exam_attempts').get(),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: dashboard
+                ? AdminLearningDashboard(reportData: data)
+                : AdminProgressScreen(reportData: data),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      if (dashboard) {
+        expect(find.text('Đã thi • 8.0'), findsOneWidget);
+        expect(find.text('Chưa thi'), findsOneWidget);
+      } else {
+        expect(find.text('8.0'), findsOneWidget);
+        await tester.tap(find.text('Nghiệp vụ'));
+        await tester.pumpAndSettle();
+        expect(find.text('Thiếu điểm'), findsOneWidget);
+        expect(find.text('0.0'), findsNothing);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
   test(
     'Excel date range counts only runs submitted inside that range',
     () async {

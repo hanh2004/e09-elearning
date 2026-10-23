@@ -100,10 +100,4 @@ class CauHoiModel {
       dsLuaChon: convertedOptions,
     );
   }
-
-  Map<String, dynamic> toMap() => {
-    'noi_dung': noiDung,
-    'loai_cau_hoi': loaiCauHoi,
-    'ds_lua_chon': dsLuaChon.map((x) => x.toMap()).toList(),
-  };
 }

@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../app/chu_de_ung_dung.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
+import '../../models/yeu_cau_cap_lai_mat_khau.dart';
 import '../../widgets/giao_dien_quan_tri.dart';
 import 'khung_giao_dien_quan_tri.dart';
 import '../../services/du_lieu/dich_vu_firestore.dart';
@@ -46,6 +47,7 @@ class AdminAccountScreen extends StatefulWidget {
 class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
   late final FirestoreService _dichVu = widget.service ?? FirestoreService();
   late final _luongTaiKhoan = _dichVu.getUsersStream();
+  late final _luongYeuCauMatKhau = _dichVu.getPasswordResetRequestsStream();
   final _oNhapTimKiem = TextEditingController();
   String _timKiem = '';
   String? _boLocDonVi;
@@ -237,79 +239,75 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: SizedBox(
           width: chieuRongHuuDung,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: AdminUi.border),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Column(
-                  children: [
-                    Container(
-                      height: 48,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFF4F7FB),
-                        border: Border(
-                          bottom: BorderSide(color: AdminUi.border),
-                        ),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Row(
-                        children: [
-                          _oCotBang(3, 'Tài khoản', tieuDe: true),
-                          _vachCotBang(),
-                          _oCotBang(2, 'Vai trò', tieuDe: true),
-                          _vachCotBang(),
-                          _oCotBang(1, 'Đơn vị', tieuDe: true),
-                          _vachCotBang(),
-                          _oCotBang(2, 'Trực thuộc', tieuDe: true),
-                          _vachCotBang(),
-                          _oCotBang(2, 'Mã', tieuDe: true),
-                          _vachCotBang(),
-                          _oCotBang(2, 'Quản lý', tieuDe: true),
-                          _vachCotBang(),
-                          SizedBox(
-                            width: 196,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                              ),
-                              child: Text(
-                                'Thao tác',
-                                maxLines: 1,
-                                style: const TextStyle(
-                                  color: Color(0xFF5E6F89),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: AdminUi.border),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                children: [
+                  Container(
+                    height: 48,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF4F7FB),
+                      border: Border(bottom: BorderSide(color: AdminUi.border)),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      children: [
+                        _oCotBang(3, 'Họ và tên', tieuDe: true),
+                        _vachCotBang(),
+                        _oCotBang(2, 'Vai trò', tieuDe: true),
+                        _vachCotBang(),
+                        _oCotBang(1, 'Đơn vị', tieuDe: true),
+                        _vachCotBang(),
+                        _oCotBang(2, 'Trực thuộc', tieuDe: true),
+                        _vachCotBang(),
+                        _oCotBang(2, 'Tài khoản', tieuDe: true),
+                        _vachCotBang(),
+                        _oCotBang(2, 'Quản lý', tieuDe: true),
+                        _vachCotBang(),
+                        SizedBox(
+                          width: 196,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              'Thao tác',
+                              maxLines: 1,
+                              style: const TextStyle(
+                                color: Color(0xFF5E6F89),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: cacBanGhi.length,
+                      separatorBuilder: (context, index) => const Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: AdminUi.border,
+                      ),
+                      itemBuilder: (context, index) => _dungDongBangTaiKhoan(
+                        cacBanGhi[index],
+                        cacQuanLy,
+                        tatCaTaiKhoan,
+                        tenNguoiTao,
                       ),
                     ),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: cacBanGhi.length,
-                        separatorBuilder: (context, index) => const Divider(
-                          height: 1,
-                          thickness: 1,
-                          color: AdminUi.border,
-                        ),
-                        itemBuilder: (context, index) => _dungDongBangTaiKhoan(
-                          cacBanGhi[index],
-                          cacQuanLy,
-                          tatCaTaiKhoan,
-                          tenNguoiTao,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
+          ),
         ),
       );
     },
@@ -353,7 +351,7 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
     final ten = (nguoiDung['name'] ?? '').toString().trim();
     final tenTaiKhoan = (nguoiDung['username'] ?? '').toString().trim();
     final hienThiTen = ten.isNotEmpty ? ten : tenTaiKhoan;
-    final maNguoiDung = (nguoiDung['userCode'] ?? '').toString().trim();
+    final tenDangNhap = tenTaiKhoan;
     final maQuanLy = nguoiDung['createdBy']?.toString();
     String quanLyHienThi() {
       if (maQuanLy == null || maQuanLy.isEmpty) return '—';
@@ -427,7 +425,7 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
         ),
       );
     }
-    if (_danhTinh!.canEdit(banGhi.id, nguoiDung)) {
+    if (_danhTinh!.canEdit(nguoiDung)) {
       thaoTac.add(
         _nutBangTaiKhoan(
           'Sửa tài khoản',
@@ -436,7 +434,7 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
         ),
       );
     }
-    if (_danhTinh!.canDelete(banGhi.id, nguoiDung)) {
+    if (_danhTinh!.canDelete(nguoiDung)) {
       thaoTac.add(
         _nutBangTaiKhoan(
           nguoiDung['role'] == 'admin' ? 'Đề xuất xóa Quản lý' : 'Xóa học viên',
@@ -467,14 +465,6 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (ten.isNotEmpty && tenTaiKhoan.isNotEmpty)
-                    Text(
-                      tenTaiKhoan,
-                      style: const TextStyle(
-                        color: Color(0xFF7185A5),
-                        fontSize: 13,
-                      ),
-                    ),
                   if (trangThai != null)
                     Text(
                       trangThai,
@@ -533,7 +523,7 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
             child: _giaTriCotBang((nguoiDung['subUnit'] ?? '').toString()),
           ),
           _vachCotBang(),
-          Expanded(flex: 2, child: _giaTriCotBang(maNguoiDung)),
+          Expanded(flex: 2, child: _giaTriCotBang(tenDangNhap)),
           _vachCotBang(),
           Expanded(
             flex: 2,
@@ -618,7 +608,7 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
   }
 
   Future<void> _xoa(String ma, Map<String, dynamic> nguoiDung) async {
-    if (_danhTinh?.canDelete(ma, nguoiDung) != true) return;
+    if (_danhTinh?.canDelete(nguoiDung) != true) return;
     final xoaQuanLy = nguoiDung['role'] == 'admin';
     final confirmed = await showDialog<bool>(
       context: context,
@@ -756,32 +746,20 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                       },
                     ),
                   if (!_hienXoaHangLoat)
-                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: _dichVu.getPasswordResetRequestsStream(),
+                    StreamBuilder<List<PasswordResetRequest>>(
+                      stream: _luongYeuCauMatKhau,
                       builder: (context, requests) {
                         final soDangCho =
-                            requests.data?.docs.where((request) {
-                              final data = request.data();
-                              final assignedToMe =
-                                  data['managerId'] == _danhTinh!.id;
-                              final rootRecovery =
-                                  root &&
-                                  data['type'] == 'root_recovery' &&
-                                  data['userId'] != _danhTinh!.id;
-                              final adminReset =
-                                  root && data['userRole'] == 'admin';
-                              return (assignedToMe ||
-                                      rootRecovery ||
-                                      adminReset) &&
-                                  [
-                                    'pending',
-                                    'approved_once',
-                                  ].contains(data['status']);
-                            }).length ??
+                            requests.data
+                                ?.where(
+                                  (request) =>
+                                      request.needsAttentionFor(_danhTinh!),
+                                )
+                                .length ??
                             0;
                         return Badge(
-                          isLabelVisible: soDangCho > 0,
-                          label: Text('$soDangCho'),
+                          isLabelVisible: requests.hasError || soDangCho > 0,
+                          label: Text(requests.hasError ? '!' : '$soDangCho'),
                           child: OutlinedButton.icon(
                             onPressed: () => setState(() {
                               _hienYeuCauDuyetQuanLy = false;
@@ -963,48 +941,51 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                     final activeSubUnit = subUnits.contains(selectedSubUnit)
                         ? selectedSubUnit
                         : null;
-                    final cacBanGhi = available.where((banGhi) {
-                      final duLieu = banGhi.data();
-                      final donVi = _donViCua(duLieu);
-                      return (selectedUnit == null || donVi == selectedUnit) &&
-                          (activeSubUnit == null ||
-                              duLieu['subUnit'] == activeSubUnit) &&
-                          '${duLieu['name'] ?? ''} ${duLieu['username'] ?? ''} ${duLieu['userCode'] ?? ''} $donVi ${duLieu['subUnit'] ?? ''} ${duLieu['subUnit'] ?? ''}-$donVi'
-                              .toLowerCase()
-                              .contains(_timKiem);
-                    }).toList()
-                      ..sort((a, b) {
-                        int mucVaiTro(String? role) => switch (role) {
-                          'super_admin' => 0,
-                          'admin' => 1,
-                          'user' => 2,
-                          _ => 3,
-                        };
+                    final cacBanGhi =
+                        available.where((banGhi) {
+                          final duLieu = banGhi.data();
+                          final donVi = _donViCua(duLieu);
+                          return (selectedUnit == null ||
+                                  donVi == selectedUnit) &&
+                              (activeSubUnit == null ||
+                                  duLieu['subUnit'] == activeSubUnit) &&
+                              '${duLieu['name'] ?? ''} ${duLieu['username'] ?? ''} $donVi ${duLieu['subUnit'] ?? ''}'
+                                  .toLowerCase()
+                                  .contains(_timKiem);
+                        }).toList()..sort((a, b) {
+                          int mucVaiTro(String? role) => switch (role) {
+                            'super_admin' => 0,
+                            'admin' => 1,
+                            'user' => 2,
+                            _ => 3,
+                          };
 
-                        final theoVaiTro = mucVaiTro(
-                          a.data()['role']?.toString(),
-                        ).compareTo(mucVaiTro(b.data()['role']?.toString()));
-                        if (theoVaiTro != 0) return theoVaiTro;
+                          final theoVaiTro = mucVaiTro(
+                            a.data()['role']?.toString(),
+                          ).compareTo(mucVaiTro(b.data()['role']?.toString()));
+                          if (theoVaiTro != 0) return theoVaiTro;
 
-                        String tenSapXep(
-                          QueryDocumentSnapshot<Map<String, dynamic>> record,
-                        ) {
-                          final duLieu = record.data();
-                          final ten = (duLieu['name'] ?? '').toString().trim();
-                          final tenDangNhap = (duLieu['username'] ?? '')
-                              .toString()
-                              .trim();
-                          return (ten.isNotEmpty
-                                  ? ten
-                                  : tenDangNhap.isNotEmpty
-                                  ? tenDangNhap
-                                  : record.id)
-                              .toLowerCase();
-                        }
+                          String tenSapXep(
+                            QueryDocumentSnapshot<Map<String, dynamic>> record,
+                          ) {
+                            final duLieu = record.data();
+                            final ten = (duLieu['name'] ?? '')
+                                .toString()
+                                .trim();
+                            final tenDangNhap = (duLieu['username'] ?? '')
+                                .toString()
+                                .trim();
+                            return (ten.isNotEmpty
+                                    ? ten
+                                    : tenDangNhap.isNotEmpty
+                                    ? tenDangNhap
+                                    : record.id)
+                                .toLowerCase();
+                          }
 
-                        final theoTen = tenSapXep(a).compareTo(tenSapXep(b));
-                        return theoTen != 0 ? theoTen : a.id.compareTo(b.id);
-                      });
+                          final theoTen = tenSapXep(a).compareTo(tenSapXep(b));
+                          return theoTen != 0 ? theoTen : a.id.compareTo(b.id);
+                        });
                     return Column(
                       children: [
                         _boLoc(cacDonVi, selectedUnit, subUnits, activeSubUnit),
@@ -1057,7 +1038,7 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                                                       ? ''
                                                       : nguoiDung['status'] == 'blocked'
                                                       ? ' • Đã khóa'
-                                                      : ' • Chờ xử lý'}\nĐơn vị: ${nguoiDung['role'] == 'super_admin' ? 'E09' : nguoiDung['unit'] ?? 'Chưa phân đơn vị'}${(nguoiDung['subUnit'] as String? ?? '').isEmpty ? '' : '\nTrực thuộc: ${nguoiDung['subUnit']}'}${nguoiDung['role'] == 'user' ? '\nMã người dùng: ${nguoiDung['userCode'] ?? 'Chưa được cấp'}' : ''}$creatorLabel',
+                                                      : ' • Chờ xử lý'}\nĐơn vị: ${nguoiDung['role'] == 'super_admin' ? 'E09' : nguoiDung['unit'] ?? 'Chưa phân đơn vị'}${(nguoiDung['subUnit'] as String? ?? '').isEmpty ? '' : '\nTrực thuộc: ${nguoiDung['subUnit']}'}$creatorLabel',
                                                 ),
                                                 trailing: Row(
                                                   mainAxisSize:
@@ -1097,7 +1078,8 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                                                               ),
                                                         ))
                                                       IconButton(
-                                                        tooltip: 'Chuyển đơn vị',
+                                                        tooltip:
+                                                            'Chuyển đơn vị',
                                                         icon: const Icon(
                                                           Icons.swap_horiz,
                                                         ),
@@ -1157,7 +1139,6 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                                                         },
                                                       ),
                                                     if (_danhTinh!.canEdit(
-                                                      banGhi.id,
                                                       nguoiDung,
                                                     ))
                                                       IconButton(
@@ -1173,7 +1154,6 @@ class _TrangThaiTaiKhoanQuanTri extends State<AdminAccountScreen> {
                                                             ),
                                                       ),
                                                     if (_danhTinh!.canDelete(
-                                                      banGhi.id,
                                                       nguoiDung,
                                                     ))
                                                       IconButton(

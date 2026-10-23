@@ -26,7 +26,16 @@
     {
       "source": "functions",
       "codebase": "accounts",
-      "runtime": "nodejs22"
+      "runtime": "nodejs22",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "test",
+        "scripts",
+        "firebase-export-*",
+        "*-debug.log",
+        "firebase-debug.*.log"
+      ]
     }
   ],
   "firestore": {

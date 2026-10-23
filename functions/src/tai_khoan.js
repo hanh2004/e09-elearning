@@ -5,8 +5,8 @@ import { createImportUsersHandler } from './nhap_hoc_vien.js';
 import { createSetUnitHandler } from './gan_don_vi.js';
 import { createPasswordResetHandlers } from './cap_lai_mat_khau.js';
 import { fingerprint, isRoot, loginEmail, requireAdmin, requireDecision, rootIds,
-  requireDelete, requireRoot, requireThat, requireUpdate, userCodeKey,
-  makeUserCode, usernameKey, validateRows, validateUnit, validateSubUnit, userCodeSuffix } from './quy_tac.js';
+  requireDelete, requireRoot, requireThat, requireUpdate, normalizedKey,
+  usernameKey, validateRows, validateUnit, validateSubUnit } from './quy_tac.js';
 
 // Mọi lần ghi dùng Admin SDK. Client không được tự gửi UID người thao tác hoặc vai trò.
 export function accountHandlers(coSoDuLieu, xacThuc) {
@@ -24,31 +24,29 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
   }
   const userRef = (ma) => {
     requireThat(typeof ma === 'string' && /^[A-Za-z0-9_=-]{1,128}$/.test(ma),
-      'invalid-argument', 'Mã tài khoản không hợp lệ.');
+      'invalid-argument', 'Định danh tài khoản không hợp lệ.');
     return coSoDuLieu.doc(`users/${ma}`);
   };
-  // Đọc trước, ghi sau để mọi thay đổi mã và đơn vị cùng thành công hoặc cùng hủy.
+  // Đọc trước, ghi sau để giữ mã đơn vị an toàn cùng thay đổi hồ sơ.
   async function unitReservation(giaoDich, donVi, managerId) {
     const giaTri = validateUnit(donVi);
-    requireThat(userCodeKey(giaTri) !== userCodeKey('E09'), 'already-exists',
+    requireThat(normalizedKey(giaTri) !== normalizedKey('E09'), 'already-exists',
       'Mã E09 dành cho quản lý tổng. Hãy chọn mã đơn vị khác.');
-    const thamChieu = coSoDuLieu.doc(`unit_codes/${userCodeKey(giaTri)}`);
+    const thamChieu = coSoDuLieu.doc(`unit_codes/${normalizedKey(giaTri)}`);
     const reserved = await giaoDich.get(thamChieu);
     requireThat(!reserved.exists || reserved.data().managerId === managerId,
       'already-exists', 'Mã đơn vị đã được quản lý khác sử dụng.');
-    // Giữ đường quét tương thích đến khi backfill đã lập đủ reservation cho dữ liệu cũ.
-    const indexesReady = (await giaoDich.get(coSoDuLieu.doc('system/code_indexes'))).data()?.status === 'complete';
-    if (!indexesReady) {
+    if (!reserved.exists) {
       const managers = await giaoDich.get(coSoDuLieu.collection('users').where('role', '==', 'admin'));
       requireThat(!managers.docs.some(banGhi => banGhi.id !== managerId &&
         banGhi.data().status !== 'rejected' && typeof banGhi.data().unit === 'string' &&
-        userCodeKey(banGhi.data().unit) === userCodeKey(giaTri)),
+        normalizedKey(banGhi.data().unit) === normalizedKey(giaTri)),
       'already-exists', 'Mã đơn vị đã được quản lý khác sử dụng.');
     }
     return () => giaoDich.set(thamChieu, {unit: giaTri, managerId});
   }
   async function assignment({giaoDich, thamChieu, dich, donVi, managerId, actorId,
-    existingLearners, requestedSuffix, unitChangeOperationId}) {
+    unitChangeOperationId}) {
     const manager = (await giaoDich.get(userRef(managerId))).data();
     requireThat(manager?.adminDeletionPending !== true, 'failed-precondition',
       'Không thể chuyển học viên cho quản lý đang chờ duyệt xóa.');
@@ -63,30 +61,9 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
         sourceManager.unitChangeOperationId === unitChangeOperationId,
       'failed-precondition', 'Đơn vị hiện tại đang được đổi. Hãy thử chuyển học viên sau.');
     }
-    const suffix = typeof requestedSuffix === 'string'
-      ? requestedSuffix.trim() : userCodeSuffix(dich, thamChieu.id);
-    const maLoi = makeUserCode(donVi, suffix);
-    const nextRef = coSoDuLieu.doc(`user_codes/${userCodeKey(maLoi)}`);
-    const tiepTheo = await giaoDich.get(nextRef);
-    requireThat(!tiepTheo.exists || tiepTheo.data().uid === thamChieu.id, 'already-exists',
-      'Mã người dùng tại đơn vị mới đã được sử dụng.');
-    if (!tiepTheo.exists) {
-      const indexesReady = (await giaoDich.get(coSoDuLieu.doc('system/code_indexes'))).data()?.status === 'complete';
-      if (!indexesReady) {
-        const learners = existingLearners || await giaoDich.get(coSoDuLieu.collection('users').where('role', '==', 'user'));
-        requireThat(!learners.docs.some(banGhi => banGhi.id !== thamChieu.id &&
-          typeof banGhi.data().userCode === 'string' &&
-          userCodeKey(banGhi.data().userCode) === userCodeKey(maLoi)),
-        'already-exists', 'Mã người dùng tại đơn vị mới đã được sử dụng.');
-      }
-    }
-    const oldRef = dich.userCode ? coSoDuLieu.doc(`user_codes/${userCodeKey(dich.userCode)}`) : null;
-    const cu = oldRef && oldRef.path !== nextRef.path ? await giaoDich.get(oldRef) : null;
-    const changed = userCodeKey(dich.unit || '') !== userCodeKey(donVi) || dich.createdBy !== managerId;
+    const changed = normalizedKey(dich.unit || '') !== normalizedKey(donVi) || dich.createdBy !== managerId;
     return () => {
-      giaoDich.set(nextRef, {uid: thamChieu.id, code: maLoi, createdBy: managerId, updatedAt: stamp()});
-      if (cu?.exists && cu.data().uid === thamChieu.id) giaoDich.delete(oldRef);
-      giaoDich.update(thamChieu, {unit: donVi, createdBy: managerId, userCode: maLoi, userCodeSuffix: suffix,
+      giaoDich.update(thamChieu, {unit: donVi, createdBy: managerId,
         originalCreatedBy: FieldValue.delete(),
         learnerDeletionPending: FieldValue.delete(),
         learnerDeletionRequestId: FieldValue.delete(),
@@ -121,7 +98,7 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
   });
   const setUnit = createSetUnitHandler({
     coSoDuLieu, userRef, nguCanh, requireRoot, requireThat, validateUnit,
-    userCodeKey, makeUserCode, userCodeSuffix, unitReservation, assignment, stamp,
+    normalizedKey, unitReservation, assignment, stamp,
   });
   const passwordResetHandlers = createPasswordResetHandlers({
     coSoDuLieu, xacThuc, userRef, nguCanh, stamp,
@@ -186,7 +163,7 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
       requireThat(dich?.status === 'pending' ||
         (yeuCau.status === tiepTheo && dich?.status === (dauVao.approve ? 'active' : 'rejected')),
       'failed-precondition', 'Tài khoản đã thay đổi trạng thái.');
-      const unitRef = dich.unit ? coSoDuLieu.doc(`unit_codes/${userCodeKey(dich.unit)}`) : null;
+      const unitRef = dich.unit ? coSoDuLieu.doc(`unit_codes/${normalizedKey(dich.unit)}`) : null;
       const unitRecord = !dauVao.approve && unitRef ? await giaoDich.get(unitRef) : null;
       if (unitRecord?.exists && unitRecord.data().managerId === yeuCau.targetUid) giaoDich.delete(unitRef);
       giaoDich.update(thamChieu, { status: tiepTheo, decidedBy: maNguoiDung, decidedAt: stamp() });
@@ -263,16 +240,11 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
     // Giữ hồ sơ và tên đăng nhập trong lúc xóa cho tới khi Auth xong,
     // để có thể thử lại khi Auth tạm mất mà không tạo tài khoản mồ côi.
     await coSoDuLieu.runTransaction(async giaoDich => {
-      const codeRef = duLieu.userCode ? coSoDuLieu.doc(`user_codes/${userCodeKey(duLieu.userCode)}`) : null;
       const unitRef = duLieu.role === 'admin' && duLieu.unit
-        ? coSoDuLieu.doc(`unit_codes/${userCodeKey(duLieu.unit)}`) : null;
-      const [maLoi, unitReservation] = await Promise.all([
-        codeRef ? giaoDich.get(codeRef) : null,
-        unitRef ? giaoDich.get(unitRef) : null,
-      ]);
+        ? coSoDuLieu.doc(`unit_codes/${normalizedKey(duLieu.unit)}`) : null;
+      const unitReservation = unitRef ? await giaoDich.get(unitRef) : null;
       giaoDich.delete(coSoDuLieu.doc(`usernames/${usernameKey(duLieu.username)}`));
       giaoDich.delete(thamChieu);
-      if (maLoi?.exists && maLoi.data().uid === thamChieu.id) giaoDich.delete(codeRef);
       if (unitReservation?.exists && unitReservation.data().managerId === thamChieu.id) {
         giaoDich.delete(unitRef);
       }
@@ -414,9 +386,7 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
     requireThat(!dauVao.password, 'failed-precondition',
       'Hãy xử lý yêu cầu cấp lại mật khẩu.');
     requireThat(typeof dauVao.name === 'string' && dauVao.name.trim().length > 0 && dauVao.name.length <= 100 &&
-      !Object.hasOwn(dauVao, 'role') && !Object.hasOwn(dauVao, 'createdBy') && !Object.hasOwn(dauVao, 'username') &&
-      !Object.hasOwn(dauVao, 'unit') &&
-      (!Object.hasOwn(dauVao, 'userCodeSuffix') || typeof dauVao.userCodeSuffix === 'string'),
+      Object.keys(dauVao).every(key => ['userId', 'name'].includes(key)),
     'invalid-argument', 'Thông tin cập nhật không hợp lệ.');
     await coSoDuLieu.runTransaction(async (giaoDich) => {
       const { actor: nguoiThaoTac, config: cauHinh } = await nguCanh(giaoDich, maNguoiDung);
@@ -431,42 +401,7 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
       }
       requireUpdate(nguoiThaoTac, cauHinh, { ...dich, id: thamChieu.id });
       requireThat(dich?.status === 'active', 'failed-precondition', 'Tài khoản chưa hoạt động.');
-      requireThat(!Object.hasOwn(dauVao, 'userCodeSuffix') ||
-        (dich.role === 'user' && dich.createdBy === nguoiThaoTac.id),
-      'permission-denied', 'Chỉ quản lý phụ trách mới được đổi phần đuôi mã người dùng.');
-
-      const oldSuffix = userCodeSuffix(dich, thamChieu.id);
-      const nextUnit = dich.unit;
-      const nextSuffix = Object.hasOwn(dauVao, 'userCodeSuffix')
-        ? dauVao.userCodeSuffix.trim() : oldSuffix;
-      const codeChanged = Object.hasOwn(dauVao, 'userCodeSuffix');
       const updates = { name: dauVao.name.trim(), updatedBy: maNguoiDung, updatedAt: stamp() };
-      if (codeChanged) {
-        const oldCode = dich.userCode || makeUserCode(dich.unit, oldSuffix);
-        const newCode = makeUserCode(nextUnit, nextSuffix);
-        const oldRef = coSoDuLieu.doc(`user_codes/${userCodeKey(oldCode)}`);
-        const nextRef = coSoDuLieu.doc(`user_codes/${userCodeKey(newCode)}`);
-        const [oldReservation, nextReservation, learners] = await Promise.all([
-          giaoDich.get(oldRef), giaoDich.get(nextRef),
-          giaoDich.get(coSoDuLieu.collection('users').where('role', '==', 'user')),
-        ]);
-        requireThat(!nextReservation.exists || nextReservation.data().uid === thamChieu.id,
-          'already-exists', 'Mã người dùng đã được sử dụng.');
-        requireThat(!learners.docs.some(row => row.id !== thamChieu.id &&
-          typeof row.data().userCode === 'string' && userCodeKey(row.data().userCode) === userCodeKey(newCode)),
-        'already-exists', 'Mã người dùng đã được sử dụng.');
-        if (oldRef.path !== nextRef.path && oldReservation.exists && oldReservation.data().uid === thamChieu.id) {
-          giaoDich.delete(oldRef);
-        }
-        giaoDich.set(nextRef, { uid: thamChieu.id, code: newCode,
-          createdBy: dich.createdBy || maNguoiDung, updatedAt: stamp() });
-        updates.userCode = newCode;
-        updates.userCodeSuffix = nextSuffix;
-        giaoDich.create(coSoDuLieu.collection('account_audit').doc(), {
-          actorId: maNguoiDung, targetUid: thamChieu.id, action: 'change_user_code_suffix',
-          previousCode: oldCode, code: newCode, at: stamp(),
-        });
-      }
       giaoDich.update(thamChieu, updates);
     });
     return { updated: true };
@@ -534,6 +469,8 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
     return {updated: true, subUnits: cacGiaTri};
   }
   async function reassignUser(maNguoiDung, dauVao) {
+    requireThat(Object.keys(dauVao).every(key => ['userId', 'managerId'].includes(key)),
+      'invalid-argument', 'Thông tin chuyển tài khoản không hợp lệ.');
     const targetRef = userRef(dauVao.userId);
     const managerRef = userRef(dauVao.managerId);
     await coSoDuLieu.runTransaction(async (giaoDich) => {
@@ -552,7 +489,7 @@ export function accountHandlers(coSoDuLieu, xacThuc) {
         'failed-precondition', 'Quản lý mới chưa hoạt động hoặc chưa được phê duyệt.');
       const targetUnit = validateUnit(managerIsRoot ? 'E09' : manager.unit);
       requireThat(managerIsRoot || dich.createdBy === managerRef.id ||
-        userCodeKey(targetUnit) !== userCodeKey(dich.unit || ''),
+        normalizedKey(targetUnit) !== normalizedKey(dich.unit || ''),
       'failed-precondition', 'Học viên đang do quản lý này phụ trách.');
       const reserve = managerIsRoot
         ? () => {}

@@ -5,7 +5,7 @@ import 'bang_tien_do_hoc_vien.dart';
 import '../../widgets/dieu_huong_hoc_vien.dart';
 import 'bai_kiem_tra_hoc_vien.dart';
 import 'cac_khoa_hoc.dart';
-import 'thong_tin_hoc_vien.dart';
+import 'danh_sach_tin_tuc.dart';
 import 'thong_bao_hoc_vien.dart';
 import 'tien_ich_hoc_vien.dart';
 
@@ -70,13 +70,17 @@ class _TrangThaiKhungHocVien extends State<UserMainLayout> {
         service: service,
         examService: widget.examService,
       ),
-      UserNotificationsScreen(uid: widget.args.userId, service: service),
+      UserNotificationsScreen(
+        uid: widget.args.userId,
+        service: service,
+        examService: widget.examService,
+      ),
       UserProfileScreen(
         args: widget.args,
         service: service,
         active: _viTriDaChon == 4,
       ),
-      UserInformationScreen(service: service),
+      NewsScreen(service: service),
       UserUtilitiesScreen(
         args: widget.args,
         service: service,

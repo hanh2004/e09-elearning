@@ -3,7 +3,7 @@
 // Firestore chỉ lưu SHA-256 của mã, không lưu mật khẩu mới hay mã thô.
 import { createHash } from 'node:crypto';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { isRoot, requireThat, rootIds, usernameKey } from './quy_tac.js';
+import { isRoot, PolicyError, requireThat, rootIds, usernameKey } from './quy_tac.js';
 
 const hashProof = (proof) => createHash('sha256').update(proof).digest('hex');
 const validProof = (proof) => typeof proof === 'string' && /^[A-Za-z0-9_-]{43}$/.test(proof);
@@ -53,6 +53,13 @@ export function rootPasswordRecoveryHandlers(db, auth) {
 
       const current = requestSnap.data() ?? {};
       const currentExpiry = current.expiresAt?.toMillis?.() ?? 0;
+      // Auth có thể đã đổi mật khẩu dù bước xác nhận thất bại. Không thay
+      // proof đang xử lý, kể cả khi hết hạn, để tránh ghi đè lần cập nhật đó.
+      if (current.type === 'root_recovery' && current.status === 'processing') {
+        requireThat(current.proofHash === proofHash, 'failed-precondition',
+          'Yêu cầu đang được xử lý hoặc cần kiểm tra kết quả. Liên hệ người phụ trách hệ thống.');
+        return;
+      }
       if (current.proofHash === proofHash && currentExpiry > now &&
         ['pending', 'approved', 'processing'].includes(current.status)) return;
 
@@ -96,6 +103,7 @@ export function rootPasswordRecoveryHandlers(db, auth) {
     if (request?.type !== 'root_recovery' || request.proofHash !== hashProof(input.proof)) {
       return { status: 'not_found' };
     }
+    if (['processing', 'completed'].includes(request.status)) return { status: request.status };
     if ((request.expiresAt?.toMillis?.() ?? 0) <= Date.now()) return { status: 'expired' };
     return { status: request.status };
   }
@@ -170,8 +178,10 @@ export function rootPasswordRecoveryHandlers(db, auth) {
       return 'processing';
     });
     if (state === 'completed') return { updated: true };
+    let passwordUpdated = false;
     try {
       await auth.updateUser(root.uid, { password: input.password });
+      passwordUpdated = true;
       await auth.revokeRefreshTokens(root.uid);
       await db.runTransaction(async (transaction) => {
         const request = (await transaction.get(requestRef)).data();
@@ -184,6 +194,35 @@ export function rootPasswordRecoveryHandlers(db, auth) {
         });
       });
     } catch (error) {
+      const rejectedBeforeUpdate = !passwordUpdated && [
+        'auth/invalid-password', 'auth/invalid-argument', 'auth/invalid-uid',
+        'auth/user-not-found',
+      ].includes(error?.code);
+      if (!rejectedBeforeUpdate) {
+        // Giữ khóa khi đã cập nhật hoặc không biết Auth có nhận thay đổi hay
+        // chưa. Chỉ lỗi chắc chắn bị từ chối trước cập nhật mới được mở lại.
+        console.error('Root password reset claim remains locked', {
+          code: error?.code || 'unknown', passwordUpdated,
+        });
+        try {
+          await db.runTransaction(async (transaction) => {
+            const request = (await transaction.get(requestRef)).data();
+            if (request?.status === 'processing' && request.proofHash === proofHash) {
+              transaction.update(requestRef, {
+                processingIssue: passwordUpdated ? 'password_updated' : 'result_unknown',
+                updatedAt: FieldValue.serverTimestamp(),
+              });
+            }
+          });
+        } catch (recordError) {
+          console.error('Could not record locked root password reset state', {
+            code: recordError?.code || 'unknown',
+          });
+        }
+        throw new PolicyError('unavailable', passwordUpdated
+          ? 'Mật khẩu đã được cập nhật nhưng chưa hoàn tất xác nhận. Yêu cầu đã khóa; liên hệ người phụ trách hệ thống kiểm tra.'
+          : 'Chưa xác nhận được kết quả cập nhật mật khẩu. Yêu cầu đã khóa; liên hệ người phụ trách hệ thống kiểm tra.');
+      }
       await db.runTransaction(async (transaction) => {
         const request = (await transaction.get(requestRef)).data();
         if (request?.status === 'processing' && request.proofHash === proofHash) {

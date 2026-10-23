@@ -60,29 +60,6 @@ class _TrangThaiBaoCaoQuanTri extends State<AdminReportScreen> {
 
   void _setReportState(VoidCallback update) => setState(update);
 
-  List<Map<String, dynamic>> _luotThiBaoCao(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> cacLuotThi,
-  ) {
-    DateTime? date(Object? giaTri) => giaTri is Timestamp
-        ? giaTri.toDate()
-        : giaTri is DateTime
-        ? giaTri
-        : null;
-    return cacLuotThi
-        .map(
-          (banGhi) => {
-            ...banGhi.data(),
-            'reportLastAt': date(
-              banGhi.data()['lastAttemptAt'] ?? banGhi.data()['completedAt'],
-            ),
-            'reportBestAt': date(
-              banGhi.data()['bestCompletedAt'] ?? banGhi.data()['completedAt'],
-            ),
-          },
-        )
-        .toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     final content = Scaffold(

@@ -1,7 +1,21 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function active() { return request.auth != null && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.status == 'active'; }
+    // Cloud Functions mirror only the public lease metadata into the profile.
+    // This keeps uploads within Storage Rules' two Firestore document limit:
+    // users/{uid} for account/session status and system/access for root UIDs.
+    function hasCurrentAccountSession(profile) {
+      let session = profile.get('accountSession', null);
+      return session is map && session.get('status', '') == 'active' &&
+          session.get('authTime', -1) == request.auth.token.get('auth_time', -2) &&
+          session.get('lastSeenAt', null) is timestamp &&
+          session.lastSeenAt + duration.value(2, 'm') > request.time;
+    }
+    function active() {
+      return request.auth != null &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.status == 'active' &&
+        hasCurrentAccountSession(firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data);
+    }
     function admin() {
       let p = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
       let roots = firestore.get(/databases/(default)/documents/system/access).data.rootUids;

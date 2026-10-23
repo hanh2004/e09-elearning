@@ -4,6 +4,7 @@
 import { requireRoot, requireThat } from './quy_tac.js';
 import { randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
+import { xoaDuLieuBaiThi } from './xoa_du_lieu_bai_thi.js';
 
 const maHopLe = (giaTri) =>
   typeof giaTri === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(giaTri);
@@ -247,16 +248,4 @@ async function xoaTienDoKhoaHoc(coSoDuLieu, boGhi, maKhoaHoc, maBaiHoc = null) {
       }
     }
   }
-}
-
-async function xoaDuLieuBaiThi(coSoDuLieu, maBaiThi, thamChieuBaiThi) {
-  const [cacLuotThiRieng, cacPhien, cacTongHop] = await Promise.all([
-    coSoDuLieu.collection('exam_private_runs').where('examId', '==', maBaiThi).get(),
-    coSoDuLieu.collection('exam_sessions').where('examId', '==', maBaiThi).get(),
-    coSoDuLieu.collection('exam_attempts').where('examId', '==', maBaiThi).get(),
-  ]);
-  for (const banGhi of cacLuotThiRieng.docs) await coSoDuLieu.recursiveDelete(banGhi.ref);
-  for (const banGhi of cacPhien.docs) await coSoDuLieu.recursiveDelete(banGhi.ref);
-  for (const banGhi of cacTongHop.docs) await coSoDuLieu.recursiveDelete(banGhi.ref);
-  await coSoDuLieu.recursiveDelete(thamChieuBaiThi);
 }

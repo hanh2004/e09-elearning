@@ -7,8 +7,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class LessonForm {
   static const studyOnlyLabel = 'Chỉ học';
   static const studyExamLabel = 'Học xong kiểm tra ngay';
-  static bool hasExam(Map<String, dynamic> duLieu) =>
-      duLieu['learningMode'] == 'study_exam';
+  static bool hasExam(Map<String, dynamic> duLieu) {
+    if (duLieu['learningMode'] == 'study_only') return false;
+    return duLieu['learningMode'] == 'study_exam' ||
+        (duLieu['examId']?.toString().trim().isNotEmpty ?? false);
+  }
+
   static String modeLabel(Map<String, dynamic> duLieu) =>
       hasExam(duLieu) ? studyExamLabel : studyOnlyLabel;
   static const defaultStudySeconds = 300;

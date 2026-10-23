@@ -1,7 +1,7 @@
-// Chỉ thêm mã còn thiếu và nội dung mẫu mới. Mặc định xem trước, --apply mới ghi.
+// Chỉ bổ sung nội dung mẫu còn thiếu. Mặc định xem trước, --apply mới ghi.
 import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
-import {makeUserCode,userCodeKey,rootIds} from '../src/quy_tac.js';
+import {rootIds} from '../src/quy_tac.js';
 import {sampleDocuments} from './du_lieu_mau_20260914.mjs';
 
 export function encode(value) {
@@ -23,38 +23,6 @@ function decode(value) {
 }
 const data=doc=>Object.fromEntries(Object.entries(doc.fields||{}).map(([key,v])=>[key,decode(v)]));
 
-export function missingCodeWrites(users,reservations,base) {
-  const occupied=new Map();
-  for(const record of reservations) {
-    const d=data(record);
-    occupied.set(record.name.split('/').pop(),d.uid);
-  }
-  // Bảo vệ cả mã đã cấp trước khi có bảng giữ mã.
-  for(const user of users) {
-    const d=data(user),uid=user.name.split('/').pop();
-    if(typeof d.userCode==='string'&&d.userCode.trim()) {
-      const key=userCodeKey(d.userCode);
-      if(occupied.has(key)&&occupied.get(key)!==uid) throw new Error('Mã đang có bị trùng hoặc không khớp bản ghi giữ mã. Chưa ghi dữ liệu.');
-      occupied.set(key,uid);
-    }
-  }
-  const writes=[],assigned=[];
-  for(const user of users) {
-    const d=data(user),uid=user.name.split('/').pop();
-    if(d.role!=='user'||!['active','blocked'].includes(d.status)||d.userCode?.trim()) continue;
-    // Giữ nguyên đơn vị hiện tại, không chuyển chủ quản lý hay xóa đơn vị trực thuộc.
-    const suffix=(d.userCodeSuffix||d.username||uid).trim();
-    const code=makeUserCode(d.unit,suffix),key=userCodeKey(code);
-    if(occupied.has(key)&&occupied.get(key)!==uid) throw new Error(`Mã ${code} đã được sử dụng. Chưa ghi dữ liệu.`);
-    const reserved=reservations.find(r=>r.name.split('/').pop()===key);
-    if(!reserved) writes.push({update:{name:`${base}/user_codes/${key}`,fields:fields({uid,code})},currentDocument:{exists:false}});
-    writes.push({update:{name:user.name,fields:fields({userCode:code,userCodeSuffix:suffix})},
-      updateMask:{fieldPaths:['userCode','userCodeSuffix']},currentDocument:{updateTime:user.updateTime}});
-    occupied.set(key,uid);assigned.push(code);
-  }
-  return {writes,assigned};
-}
-
 export async function supplement(client,project,apply=false) {
   if(!['e09-elearning','demo-e09'].includes(project)) throw new Error('Unexpected project');
   const base=`projects/${project}/databases/(default)/documents`;
@@ -62,8 +30,7 @@ export async function supplement(client,project,apply=false) {
   let committed=false;
   try {
     const query=async collection=>{
-      const select=collection==='users'?{fields:['role','status','unit','createdBy','userCode','userCodeSuffix','username'].map(fieldPath=>({fieldPath}))}:undefined;
-      return (await client.post(`/${base}:runQuery`,{transaction,structuredQuery:{from:[{collectionId:collection}],...(select?{select}:{})}}))
+      return (await client.post(`/${base}:runQuery`,{transaction,structuredQuery:{from:[{collectionId:collection}]}}))
         .body.filter(row=>row.document).map(row=>row.document);
     };
     // Firestore Emulator không xử lý ổn GET document kèm transaction query param;
@@ -72,12 +39,12 @@ export async function supplement(client,project,apply=false) {
       transaction,documents:[`${base}/system/access`],
     })).body;
     const config=data(accessRows.find(row=>row.found)?.found||{});
-    const users=await query('users'),codes=await query('user_codes');
+    const users=await query('users');
     const roots=rootIds(config);
     const actor=users.find(doc=>roots.includes(doc.name.split('/').pop())&&data(doc).role==='super_admin'&&data(doc).status==='active');
     if(!actor) throw new Error('Không tìm thấy quản lý tổng đang hoạt động.');
-    const plan=missingCodeWrites(users,codes,base);
     const documents=sampleDocuments(actor.name.split('/').pop());
+    const writes=[];
     const existing=(await client.post(`/${base}:batchGet`,{transaction,documents:documents.map(doc=>`${base}/${doc.path}`)})).body;
     const found=new Set(existing.filter(row=>row.found).map(row=>row.found.name));
     const groups=new Map();
@@ -90,18 +57,18 @@ export async function supplement(client,project,apply=false) {
       if(found.has(`${base}/${parent}`)) continue;
       if(group.some(doc=>found.has(`${base}/${doc.path}`))) throw new Error('Có dữ liệu mẫu con chưa gắn bản ghi cha. Chưa ghi dữ liệu.');
       for(const doc of group) {
-        plan.writes.push({update:{name:`${base}/${doc.path}`,fields:fields(doc.data)},currentDocument:{exists:false},
+        writes.push({update:{name:`${base}/${doc.path}`,fields:fields(doc.data)},currentDocument:{exists:false},
           updateTransforms:[{fieldPath:'createdAt',setToServerValue:'REQUEST_TIME'},{fieldPath:'updatedAt',setToServerValue:'REQUEST_TIME'}]});
         added.push(doc.path);
       }
     }
-    const result={mode:apply?'applied':'dry-run',codesAdded:plan.assigned.length,codes:plan.assigned,
+    const result={mode:apply?'applied':'dry-run',
       coursesAdded:added.filter(p=>p.startsWith('courses/')&&p.split('/').length===2).length,
       lessonsAdded:added.filter(p=>p.includes('/lessons/')).length,
       examsAdded:added.filter(p=>p.startsWith('exams/')&&p.split('/').length===2).length,
-      questionsAdded:added.filter(p=>p.includes('/questions/')).length,totalWrites:plan.writes.length};
-    if(apply&&plan.writes.length) {
-      await client.post(`/${base}:commit`,{transaction,writes:plan.writes});
+      questionsAdded:added.filter(p=>p.includes('/questions/')).length,totalWrites:writes.length};
+    if(apply&&writes.length) {
+      await client.post(`/${base}:commit`,{transaction,writes});
       committed=true;
     }
     return result;

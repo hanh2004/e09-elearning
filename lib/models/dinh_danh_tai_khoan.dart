@@ -22,14 +22,15 @@ class AccountIdentity {
       _ => 'Tài khoản',
     };
   }
-  bool canDelete(String targetId, Map<String, dynamic> target) =>
+
+  bool canDelete(Map<String, dynamic> target) =>
       target['role'] != 'super_admin' &&
       const ['active', 'blocked', 'deleting'].contains(target['status']) &&
       (isRoot ||
           (role == 'admin' &&
               target['role'] == 'user' &&
               target['createdBy'] == id));
-  bool canEdit(String targetId, Map<String, dynamic> target) =>
+  bool canEdit(Map<String, dynamic> target) =>
       target['role'] != 'super_admin' &&
       (isRoot ||
           (role == 'admin' &&

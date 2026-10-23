@@ -13,6 +13,13 @@ import '../../../services/thong_bao_loi_ung_dung.dart';
 import '../../../widgets/giao_dien_quan_tri.dart';
 import '../../../widgets/tien_ich_giao_dien_hoc_tap.dart';
 
+String _anhBiaMacDinhKhoaHoc(dynamic giaTri) {
+  final duongDan = giaTri?.toString() ?? '';
+  return duongDan.isNotEmpty && !duongDan.startsWith('icon:')
+      ? duongDan
+      : 'icon:book';
+}
+
 /// Form tạo/sửa khóa học. [fixedLearningMode] dùng cho hai trang danh sách
 /// Khóa học không kiểm tra và Khóa học có kiểm tra.
 Future<void> showCourseEditor(
@@ -86,15 +93,6 @@ class _HopThoaiSuaKhoaHoc extends StatefulWidget {
 }
 
 class _TrangThaiHopThoaiSuaKhoaHoc extends State<_HopThoaiSuaKhoaHoc> {
-  static const _cacBieuTuong = <String, IconData>{
-    'book': Icons.menu_book_rounded,
-    'math': Icons.calculate_rounded,
-    'computer': Icons.laptop_mac_rounded,
-    'science': Icons.science_rounded,
-    'language': Icons.translate_rounded,
-    'safety': Icons.shield_rounded,
-  };
-
   final _bieuMau = GlobalKey<FormState>();
   final _boTaiTepLen = ImageUploadService();
   late final _cacGiaTri = CourseForm.initialValues(widget.initialData);
@@ -110,10 +108,9 @@ class _TrangThaiHopThoaiSuaKhoaHoc extends State<_HopThoaiSuaKhoaHoc> {
     text: _cacGiaTri['endsAt'],
   );
   late String _cheDoTrienKhai = _cacGiaTri['deploymentMode']!;
-  late String _duongDanAnh =
-      widget.initialData['coverUrl']?.toString().isNotEmpty == true
-      ? widget.initialData['coverUrl'].toString()
-      : 'icon:book';
+  late String _duongDanAnh = _anhBiaMacDinhKhoaHoc(
+    widget.initialData['coverUrl'],
+  );
   SelectedUploadImage? _anhDaChon;
   double? _tienDoTaiLen;
   bool _dangMoNangCao = false;
@@ -176,10 +173,6 @@ class _TrangThaiHopThoaiSuaKhoaHoc extends State<_HopThoaiSuaKhoaHoc> {
 
   Future<void> _luu() async {
     if (_dangXuLy || !_bieuMau.currentState!.validate()) return;
-    if (_duongDanAnh.isEmpty && _anhDaChon == null) {
-      setState(() => _loi = 'Vui lòng chọn ảnh bìa hoặc biểu tượng khóa học.');
-      return;
-    }
     setState(() {
       _dangXuLy = true;
       _loi = null;
@@ -194,6 +187,11 @@ class _TrangThaiHopThoaiSuaKhoaHoc extends State<_HopThoaiSuaKhoaHoc> {
             if (mounted) setState(() => _tienDoTaiLen = tienDo);
           },
         );
+        if (!mounted) return;
+        setState(() {
+          _anhDaChon = null;
+          _tienDoTaiLen = null;
+        });
       }
       await widget.onSave({
         'title': _tieuDe.text.trim(),
@@ -304,8 +302,7 @@ class _TrangThaiHopThoaiSuaKhoaHoc extends State<_HopThoaiSuaKhoaHoc> {
                     children: [
                       _KhungAnhBiaKhoaHoc(
                         icon: _duongDanAnh.startsWith('icon:')
-                            ? _cacBieuTuong[_duongDanAnh.substring(5)] ??
-                                  Icons.menu_book_rounded
+                            ? Icons.menu_book_rounded
                             : null,
                         imageUrl: _duongDanAnh,
                         selectedImage: _anhDaChon,
@@ -369,21 +366,6 @@ class _TrangThaiHopThoaiSuaKhoaHoc extends State<_HopThoaiSuaKhoaHoc> {
                             : null,
                       ),
                       const SizedBox(height: 16),
-                      const _NhanKhoaHoc('Chọn biểu tượng khóa học'),
-                      const SizedBox(height: 10),
-                      _BoChonBieuTuongKhoaHoc(
-                        icons: _cacBieuTuong,
-                        selected: _duongDanAnh.startsWith('icon:')
-                            ? _duongDanAnh.substring(5)
-                            : null,
-                        enabled: !_dangXuLy,
-                        onSelected: (khoa) => setState(() {
-                          _duongDanAnh = 'icon:$khoa';
-                          _anhDaChon = null;
-                          _loi = null;
-                        }),
-                      ),
-                      const SizedBox(height: 10),
                       if (_coBaiThi) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -518,6 +500,7 @@ class _KhungAnhBiaKhoaHoc extends StatelessWidget {
           )
         : Image.network(
             imageUrl,
+            webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
             width: double.infinity,
             fit: BoxFit.cover,
             errorBuilder: (_, _, _) => const Center(
@@ -578,50 +561,6 @@ class _TruongKhoaHoc extends StatelessWidget {
         borderSide: const BorderSide(color: AdminUi.border),
       ),
     ),
-  );
-}
-
-class _BoChonBieuTuongKhoaHoc extends StatelessWidget {
-  const _BoChonBieuTuongKhoaHoc({
-    required this.icons,
-    required this.selected,
-    required this.enabled,
-    required this.onSelected,
-  });
-
-  final Map<String, IconData> icons;
-  final String? selected;
-  final bool enabled;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 18,
-    runSpacing: 12,
-    children: [
-      for (final capDuLieu in icons.entries)
-        InkWell(
-          onTap: enabled ? () => onSelected(capDuLieu.key) : null,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            width: 78,
-            height: 68,
-            decoration: BoxDecoration(
-              color: selected == capDuLieu.key
-                  ? const Color(0xFFFFF1F1)
-                  : const Color(0xFFF8FAFD),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected == capDuLieu.key
-                    ? AppTheme.red
-                    : AdminUi.border,
-                width: selected == capDuLieu.key ? 2 : 1,
-              ),
-            ),
-            child: Icon(capDuLieu.value, color: AppTheme.red, size: 33),
-          ),
-        ),
-    ],
   );
 }
 

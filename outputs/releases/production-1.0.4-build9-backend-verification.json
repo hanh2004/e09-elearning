@@ -1,0 +1,373 @@
+{
+  "project": "e09-elearning",
+  "checkedAt": "2026-10-09T08:01:11.825Z",
+  "minimumUpdateTime": "2026-10-09T07:57:00Z",
+  "rules": [
+    {
+      "service": "cloud.firestore",
+      "rulesetName": "projects/e09-elearning/rulesets/3a1ee344-dbe7-4f76-af08-71b36d78b8fb",
+      "updateTime": "2026-10-09T07:59:57.693265Z",
+      "localSha256": "2e4261003a34aeac524f4fc6927b0e05539bc265421747e9ae2f3aea7fa9bc29",
+      "remoteSha256": "2e4261003a34aeac524f4fc6927b0e05539bc265421747e9ae2f3aea7fa9bc29",
+      "matchesLocal": true
+    },
+    {
+      "service": "firebase.storage/e09-elearning.firebasestorage.app",
+      "rulesetName": "projects/e09-elearning/rulesets/c74fd6bd-e9ad-4f06-88ce-09ca35c04100",
+      "updateTime": "2026-10-09T07:59:55.973569Z",
+      "localSha256": "221d9f4fedc7be8f73ae99e5dd954b73621dbf42b71f5f9ee5819bec05bc53ce",
+      "remoteSha256": "221d9f4fedc7be8f73ae99e5dd954b73621dbf42b71f5f9ee5819bec05bc53ce",
+      "matchesLocal": true
+    }
+  ],
+  "functions": [
+    {
+      "name": "adminSessionClaim",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:50.539626562Z",
+      "fresh": true
+    },
+    {
+      "name": "adminSessionHeartbeat",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:44.676934165Z",
+      "fresh": true
+    },
+    {
+      "name": "adminSessionRelease",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:59:00.408578774Z",
+      "fresh": true
+    },
+    {
+      "name": "accountImportUsers",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:49.279645216Z",
+      "fresh": true
+    },
+    {
+      "name": "accountProposeAdmin",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:59.022100829Z",
+      "fresh": true
+    },
+    {
+      "name": "accountDecideAdmin",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:49.970880829Z",
+      "fresh": true
+    },
+    {
+      "name": "accountDeleteUser",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:44.166562563Z",
+      "fresh": true
+    },
+    {
+      "name": "accountRequestAdminDeletion",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:48.000096989Z",
+      "fresh": true
+    },
+    {
+      "name": "accountDecideAdminDeletion",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:59.174049985Z",
+      "fresh": true
+    },
+    {
+      "name": "accountUpdateUser",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:41.533961491Z",
+      "fresh": true
+    },
+    {
+      "name": "accountCheckUsernames",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:59:00.550695915Z",
+      "fresh": true
+    },
+    {
+      "name": "examList",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:49.365027670Z",
+      "fresh": true
+    },
+    {
+      "name": "examStart",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:44.980321569Z",
+      "fresh": true
+    },
+    {
+      "name": "examSave",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:43.159085195Z",
+      "fresh": true
+    },
+    {
+      "name": "examSubmit",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:54.308708783Z",
+      "fresh": true
+    },
+    {
+      "name": "examHeartbeat",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:51.694239882Z",
+      "fresh": true
+    },
+    {
+      "name": "examExpireRuns",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:59:00.289312765Z",
+      "fresh": true
+    },
+    {
+      "name": "examHistory",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:56.980851838Z",
+      "fresh": true
+    },
+    {
+      "name": "maintenanceSet",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:53.725912104Z",
+      "fresh": true
+    },
+    {
+      "name": "accountSetStatus",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:48.144840027Z",
+      "fresh": true
+    },
+    {
+      "name": "accountSetUnit",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:44.479419824Z",
+      "fresh": true
+    },
+    {
+      "name": "accountSetSubUnits",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:58.896341578Z",
+      "fresh": true
+    },
+    {
+      "name": "accountGetSubUnits",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:44.059947357Z",
+      "fresh": true
+    },
+    {
+      "name": "accountReassignUser",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:42.082481836Z",
+      "fresh": true
+    },
+    {
+      "name": "accountRequestPasswordReset",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:49.845047913Z",
+      "fresh": true
+    },
+    {
+      "name": "accountApprovePasswordReset",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:36.393698133Z",
+      "fresh": true
+    },
+    {
+      "name": "accountResolvePasswordReset",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:49.461119623Z",
+      "fresh": true
+    },
+    {
+      "name": "feedbackSubmit",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:48.963697649Z",
+      "fresh": true
+    },
+    {
+      "name": "feedbackDelete",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:57.812581190Z",
+      "fresh": true
+    },
+    {
+      "name": "rootPasswordResetRequest",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:41.150371862Z",
+      "fresh": true
+    },
+    {
+      "name": "rootPasswordResetStatus",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:59:00.955432719Z",
+      "fresh": true
+    },
+    {
+      "name": "rootPasswordResetFinish",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:45.115720486Z",
+      "fresh": true
+    },
+    {
+      "name": "rootPasswordResetApprove",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:43.040743978Z",
+      "fresh": true
+    },
+    {
+      "name": "rootUsernameSync",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:45.326492772Z",
+      "fresh": true
+    },
+    {
+      "name": "examDelete",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:59:00.015716477Z",
+      "fresh": true
+    },
+    {
+      "name": "courseDelete",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:50.221172444Z",
+      "fresh": true
+    },
+    {
+      "name": "courseDeleteLesson",
+      "state": "ACTIVE",
+      "updateTime": "2026-10-09T07:58:43.858189303Z",
+      "fresh": true
+    }
+  ],
+  "indexes": [
+    {
+      "collectionGroup": "courses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "published",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "audience",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY",
+      "name": "projects/e09-elearning/databases/(default)/collectionGroups/courses/indexes/CICAgOjXh4EK"
+    },
+    {
+      "collectionGroup": "learning_notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "audience",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sendAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY",
+      "name": "projects/e09-elearning/databases/(default)/collectionGroups/learning_notifications/indexes/CICAgJiUpoMK"
+    },
+    {
+      "collectionGroup": "password_reset_requests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "managerId",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY",
+      "name": "projects/e09-elearning/databases/(default)/collectionGroups/password_reset_requests/indexes/CICAgJim14AK"
+    },
+    {
+      "collectionGroup": "learning",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "courseId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lessonId",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY",
+      "name": "projects/e09-elearning/databases/(default)/collectionGroups/learning/indexes/CICAgJjF9oIK"
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "learning",
+      "fieldPath": "courseId",
+      "queryScope": "COLLECTION",
+      "order": "ASCENDING",
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "learning",
+      "fieldPath": "courseId",
+      "queryScope": "COLLECTION",
+      "order": "DESCENDING",
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "learning",
+      "fieldPath": "courseId",
+      "queryScope": "COLLECTION_GROUP",
+      "order": "ASCENDING",
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "learning",
+      "fieldPath": "courseId",
+      "queryScope": "COLLECTION_GROUP",
+      "order": "DESCENDING",
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "lessons",
+      "fieldPath": "examId",
+      "queryScope": "COLLECTION",
+      "order": "ASCENDING",
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "lessons",
+      "fieldPath": "examId",
+      "queryScope": "COLLECTION",
+      "order": "DESCENDING",
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "lessons",
+      "fieldPath": "examId",
+      "queryScope": "COLLECTION_GROUP",
+      "order": "ASCENDING",
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "lessons",
+      "fieldPath": "examId",
+      "queryScope": "COLLECTION_GROUP",
+      "order": "DESCENDING",
+      "state": "READY"
+    }
+  ],
+  "expectedFunctionCount": 37,
+  "ok": true
+}

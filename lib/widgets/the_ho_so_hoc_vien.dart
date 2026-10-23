@@ -28,21 +28,23 @@ class ProfileCard extends StatefulWidget {
 }
 
 class _TrangThaiTheHoSo extends State<ProfileCard> {
-  late final profile = (widget.service ?? LearningService()).db
+  late final service = widget.service ?? LearningService();
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _profileStream() => service.db
       .collection('users')
       .doc(widget.uid)
-      .snapshots();
+      .snapshots(includeMetadataChanges: true);
   @override
   Widget build(BuildContext context) =>
-      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: profile,
+      ReloadableStreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        streamFactory: _profileStream,
+        feature: 'Tải hồ sơ học viên',
+        isUsableData: (data) => data.exists || !data.metadata.isFromCache,
         builder: (context, duLieuNhan) {
+          if (!duLieuNhan.hasData) return const LinearProgressIndicator();
           final duLieu = duLieuNhan.data?.data() ?? {};
-          final storedCode = (duLieu['userCode'] as String? ?? '').trim();
+          final username = (duLieu['username'] as String? ?? '').trim();
           final donVi = (duLieu['unit'] as String? ?? '').trim();
-          final code = storedCode.isNotEmpty ? storedCode : 'Chưa được cấp';
           return LearnerCard(
-            accentColor: const Color(0xFFB51F24),
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
@@ -65,9 +67,9 @@ class _TrangThaiTheHoSo extends State<ProfileCard> {
                           widget.email,
                           style: const TextStyle(color: Colors.blueGrey),
                         ),
-                      if (code.isNotEmpty)
+                      if (username.isNotEmpty)
                         Text(
-                          'Mã người dùng: $code',
+                          'Tài khoản: $username',
                           style: const TextStyle(
                             color: Color(0xFF8A1C20),
                             fontWeight: FontWeight.w700,
@@ -82,15 +84,6 @@ class _TrangThaiTheHoSo extends State<ProfileCard> {
                         Text(
                           'Đơn vị: ${unitLabel(duLieu)}',
                           style: const TextStyle(color: Colors.blueGrey),
-                        ),
-                      if (duLieuNhan.hasError)
-                        AppErrorNotice(
-                          error: duLieuNhan.error!,
-                          feature: 'Tải hồ sơ học viên',
-                          centered: false,
-                          style: const TextStyle(color: Colors.red),
-                          fallbackAction:
-                              'Kiểm tra kết nối và cấu hình máy chủ rồi tải lại.',
                         ),
                     ],
                   ),

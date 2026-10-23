@@ -12,14 +12,12 @@ import 'package:flutter_test/flutter_test.dart';
 List<CellValue?> cells(List<String> values) =>
     values.map(TextCellValue.new).toList();
 final header = cells(UserExcelImport.headers);
-UserImportRow account(String username, {String? userCodeSuffix}) =>
-    UserImportRow(
-      rowNumber: 2,
-      name: 'Nguyễn Văn An',
-      username: username,
-      password: 'Password01!',
-      userCodeSuffix: userCodeSuffix,
-    );
+UserImportRow account(String username) => UserImportRow(
+  rowNumber: 2,
+  name: 'Nguyễn Văn An',
+  username: username,
+  password: 'Password01!',
+);
 
 void main() {
   final parser = UserExcelImport();
@@ -28,9 +26,9 @@ void main() {
     final bytes = File(UserExcelImport.templateAsset).readAsBytesSync();
     final workbook = parser.decode(bytes);
     expect(
-      workbook.tables['Users']!.rows.first.every(
-        (cell) => cell?.value is TextCellValue,
-      ),
+      workbook.tables['Users']!.rows.first
+          .take(4)
+          .every((cell) => cell?.value is TextCellValue),
       isTrue,
     );
     final result = parser.parse(bytes);
@@ -38,10 +36,10 @@ void main() {
     expect(result.errors.single, contains('Chưa có học viên'));
     expect(workbook.tables.keys, containsAll(['Users', 'HuongDan']));
     expect(
-      workbook.tables['Users']!.rows.first.map(
-        (cell) => cell?.value.toString(),
-      ),
-      UserExcelImport.headers,
+      workbook.tables['Users']!.rows.first
+          .take(4)
+          .map((cell) => cell?.value.toString()),
+      ['STT', ...UserExcelImport.headers],
     );
     final example = workbook.tables['HuongDan']!.rows[13]
         .map((cell) => cell?.value)
@@ -49,17 +47,16 @@ void main() {
     final examplePreview = parser.parseRows([header, example]);
     expect(examplePreview.canImport, isTrue);
     expect(examplePreview.rows.single.username, 'hv001234');
-    expect(examplePreview.rows.single.userCodeSuffix, 'HV001234');
   });
 
   test(
     'valid text, leading zero identifiers, Vietnamese names and blank rows',
     () {
       final result = parser.parseRows([
-        header,
-        cells([' Nguyễn Văn An ', '001234', '01234567']),
+        cells(['STT', ...UserExcelImport.headers]),
+        cells(['1', ' Nguyễn Văn An ', '001234', '01234567']),
         [null, null, null],
-        cells(['Trần Thị Bình', 'hocvien02', 'Password02!']),
+        cells(['2', 'Trần Thị Bình', 'hocvien02', 'Password02!']),
       ]);
       expect(result.canImport, isTrue);
       expect(result.rows.length, 2);
@@ -70,7 +67,7 @@ void main() {
     },
   );
 
-  test('English headers supported; role columns rejected', () {
+  test('English headers supported; extra columns are rejected', () {
     expect(
       parser.parseRows([
         cells(['name', 'username', 'password']),
@@ -89,34 +86,32 @@ void main() {
       parser
           .parseRows([
             header,
-            cells(['An', 'user01', 'secret01', '001', 'admin']),
+            cells(['An', 'user01', 'secret01', 'admin']),
           ])
           .rows
           .single
           .errors,
-      contains('Có dữ liệu ngoài 4 cột cho phép.'),
+      contains('Có dữ liệu ngoài 3 cột cho phép.'),
     );
   });
 
-  test('optional user code suffix is text and retains leading zeros', () {
+  test('the username is the account code, with no separate code column', () {
     final result = parser.parseRows([
       header,
-      cells(['Nguyễn Văn An', 'hv001234', 'Password01!', '001234']),
+      cells(['Nguyễn Văn An', 'hv001234', 'Password01!']),
     ]);
     expect(result.canImport, isTrue);
-    expect(result.rows.single.userCodeSuffix, '001234');
+    expect(result.rows.single.username, 'hv001234');
 
     final invalid = parser.parseRows([
       header,
-      [
-        TextCellValue('An'),
-        TextCellValue('user01'),
-        TextCellValue('Password01!'),
-        IntCellValue(1234),
-      ],
+      [TextCellValue('An'), IntCellValue(1234), TextCellValue('Password01!')],
     ]);
     expect(invalid.canImport, isFalse);
-    expect(invalid.rows.single.errors.single, 'Mã người dùng phải là Text.');
+    expect(
+      invalid.rows.single.errors.single,
+      contains('Tên đăng nhập phải là Text'),
+    );
   });
 
   test('rejects corrupt, empty and oversized files', () {
@@ -131,15 +126,27 @@ void main() {
     expect(parser.parseRows([header]).canImport, isFalse);
   });
 
-  test('reports missing cells without disclosing passwords', () {
+  test('stops at the first missing cell without disclosing passwords', () {
     final result = parser.parseRows([
       header,
       cells(['', 'validuser', 'secretValue']),
       cells(['An', 'otheruser', '']),
     ]);
     expect(result.canImport, isFalse);
+    expect(result.rows, hasLength(1));
     expect(result.rows.first.errors.single, contains('họ và tên'));
-    expect(result.rows.last.errors.single, contains('mật khẩu'));
+    expect(
+      parser
+          .parseRows([
+            header,
+            cells(['An', 'otheruser', '']),
+          ])
+          .rows
+          .single
+          .errors
+          .single,
+      contains('mật khẩu'),
+    );
     expect(
       result.rows.expand((row) => row.errors).join(),
       isNot(contains('secretValue')),
@@ -172,11 +179,10 @@ void main() {
       cells(['An', 'USER01', 'Password01']),
       cells(['Bình', 'user01', 'Password02']),
     ]);
+    expect(duplicates.rows.first.errors, isEmpty);
     expect(
-      duplicates.rows.every(
-        (row) => row.errors.contains('Tên đăng nhập bị trùng trong file.'),
-      ),
-      isTrue,
+      duplicates.rows.last.errors.single,
+      'Tên đăng nhập bị trùng trong file.',
     );
     final existing = parser
         .parseRows([
@@ -246,7 +252,7 @@ void main() {
         expect((await db.collection('users').get()).docs, isEmpty);
       },
     );
-    test('optional code suffix is forwarded without its unit prefix', () async {
+    test('no separate user code is forwarded to the backend', () async {
       final db = FakeFirebaseFirestore();
       final service = FirestoreService(
         firestore: db,
@@ -254,15 +260,13 @@ void main() {
           transport: (method, data) async {
             expect(method, 'accountImportUsers');
             final row = (data['rows'] as List).single as Map;
-            expect(row['code'], '001234');
+            expect(row.containsKey('code'), isFalse);
             expect(row.containsKey('role'), isFalse);
             return {'count': 1};
           },
         ),
       );
-      await service.importUsers([
-        account('hv001234', userCodeSuffix: '001234'),
-      ]);
+      await service.importUsers([account('hv001234')]);
       expect((await db.collection('users').get()).docs, isEmpty);
     });
     test(

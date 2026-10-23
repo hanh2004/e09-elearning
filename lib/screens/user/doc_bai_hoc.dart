@@ -8,17 +8,13 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../services/nghiep_vu/dich_vu_hoc_tap.dart';
-import '../../app/cau_hinh_ung_dung.dart';
-import '../../models/tham_so_bai_kiem_tra.dart';
 import '../../models/bieu_mau_khoa_hoc.dart';
-import '../../models/bieu_mau_bai_hoc.dart';
-import '../../services/du_lieu/dich_vu_firestore.dart';
 import '../../services/ket_noi_api/dich_vu_bai_kiem_tra_bao_mat.dart';
 import 'lam_bai_kiem_tra_bao_mat.dart';
-import 'danh_sach_bai_kiem_tra_hoc_vien.dart';
 import '../../widgets/dau_trang_hoc_vien.dart';
 import '../../widgets/anh_bia_khoa_hoc.dart';
 import '../../widgets/hien_thi_noi_dung_bai_hoc.dart';
+import '../../widgets/thong_bao_loi.dart';
 
 /// Trình đọc nội dung bài học và bộ đếm thời gian tối thiểu trước khi hoàn thành.
 class LessonReaderScreen extends StatefulWidget {
@@ -32,7 +28,6 @@ class LessonReaderScreen extends StatefulWidget {
     this.siblings = const [],
     this.examService,
     this.courseData,
-    this.autoOpenExam = false,
   });
   final String uid, courseId, lessonId;
   final Map<String, dynamic> lesson;
@@ -42,7 +37,6 @@ class LessonReaderScreen extends StatefulWidget {
 
   /// Dữ liệu khóa cha dành cho khóa học và kiểm tra ở cấp khóa.
   final Map<String, dynamic>? courseData;
-  final bool autoOpenExam;
   @override
   State<LessonReaderScreen> createState() => _TrangThaiDocBaiHoc();
 }
@@ -50,19 +44,15 @@ class LessonReaderScreen extends StatefulWidget {
 class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
     with WidgetsBindingObserver {
   Timer? timer;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
-  progressSubscription;
-  bool examCompleted = false;
   int elapsed = 0;
   bool ready = false, completed = false, saving = false, active = true;
   String? error;
   bool startingExam = false;
   String? examError;
   bool courseComplete = false;
-  bool get hasExam => widget.courseData?['learningMode'] == 'study_only'
-      ? false
-      : CourseForm.hasExam(widget.courseData ?? const {}) ||
-            LessonForm.hasExam(widget.lesson);
+  bool get isStudyOnlyCourse => !hasExam;
+  bool get hasExam =>
+      LearningPolicy.requiresExam(widget.courseData ?? const {}, widget.lesson);
   bool get isCourseExam => CourseForm.hasExam(widget.courseData ?? const {});
   String get examId {
     final courseExam = widget.courseData?['examId']?.toString().trim() ?? '';
@@ -74,17 +64,40 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
   final ScrollController _oNhapNoiDung = ScrollController();
   bool reachedEnd = false;
 
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _progressStream() => widget
+      .service
+      .db
+      .doc('users/${widget.uid}/learning/${widget.courseId}_${widget.lessonId}')
+      .snapshots(includeMetadataChanges: true);
+
   void _capNhatDaDocHet() {
     if (!_oNhapNoiDung.hasClients) return;
     final position = _oNhapNoiDung.position;
     final atEnd = position.maxScrollExtent <= position.pixels + 24;
     if (atEnd != reachedEnd && mounted) {
       setState(() => reachedEnd = atEnd);
+      if (atEnd &&
+          (isStudyOnlyCourse || isCourseExam) &&
+          elapsed >= requiredSeconds &&
+          !completed &&
+          !saving) {
+        unawaited(finish());
+      }
     }
   }
 
   Future<void> openExam() async {
-    if (!hasExam || !completed || startingExam || !examAllowed) return;
+    final lastLessonIndex = widget.siblings.indexWhere(
+      (lesson) => lesson.id == widget.lessonId,
+    );
+    if (!hasExam ||
+        !completed ||
+        startingExam ||
+        !examAllowed ||
+        (isCourseExam &&
+            (lastLessonIndex != widget.siblings.length - 1 || !reachedEnd))) {
+      return;
+    }
     setState(() {
       startingExam = true;
       examError = null;
@@ -95,59 +108,15 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
           'Bài học chưa được gắn bài kiểm tra. Vui lòng liên hệ quản trị.',
         );
       }
-      late final Widget page;
-      if (AppConfig.useSecureBackend) {
-        final dichVu = widget.examService ?? SecureExamService();
-        final lanThi = await dichVu.call('examStart', {
-          'examId': examId,
-          'courseId': widget.courseId,
-          'lessonId': widget.lessonId,
-        });
-        page = lanThi['status'] == 'completed'
-            ? SecureExamResultScreen(result: lanThi)
-            : SecureExamScreen(run: lanThi, service: dichVu);
-      } else {
-        final dichVu = FirestoreService(firestore: widget.service.db);
-        final course =
-            (await dichVu.db.doc('courses/${widget.courseId}').get()).data() ??
-            widget.courseData ??
-            const <String, dynamic>{};
-        if (!LearningPolicy.canRead(course, '')) {
-          throw StateError('Khóa học chưa mở hoặc đã kết thúc.');
-        }
-        final baiThi = (await dichVu.db.collection('exams').doc(examId).get())
-            .data();
-        if (baiThi == null || baiThi['deleting'] == true) {
-          throw StateError('Không tìm thấy bài kiểm tra.');
-        }
-        final cacCauHoi = (await dichVu.getQuestionsForExam(examId))
-            .where((cauHoi) => cauHoi.isValidForExam)
-            .toList();
-        if (cacCauHoi.isEmpty) {
-          throw StateError('Bài kiểm tra chưa có câu hỏi.');
-        }
-        page = UserExamScreen(
-          args: ExamArguments(
-            courseId: widget.courseId,
-            lessonId: widget.lessonId,
-            maBaiKiemTra: examId,
-            dsMaCauHoi: const [],
-            maNguoiDung: widget.uid,
-            tenBaiKiemTra: baiThi['title'] ?? 'Bài kiểm tra',
-            thoiGianLamBaiPhut:
-                (baiThi['durationMinutes'] as num?)?.toInt() ??
-                int.tryParse(
-                  RegExp(r'\d+')
-                          .firstMatch('${baiThi['duration'] ?? 45}')
-                          ?.group(0) ??
-                      '',
-                ) ??
-                45,
-            soLuotLamToiDa: (baiThi['maxAttempts'] as num?)?.toInt(),
-            questions: cacCauHoi,
-          ),
-        );
-      }
+      final dichVu = widget.examService ?? SecureExamService();
+      final lanThi = await dichVu.call('examStart', {
+        'examId': examId,
+        'courseId': widget.courseId,
+        'lessonId': widget.lessonId,
+      });
+      final page = lanThi['status'] == 'completed'
+          ? SecureExamResultScreen(result: lanThi)
+          : SecureExamScreen(run: lanThi, service: dichVu);
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       await Navigator.push(
         context,
@@ -181,34 +150,10 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     WidgetsBinding.instance.addPostFrameCallback((_) => _capNhatDaDocHet());
     start();
-    progressSubscription = widget.service.db
-        .doc(
-          'users/${widget.uid}/learning/${widget.courseId}_${widget.lessonId}',
-        )
-        .snapshots()
-        .listen(
-          (duLieuNhan) {
-            if (!mounted) return;
-            setState(
-              () => examCompleted = LearningPolicy.isLessonComplete(
-                duLieuNhan.data() ?? {},
-                widget.courseData ?? {},
-                widget.lesson,
-              ),
-            );
-          },
-          onError: (Object _) {
-            if (mounted) {
-              setState(
-                () => error =
-                    'Chưa tải được trạng thái hoàn thành. Hãy mở lại bài học.',
-              );
-            }
-          },
-        );
   }
 
   Future<void> start() async {
+    if (saving) return;
     setState(() {
       saving = true;
       error = null;
@@ -220,14 +165,14 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
         widget.lessonId,
       );
       if (!mounted) return;
+      await _capNhatHoanThanhKhoa();
+      if (!mounted) return;
       setState(() {
         completed = daXong;
         ready = true;
         saving = false;
         elapsed = 0;
       });
-      await _capNhatHoanThanhKhoa();
-      if (!mounted) return;
       // Giữ luồng kiểm tra theo bài cho dữ liệu cũ. Khóa kiểm tra theo khóa
       // chỉ hiện nút làm bài sau khi học xong tất cả bài học.
       if (hasExam &&
@@ -239,11 +184,6 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) => _capNhatDaDocHet());
       timer?.cancel();
       if (daXong) {
-        if (widget.autoOpenExam && examAllowed) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) openExam();
-          });
-        }
         return;
       }
       timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -257,7 +197,11 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
         setState(() {
           if (elapsed < requiredSeconds) elapsed++;
         });
-        if (elapsed >= requiredSeconds && !hasExam) finish();
+        if (elapsed >= requiredSeconds &&
+            reachedEnd &&
+            (isStudyOnlyCourse || isCourseExam)) {
+          unawaited(finish());
+        }
       });
     } catch (loi) {
       if (mounted) {
@@ -290,7 +234,7 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
       }
       return;
     }
-    if (saving || completed || elapsed < requiredSeconds) {
+    if (saving || completed || elapsed < requiredSeconds || !reachedEnd) {
       return;
     }
     setState(() {
@@ -325,17 +269,21 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
   }
 
   Future<void> _capNhatHoanThanhKhoa() async {
-    if (!hasExam || !isCourseExam) {
+    if (!isStudyOnlyCourse && !isCourseExam) {
       if (mounted && courseComplete != true) {
         setState(() => courseComplete = true);
       }
       return;
     }
-    final complete = await widget.service.isCourseComplete(
-      widget.uid,
-      widget.courseId,
-      studyOnly: true,
-    );
+    final complete = await widget.service
+        .isCourseComplete(
+          widget.uid,
+          widget.courseId,
+          studyOnly:
+              isCourseExam ||
+              widget.courseData?['learningMode'] == 'study_only',
+        )
+        .timeout(const Duration(seconds: 20));
     if (mounted) setState(() => courseComplete = complete);
   }
 
@@ -354,7 +302,6 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
   @override
   void dispose() {
     timer?.cancel();
-    progressSubscription?.cancel();
     _oNhapNoiDung.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -366,7 +313,17 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
     final duongDanUrl = widget.lesson['url'] as String? ?? '';
     final viTri = widget.siblings.indexWhere((d) => d.id == widget.lessonId);
     final isLastLesson = viTri >= 0 && viTri == widget.siblings.length - 1;
-    final hasOwnExam = LessonForm.hasExam(widget.lesson);
+    final showExamButton =
+        hasExam &&
+        completed &&
+        (examAllowed || examError != null) &&
+        (!isCourseExam || (isLastLesson && reachedEnd));
+    final showStudyOnlyCompleteButton =
+        isStudyOnlyCourse &&
+        completed &&
+        courseComplete &&
+        isLastLesson &&
+        reachedEnd;
     void navigate(int offset) {
       final tiepTheo = widget.siblings[viTri + offset];
       Navigator.pushReplacement(
@@ -426,36 +383,57 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          completed
-                              ? 'Đã học'
-                              : 'Thời gian còn lại: ${conLai ~/ 60}:${(conLai % 60).toString().padLeft(2, '0')}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: completed ? Colors.green.shade700 : null,
+                  ReloadableStreamBuilder<
+                    DocumentSnapshot<Map<String, dynamic>>
+                  >(
+                    streamFactory: _progressStream,
+                    feature: 'Tải trạng thái hoàn thành bài học',
+                    isUsableData: (data) =>
+                        data.exists || !data.metadata.isFromCache,
+                    builder: (context, snapshot) {
+                      final examCompleted = LearningPolicy.isLessonComplete(
+                        snapshot.data?.data() ?? {},
+                        widget.courseData ?? {},
+                        widget.lesson,
+                      );
+                      return Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  completed
+                                      ? 'Đã học'
+                                      : 'Thời gian còn lại: ${conLai ~/ 60}:${(conLai % 60).toString().padLeft(2, '0')}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: completed
+                                        ? Colors.green.shade700
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                              Tooltip(
+                                triggerMode: TooltipTriggerMode.tap,
+                                message: completed
+                                    ? hasExam && !examCompleted
+                                          ? 'Đã học xong nội dung. Bạn cần làm xong bài kiểm tra để hoàn thành bài học.'
+                                          : 'Bài học đã được ghi nhận hoàn thành. Bạn có thể tiếp tục ôn tập.'
+                                    : 'Bài này cần học tối thiểu $requiredSeconds giây. Nếu rời ứng dụng, khóa điện thoại hoặc thoát bài trước khi hoàn thành, thời gian học sẽ bắt đầu lại từ đầu.',
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(Icons.info_outline, size: 18),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                      Tooltip(
-                        triggerMode: TooltipTriggerMode.tap,
-                        message: completed
-                            ? hasExam && !examCompleted
-                                  ? 'Đã học xong nội dung. Bạn cần làm xong bài kiểm tra để hoàn thành bài học.'
-                                  : 'Bài học đã được ghi nhận hoàn thành. Bạn có thể tiếp tục ôn tập.'
-                            : 'Bài này cần học tối thiểu $requiredSeconds giây. Nếu rời ứng dụng, khóa điện thoại hoặc thoát bài trước khi hoàn thành, thời gian học sẽ bắt đầu lại từ đầu.',
-                        child: const Padding(
-                          padding: EdgeInsets.all(8),
-                          child: Icon(Icons.info_outline, size: 18),
-                        ),
-                      ),
-                    ],
-                  ),
-                  LinearProgressIndicator(
-                    value: completed ? 1 : elapsed / requiredSeconds,
+                          LinearProgressIndicator(
+                            value: completed ? 1 : elapsed / requiredSeconds,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   if (saving)
                     const Padding(
@@ -534,9 +512,7 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (hasExam &&
-                  completed &&
-                  (examAllowed || examError != null)) ...[
+              if (showExamButton) ...[
                 if (examError != null) ...[
                   Text(examError!, style: const TextStyle(color: Colors.red)),
                   const SizedBox(height: 8),
@@ -575,61 +551,81 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
                     textAlign: TextAlign.center,
                   ),
                 ),
-              if (completed)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: hasExam && !examCompleted
-                        ? Colors.orange.shade800
-                        : Colors.green.shade700,
-                    borderRadius: BorderRadius.circular(8),
+              if (isCourseExam &&
+                  completed &&
+                  isLastLesson &&
+                  examAllowed &&
+                  !reachedEnd)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Kéo xuống cuối bài học để mở bài kiểm tra.',
+                    textAlign: TextAlign.center,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.check, color: Colors.white, size: 18),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          hasExam && !examCompleted
-                              ? 'ĐÃ HỌC XONG • CHƯA XONG KIỂM TRA'
-                              : 'HOÀN THÀNH BÀI HỌC',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
+                ),
+              if (isStudyOnlyCourse &&
+                  completed &&
+                  isLastLesson &&
+                  !courseComplete)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Hãy học xong các bài còn lại trong khóa để hoàn thành.',
+                    textAlign: TextAlign.center,
                   ),
-                )
-              else if (!completed || isLastLesson || hasExam)
+                ),
+              if (isStudyOnlyCourse &&
+                  completed &&
+                  isLastLesson &&
+                  courseComplete &&
+                  !reachedEnd)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Kéo xuống cuối bài học để hoàn thành khóa học.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              if (showStudyOnlyCompleteButton)
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: saving || elapsed < requiredSeconds
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Hoàn thành khóa học'),
+                  ),
+                ),
+              if (!completed && hasExam && !isCourseExam)
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed:
+                        saving || elapsed < requiredSeconds || !reachedEnd
                         ? null
                         : finish,
-                    icon: Icon(
-                      hasExam
-                          ? Icons.assignment_turned_in_outlined
-                          : Icons.check_circle_outline,
-                    ),
+                    icon: const Icon(Icons.assignment_turned_in_outlined),
                     label: Text(
                       saving
                           ? 'Đang lưu…'
                           : elapsed < requiredSeconds
                           ? 'Cần học thêm ${conLai ~/ 60}:${(conLai % 60).toString().padLeft(2, '0')}'
-                          : hasExam
-                          ? (isCourseExam
-                                ? hasOwnExam
-                                      ? 'Xác nhận đã học xong'
-                                      : 'Kiểm tra và hoàn thành'
-                                : 'Học xong và làm bài kiểm tra')
-                          : 'Hoàn thành bài học',
+                          : 'Học xong và làm bài kiểm tra',
                     ),
+                  ),
+                ),
+              if ((isStudyOnlyCourse || isCourseExam) &&
+                  !completed &&
+                  elapsed >= requiredSeconds &&
+                  !reachedEnd)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    isLastLesson
+                        ? isCourseExam
+                              ? 'Kéo xuống cuối bài để tự động hoàn thành và mở bài kiểm tra.'
+                              : 'Kéo xuống cuối bài để hoàn thành khóa học.'
+                        : 'Kéo xuống cuối bài để tự động hoàn thành và mở bài tiếp theo.',
+                    textAlign: TextAlign.center,
                   ),
                 ),
               if (widget.siblings.isNotEmpty) ...[
@@ -650,6 +646,8 @@ class _TrangThaiDocBaiHoc extends State<LessonReaderScreen>
                       child: OutlinedButton.icon(
                         onPressed:
                             !startingExam &&
+                                completed &&
+                                reachedEnd &&
                                 viTri >= 0 &&
                                 viTri < widget.siblings.length - 1
                             ? () => navigate(1)

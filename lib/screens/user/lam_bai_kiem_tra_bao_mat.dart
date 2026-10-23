@@ -103,6 +103,7 @@ class _TrangThaiLamBaiThiBaoMat extends State<SecureExamScreen>
   }
 
   Future<void> reload() async {
+    if (busy || finishing) return;
     setState(() {
       busy = true;
       error = null;
@@ -137,8 +138,12 @@ class _TrangThaiLamBaiThiBaoMat extends State<SecureExamScreen>
     finishing = true;
     timer?.cancel();
     heartbeatTimer?.cancel();
-    Navigator.pushReplacement(
-      context,
+    final navigator = Navigator.of(context);
+    final examRoute = ModalRoute.of(context);
+    if (examRoute != null) {
+      navigator.popUntil((route) => route == examRoute);
+    }
+    navigator.pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => SecureExamResultScreen(result: ketQua),
       ),
@@ -275,6 +280,12 @@ class _TrangThaiLamBaiThiBaoMat extends State<SecureExamScreen>
                                       busy || conLai == 0 || error != null
                                       ? null
                                       : (_) {
+                                          if (busy ||
+                                              finishing ||
+                                              seconds <= 0 ||
+                                              error != null) {
+                                            return;
+                                          }
                                           setState(
                                             () =>
                                                 answers[cacCauHoi[i]['id']] = j,
@@ -305,7 +316,11 @@ class _TrangThaiLamBaiThiBaoMat extends State<SecureExamScreen>
                           TextButton.icon(
                             onPressed: currentQuestion == 0
                                 ? null
-                                : () => setState(() => currentQuestion--),
+                                : () => setState(
+                                    () =>
+                                        currentQuestion = (currentQuestion - 1)
+                                            .clamp(0, cacCauHoi.length - 1),
+                                  ),
                             icon: const Icon(Icons.arrow_back),
                             label: const Text('Câu trước'),
                           ),
@@ -313,7 +328,11 @@ class _TrangThaiLamBaiThiBaoMat extends State<SecureExamScreen>
                           TextButton.icon(
                             onPressed: currentQuestion >= cacCauHoi.length - 1
                                 ? null
-                                : () => setState(() => currentQuestion++),
+                                : () => setState(
+                                    () =>
+                                        currentQuestion = (currentQuestion + 1)
+                                            .clamp(0, cacCauHoi.length - 1),
+                                  ),
                             icon: const Icon(Icons.arrow_forward),
                             label: const Text('Câu tiếp'),
                           ),

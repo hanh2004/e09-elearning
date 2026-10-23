@@ -27,11 +27,7 @@ class LoginScreen extends StatefulWidget {
   final Future<Map<String, dynamic>?> Function(String, String)? authenticate;
   final Future<bool> Function()? maintenanceChecker;
   final Future<bool> Function()? newReleaseChecker;
-  final Future<bool> Function({
-    required String username,
-    required String codeSuffix,
-  })?
-  requestPasswordReset;
+  final Future<bool> Function({required String username})? requestPasswordReset;
 
   @override
   State<LoginScreen> createState() => _TrangThaiDangNhap();
@@ -75,8 +71,9 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
             (widget.authenticate == null
                 ? FirestoreService().isMaintenanceMode
                 : () async => false);
-        if (await checkMaintenance()) {
-          if (!mounted) return;
+        final maintenance = await checkMaintenance();
+        if (!mounted) return;
+        if (maintenance) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -108,11 +105,13 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
                     (widget.authenticate == null
                         ? AppReleaseChecker().hasNewRelease()
                         : Future<bool>.value(false)));
-            if (!mounted) return;
-            if (hasNewRelease) await _showNewReleaseNotice();
-            if (!mounted) return;
+            if (mounted && hasNewRelease) await _showNewReleaseNotice();
           } catch (_) {
             // Nếu kiểm tra thông báo lỗi, vẫn cho phép người dùng đăng nhập.
+          }
+          if (!mounted) {
+            if (widget.authenticate == null) await AccountAuth.signOut();
+            return;
           }
         }
         if (widget.authenticate == null) {
@@ -203,8 +202,8 @@ class _TrangThaiDangNhap extends State<LoginScreen> {
       canRecoverRootAccount: _laCongQuanTri,
       submitRequest:
           widget.requestPasswordReset ??
-          ({required username, required codeSuffix}) => FirestoreService()
-              .requestPasswordReset(username: username, codeSuffix: codeSuffix),
+          ({required username}) =>
+              FirestoreService().requestPasswordReset(username: username),
       recoverRootAccount: _khoiPhucAdminTong,
     );
   }

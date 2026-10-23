@@ -33,7 +33,7 @@ class _TrangThaiKhoiDongHocVien extends State<UserSplashScreen> {
   Future<void> _batDau() async {
     try {
       if (widget.prepare != null) {
-        await widget.prepare!();
+        await widget.prepare!().timeout(const Duration(seconds: 12));
       } else {
         await Future<void>.delayed(widget.duration);
       }

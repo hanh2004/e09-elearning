@@ -8,11 +8,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../models/mo_hinh_cau_hoi.dart';
-import '../../models/mo_hinh_cau_tra_loi.dart';
-import '../../models/phien_lam_bai_kiem_tra.dart';
 import '../../models/du_lieu_nhap_hoc_vien.dart';
 import '../../models/dinh_danh_tai_khoan.dart';
-import '../../models/quy_tac_hoc_tap.dart';
+import '../../models/yeu_cau_cap_lai_mat_khau.dart';
 import '../ket_noi_api/api_tai_khoan.dart';
 import '../tai_khoan/xac_thuc_tai_khoan.dart';
 import '../tai_khoan/phien_dang_nhap_quan_tri_web.dart';
@@ -61,11 +59,7 @@ class FirestoreService extends _FirestoreServiceCore
         _FirestoreMaintenanceOperations {
   FirestoreService({FirebaseFirestore? firestore, AccountApi? accounts})
     : _coSoDuLieu = firestore ?? FirebaseFirestore.instance,
-      _apiTaiKhoan =
-          accounts ??
-          AccountApi(
-            useBackend: firestore == null && AppConfig.useSecureBackend,
-          );
+      _apiTaiKhoan = accounts ?? AccountApi(useBackend: firestore == null);
 
   @override
   final FirebaseFirestore _coSoDuLieu;

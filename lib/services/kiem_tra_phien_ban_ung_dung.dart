@@ -5,10 +5,10 @@ import 'package:http/http.dart' as http;
 
 /// Nhắc cập nhật khi ba số phiên bản phát hành mới lớn hơn bản đang cài.
 class AppReleaseChecker {
-  AppReleaseChecker({http.Client? client}) : _client = client ?? http.Client();
+  AppReleaseChecker({this._client});
 
   static const _channel = MethodChannel('com.example.e09_elearning/app_info');
-  final http.Client _client;
+  final http.Client? _client;
   static final _manifestUri = Uri.parse(
     'https://e09-elearning-admin.web.app/app-release.json',
   );
@@ -17,21 +17,26 @@ class AppReleaseChecker {
     final installedVersion = await _installedVersionName();
     if (installedVersion == null) return false;
 
-    final response = await _client
-        .get(
-          _manifestUri.replace(
-            queryParameters: {
-              'check': DateTime.now().millisecondsSinceEpoch.toString(),
-            },
-          ),
-          headers: const {'Cache-Control': 'no-cache'},
-        )
-        .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) return false;
-    final data = jsonDecode(response.body);
-    final publishedVersion = data is Map ? data['versionName'] : null;
-    return publishedVersion is String &&
-        _isNewerVersion(publishedVersion, installedVersion);
+    final client = _client ?? http.Client();
+    try {
+      final response = await client
+          .get(
+            _manifestUri.replace(
+              queryParameters: {
+                'check': DateTime.now().millisecondsSinceEpoch.toString(),
+              },
+            ),
+            headers: const {'Cache-Control': 'no-cache'},
+          )
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode != 200) return false;
+      final data = jsonDecode(response.body);
+      final publishedVersion = data is Map ? data['versionName'] : null;
+      return publishedVersion is String &&
+          _isNewerVersion(publishedVersion, installedVersion);
+    } finally {
+      if (_client == null) client.close();
+    }
   }
 
   bool _isNewerVersion(String publishedVersion, String installedVersion) {

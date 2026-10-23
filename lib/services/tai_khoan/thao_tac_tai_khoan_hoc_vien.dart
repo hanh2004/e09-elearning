@@ -8,8 +8,37 @@ import 'package:flutter/material.dart';
 import '../../widgets/tien_ich_giao_dien_hoc_tap.dart';
 import '../ket_noi_api/api_tai_khoan.dart';
 import '../thong_bao_loi_ung_dung.dart';
+import 'phien_dang_nhap_quan_tri_web.dart';
+
+final Map<(String, BuildContext), Future<void>> _cacLanCapNhatDonViDangMo = {};
 
 Future<void> updateLearnerUnit(
+  BuildContext context, {
+  required String uid,
+  FirebaseFirestore? firestore,
+  AccountApi? accounts,
+}) async {
+  final requestKey = (uid, context);
+  final existingRequest = _cacLanCapNhatDonViDangMo[requestKey];
+  if (existingRequest != null) return existingRequest;
+
+  late final Future<void> request;
+  request =
+      _updateLearnerUnit(
+        context,
+        uid: uid,
+        firestore: firestore,
+        accounts: accounts,
+      ).whenComplete(() {
+        if (identical(_cacLanCapNhatDonViDangMo[requestKey], request)) {
+          _cacLanCapNhatDonViDangMo.remove(requestKey);
+        }
+      });
+  _cacLanCapNhatDonViDangMo[requestKey] = request;
+  return request;
+}
+
+Future<void> _updateLearnerUnit(
   BuildContext context, {
   required String uid,
   FirebaseFirestore? firestore,
@@ -38,12 +67,17 @@ Future<void> updateLearnerUnit(
     final managerId = (profile['createdBy'] ?? '').toString().trim();
     var allowedSubUnits = <String>[];
     if (managerId.isNotEmpty) {
-      Map<String, dynamic> choices;
+      late final Map<String, dynamic> choices;
       try {
-        choices = await (accounts ?? AccountApi(useBackend: true)).call(
-          'accountGetSubUnits',
-          {},
-        );
+        choices = await (accounts ?? AccountApi(useBackend: true))
+            .call('accountGetSubUnits', {})
+            .timeout(
+              const Duration(seconds: 8),
+              onTimeout: () => throw FirebaseFunctionsException(
+                code: 'deadline-exceeded',
+                message: 'Tải danh sách đơn vị mất quá nhiều thời gian.',
+              ),
+            );
       } on FirebaseFunctionsException {
         final manager = await db.collection('users').doc(managerId).get();
         choices = {
@@ -114,8 +148,7 @@ Future<void> updateLearnerUnit(
         AppErrorMessage.from(
           error,
           feature: 'Cập nhật đơn vị trực thuộc',
-          fallbackAction:
-              'Kiểm tra kết nối mạng, quyền tài khoản và cấu hình máy chủ rồi thử lại.',
+          fallbackAction: 'Kiểm tra kết nối mạng, quyền tài khoản và cấu hình máy chủ rồi thử lại.',
         ),
       );
     }
@@ -142,12 +175,14 @@ Future<void> changeLearnerPassword(BuildContext context) async {
       if (user == null || email == null || email.isEmpty) {
         throw StateError('Phiên đăng nhập không hợp lệ. Hãy đăng nhập lại.');
       }
-      await user.reauthenticateWithCredential(
-        EmailAuthProvider.credential(
-          email: email,
-          password: values['Mật khẩu hiện tại']!,
-        ),
-      );
+      await AdminWebSession.reauthenticate(() async {
+        await user.reauthenticateWithCredential(
+          EmailAuthProvider.credential(
+            email: email,
+            password: values['Mật khẩu hiện tại']!,
+          ),
+        );
+      });
       await user.updatePassword(newPassword);
     },
   );

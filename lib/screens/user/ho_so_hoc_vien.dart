@@ -34,6 +34,7 @@ class UserProfileScreen extends StatefulWidget {
 class _TrangThaiTaiKhoanHocVien extends State<UserProfileScreen> {
   final Color primaryColor = const Color(0xFFB51F24);
   bool _noticeOpen = false;
+  bool _unitUpdateOpening = false;
 
   @override
   void initState() {
@@ -105,11 +106,20 @@ class _TrangThaiTaiKhoanHocVien extends State<UserProfileScreen> {
             _dungTuyChonCaiDat(
               icon: Icons.edit_location_alt_outlined,
               title: 'Cập nhật đơn vị',
-              onTap: () => updateLearnerUnit(
-                context,
-                uid: widget.args.userId,
-                firestore: widget.service?.db,
-              ),
+              loading: _unitUpdateOpening,
+              onTap: () async {
+                if (_unitUpdateOpening) return;
+                setState(() => _unitUpdateOpening = true);
+                try {
+                  await updateLearnerUnit(
+                    context,
+                    uid: widget.args.userId,
+                    firestore: widget.service?.db,
+                  );
+                } finally {
+                  if (mounted) setState(() => _unitUpdateOpening = false);
+                }
+              },
             ),
             _dungTuyChonCaiDat(
               icon: Icons.lock_reset_outlined,
@@ -168,9 +178,9 @@ class _TrangThaiTaiKhoanHocVien extends State<UserProfileScreen> {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    bool loading = false,
   }) {
     return LearnerCard(
-      accentColor: primaryColor,
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -184,8 +194,16 @@ class _TrangThaiTaiKhoanHocVien extends State<UserProfileScreen> {
           child: Icon(icon, color: primaryColor),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-        onTap: onTap,
+        trailing: loading
+            ? SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: primaryColor,
+                ),
+              )
+            : const Icon(Icons.chevron_right, color: Colors.grey),
+        onTap: loading ? null : onTap,
       ),
     );
   }

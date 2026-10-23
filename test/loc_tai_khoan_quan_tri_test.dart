@@ -57,7 +57,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Nguyễn An'), findsOneWidget);
       expect(find.text('Trần Bình'), findsNothing);
-      await tester.enterText(find.byType(TextField), 'C1-D1');
+      await tester.enterText(find.byType(TextField), 'C1');
       await tester.pumpAndSettle();
       expect(find.text('Nguyễn An'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'binh02');

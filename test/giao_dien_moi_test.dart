@@ -27,7 +27,8 @@ import 'package:flutter_test/flutter_test.dart';
 Future<void> capture(WidgetTester tester, GlobalKey key, String name) async {
   if (!const bool.fromEnvironment('CAPTURE_UI')) return;
   await tester.runAsync(
-    () => precacheImage(const AssetImage(AppTheme.logo), key.currentContext!),
+    () =>
+        precacheImage(const AssetImage(AppTheme.appLogo), key.currentContext!),
   );
   await tester.pumpAndSettle();
   await tester.runAsync(() async {
@@ -156,12 +157,13 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('Học viên E09'), findsOneWidget);
+        expect(find.text('Học viên E09'), findsNothing);
+        expect(find.text('Hệ thống'), findsOneWidget);
         expect(tester.takeException(), isNull);
         if (const bool.fromEnvironment('CAPTURE_UI')) {
           await tester.runAsync(
             () => precacheImage(
-              const AssetImage(AppTheme.logo),
+              const AssetImage(AppTheme.appLogo),
               boundaryKey.currentContext!,
             ),
           );
@@ -224,12 +226,16 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Chưa đọc (1)'), findsOneWidget);
-        await tester.tap(find.text('Đánh dấu đã đọc'));
+        expect(find.text('Kiểm tra lịch học của bạn.'), findsNothing);
+        await tester.tap(find.text('Lịch học mới'));
         await tester.pumpAndSettle();
+        expect(find.text('Kiểm tra lịch học của bạn.'), findsOneWidget);
         expect(
           (await db.doc('users/u/notification_reads/n').get()).exists,
           true,
         );
+        Navigator.of(tester.element(find.byType(Scaffold).last)).pop();
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Chưa đọc (0)'));
         await tester.pumpAndSettle();
         expect(find.text('Bạn đã đọc tất cả thông báo.'), findsOneWidget);
@@ -265,7 +271,8 @@ void main() {
         await capture(tester, shellKey, 'course-library-${width.toInt()}');
         await tester.tap(find.text('Kiểm tra'));
         await tester.pumpAndSettle();
-        expect(find.text('Học trước, kiểm tra sau'), findsOneWidget);
+        expect(find.text('Học trước, kiểm tra sau'), findsNothing);
+        expect(find.text('Tìm khóa học, môn học…'), findsOneWidget);
         expect(tester.takeException(), isNull);
         if (const bool.fromEnvironment('CAPTURE_UI')) {
           final loginKey = GlobalKey();

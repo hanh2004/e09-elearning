@@ -5,14 +5,26 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Các hàm chính sách dùng chung cho danh sách, trang chi tiết và kiểm thử.
 class LearningPolicy {
+  /// Loại khóa cũ được xác định từ toàn bộ bài học khi chưa có learningMode.
+  static bool isExamCourse(
+    Map<String, dynamic> course,
+    Iterable<Map<String, dynamic>> lessons,
+  ) =>
+      requiresExam(course, const {}) ||
+      lessons.any((lesson) => requiresExam(course, lesson));
+
   static bool requiresExam(
     Map<String, dynamic> khoaHoc,
     Map<String, dynamic> baiHoc,
   ) {
-    if (khoaHoc['learningMode'] == 'study_only') return false;
+    if (khoaHoc['learningMode'] == 'study_only' ||
+        baiHoc['learningMode'] == 'study_only') {
+      return false;
+    }
     return khoaHoc['learningMode'] == 'study_exam' ||
         (khoaHoc['examId']?.toString().trim().isNotEmpty ?? false) ||
-        baiHoc['learningMode'] == 'study_exam';
+        baiHoc['learningMode'] == 'study_exam' ||
+        (baiHoc['examId']?.toString().trim().isNotEmpty ?? false);
   }
 
   // Old records used completed for the reading stage as well.
@@ -149,11 +161,7 @@ class LearningPolicy {
     return 'Đang triển khai';
   }
 
-  static bool canRead(
-    Map<String, dynamic> khoaHoc,
-    String classId, {
-    DateTime? now,
-  }) =>
+  static bool canRead(Map<String, dynamic> khoaHoc, {DateTime? now}) =>
       khoaHoc['deleting'] != true &&
       deploymentLabel(khoaHoc, now: now) == 'Đang triển khai';
 
@@ -165,14 +173,6 @@ class LearningPolicy {
     return cacMa.isEmpty
         ? 0
         : cacMa.intersection(daHoanThanh.toSet()).length / cacMa.length;
-  }
-
-  static String? validateUrl(String giaTri) {
-    if (giaTri.isEmpty) return null;
-    final uri = Uri.tryParse(giaTri);
-    return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty
-        ? null
-        : 'Liên kết phải bắt đầu bằng https://';
   }
 }
 

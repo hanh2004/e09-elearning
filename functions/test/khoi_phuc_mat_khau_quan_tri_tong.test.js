@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { rootPasswordRecoveryHandlers } from '../src/khoi_phuc_mat_khau_quan_tri_tong.js';
 import { usernameKey } from '../src/quy_tac.js';
+import { Timestamp } from 'firebase-admin/firestore';
 
 function fixture() {
   const data = new Map([
@@ -89,4 +90,64 @@ test('không cho dùng mã sai, tài khoản không phải root hoặc chính m�
     username: 'unknown', proof: 'C'.repeat(43),
   });
   assert.equal(f.data.has('password_reset_requests/unknown'), false);
+});
+
+async function approvedFixture() {
+  const f = fixture();
+  await f.handlers.requestRootPasswordReset(null, { username: 'roota', proof });
+  await f.handlers.approveRootPasswordReset('root-b', { requestId: 'root-a' });
+  return f;
+}
+
+test('giữ khóa khi Auth đã đổi mật khẩu nhưng thu hồi phiên thất bại', async () => {
+  const f = await approvedFixture();
+  f.auth.revokeRefreshTokens = async () => { throw { code: 'auth/internal-error' }; };
+  await assert.rejects(f.handlers.finishRootPasswordReset(null, {
+    username: 'roota', proof, password: 'first-root-password-123',
+  }), { code: 'unavailable' });
+  const request = f.data.get('password_reset_requests/root-a');
+  assert.equal(request.status, 'processing');
+  assert.equal(request.processingIssue, 'password_updated');
+  await assert.rejects(f.handlers.finishRootPasswordReset(null, {
+    username: 'roota', proof, password: 'replacement-password-123',
+  }), { code: 'failed-precondition' });
+  assert.equal(f.auth.passwords.get('root-a'), 'first-root-password-123');
+});
+
+test('không thay mã khôi phục khi kết quả cập nhật mật khẩu chưa rõ', async () => {
+  const f = await approvedFixture();
+  f.auth.updateUser = async () => { throw { code: 'auth/network-request-failed' }; };
+  await assert.rejects(f.handlers.finishRootPasswordReset(null, {
+    username: 'roota', proof, password: 'new-root-password-123',
+  }), { code: 'unavailable' });
+  const request = f.data.get('password_reset_requests/root-a');
+  assert.equal(request.status, 'processing');
+  assert.equal(request.processingIssue, 'result_unknown');
+  // Hết thời hạn proof và hạn mức một phút không được mở lại yêu cầu còn khóa.
+  request.expiresAt = Timestamp.fromMillis(Date.now() - 1);
+  f.data.get('root_password_reset_limits/root-a').lastAt = Timestamp.fromMillis(0);
+  await assert.rejects(f.handlers.requestRootPasswordReset(null, {
+    username: 'roota', proof: 'B'.repeat(43),
+  }), { code: 'failed-precondition' });
+  await f.handlers.requestRootPasswordReset(null, { username: 'roota', proof });
+  assert.equal(f.data.get('password_reset_requests/root-a').proofHash, request.proofHash);
+  assert.equal(f.data.get('password_reset_requests/root-a').status, 'processing');
+  assert.equal((await f.handlers.rootPasswordResetStatus(null, {
+    username: 'roota', proof,
+  })).status, 'processing');
+});
+
+test('Auth từ chối trước khi đổi mật khẩu thì cho thử lại yêu cầu đã duyệt', async () => {
+  const f = await approvedFixture();
+  const updateUser = f.auth.updateUser.bind(f.auth);
+  f.auth.updateUser = async () => { throw { code: 'auth/invalid-password' }; };
+  await assert.rejects(f.handlers.finishRootPasswordReset(null, {
+    username: 'roota', proof, password: 'new-root-password-123',
+  }), { code: 'auth/invalid-password' });
+  assert.equal(f.data.get('password_reset_requests/root-a').status, 'approved');
+  f.auth.updateUser = updateUser;
+  await f.handlers.finishRootPasswordReset(null, {
+    username: 'roota', proof, password: 'new-root-password-123',
+  });
+  assert.equal(f.data.get('password_reset_requests/root-a').status, 'completed');
 });

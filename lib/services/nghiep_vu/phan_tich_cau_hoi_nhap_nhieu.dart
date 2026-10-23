@@ -199,17 +199,13 @@ class BoPhanTichCauHoi {
   }
 
   static int? _answerIndex(String answer) {
-    final value = answer
-        .trim()
-        .toUpperCase()
-        .replaceFirst(RegExp(r'^(?:ĐÁP ÁN(?:\s+ĐÚNG)?|ANSWER)\s*[:：]?\s*'), '')
-        .replaceAll(RegExp(r'[^A-D1-4]'), '');
-    if (value.length == 1 &&
-        value.codeUnitAt(0) >= 65 &&
-        value.codeUnitAt(0) <= 68) {
-      return value.codeUnitAt(0) - 65;
-    }
+    final match = RegExp(
+      r'^(?:(?:đáp án(?:\s+đúng)?|correct(?:\s+answer)?|answer)\s*[:：]?\s*)?([A-D1-4])[.)]?$',
+      caseSensitive: false,
+    ).firstMatch(answer.trim());
+    if (match == null) return null;
+    final value = match.group(1)!.toUpperCase();
     final number = int.tryParse(value);
-    return number != null && number >= 1 && number <= 4 ? number - 1 : null;
+    return number != null ? number - 1 : value.codeUnitAt(0) - 65;
   }
 }

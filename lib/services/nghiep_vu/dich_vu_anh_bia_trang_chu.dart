@@ -9,7 +9,11 @@ class HomeBannerService {
   Stream<List<HomeBanner>> active() => db
       .collection('home_banners')
       .where('active', isEqualTo: true)
-      .snapshots()
+      .snapshots(includeMetadataChanges: true)
+      .where(
+        (snapshot) =>
+            snapshot.docs.isNotEmpty || !snapshot.metadata.isFromCache,
+      )
       .map((duLieuNhan) {
         final ketQua = duLieuNhan.docs.map(HomeBanner.fromDoc).toList();
         ketQua.sort((a, b) {

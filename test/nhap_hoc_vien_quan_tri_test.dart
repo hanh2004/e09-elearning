@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:e09_elearning/models/du_lieu_nhap_hoc_vien.dart';
 import 'package:e09_elearning/screens/admin/quan_ly_tai_khoan.dart';
 import 'package:e09_elearning/screens/admin/hop_thoai_nhap_hoc_vien.dart';
@@ -143,7 +144,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Đã đọc file Excel.'), findsOneWidget);
       expect(find.textContaining('permission-denied'), findsOneWidget);
-      expect(find.text('Dòng 2: An'), findsOneWidget);
+      expect(find.text('Dòng Excel 2: An'), findsOneWidget);
       expect(
         tester
             .widget<FilledButton>(
@@ -188,6 +189,87 @@ void main() {
     expect(find.text('File không hợp lệ.'), findsOneWidget);
     expect(service.calls, 0);
   });
+
+  testWidgets(
+    'interrupted import retries the same operation without a new lookup',
+    (tester) async {
+      var lookups = 0;
+      final operationIds = <String>[];
+      final db = FakeFirebaseFirestore();
+      final service = FirestoreService(
+        firestore: db,
+        accounts: AccountApi(
+          transport: (method, payload) async {
+            if (method == 'accountCheckUsernames') {
+              lookups++;
+              return {'existing': <String>[]};
+            }
+            expect(method, 'accountImportUsers');
+            operationIds.add(payload['operationId'] as String);
+            if (operationIds.length == 1) {
+              throw FirebaseFunctionsException(
+                code: 'unavailable',
+                message: 'STT 1: Đã dừng nhập tại tài khoản này do lỗi tạo tài khoản. Hãy kiểm tra dòng này rồi thử lại.',
+              );
+            }
+            return {'count': 1};
+          },
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showDialog<int>(
+                  context: context,
+                  builder: (_) => AdminUserImportDialog(
+                    service: service,
+                    pickWorkbook: () async => Uint8List.fromList([1]),
+                    decodeWorkbook: (_) => const UserImportPreview(
+                      rows: [
+                        UserImportRow(
+                          rowNumber: 2,
+                          serialNumber: 1,
+                          name: 'An',
+                          username: 'user01',
+                          password: 'PrivatePassword!',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                child: const Text('Mở nhập'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Mở nhập'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Chọn file .xlsx'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Xác nhận thêm 1 học viên'));
+      await tester.pumpAndSettle();
+      expect(find.text('STT 1: An'), findsOneWidget);
+      expect(find.textContaining('PrivatePassword!'), findsNothing);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Xác nhận thêm 1 học viên'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      await tester.tap(find.text('Xác nhận thêm 1 học viên'));
+      await tester.pumpAndSettle();
+      expect(lookups, 1);
+      expect(operationIds, hasLength(2));
+      expect(operationIds.first, operationIds.last);
+      expect(find.byType(AdminUserImportDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('adding accounts cannot assign admin directly', (tester) async {
     await tester.pumpWidget(

@@ -80,6 +80,18 @@ async function call(name, data) {
   return { ok: response.ok, body: await response.json() };
 }
 
+async function assertStorageLease(status) {
+  const [account, session] = await Promise.all([
+    db.doc(`users/${uid}`).get(),
+    db.doc(`admin_web_sessions/${uid}`).get(),
+  ]);
+  const lease = account.data().accountSession;
+  assert.deepEqual(Object.keys(lease).sort(), ['authTime', 'lastSeenAt', 'status']);
+  assert.equal(lease.status, status);
+  assert.equal(lease.authTime, session.data().authTime);
+  assert.ok(lease.lastSeenAt.toMillis() > Date.now() - 60_000);
+}
+
 test('account web sessions support Admin and learner roles', async () => {
   const firstClaim = await call('adminSessionClaim', {
     sessionToken: tokenA,
@@ -87,6 +99,7 @@ test('account web sessions support Admin and learner roles', async () => {
   });
   assert.equal(firstClaim.ok, true);
   assert.deepEqual(firstClaim.body.result, { claimed: true, occupied: false });
+  await assertStorageLease('active');
 
   const occupied = await call('adminSessionClaim', {
     sessionToken: tokenB,
@@ -99,6 +112,7 @@ test('account web sessions support Admin and learner roles', async () => {
     sessionToken: tokenA,
   });
   assert.deepEqual(firstHeartbeat.body.result, { active: true });
+  await assertStorageLease('active');
 
   const takeover = await call('adminSessionClaim', {
     sessionToken: tokenB,
@@ -106,11 +120,14 @@ test('account web sessions support Admin and learner roles', async () => {
   });
   assert.equal(takeover.ok, true);
   assert.deepEqual(takeover.body.result, { claimed: true, occupied: false });
+  const takeoverLease = (await db.doc(`users/${uid}`).get()).data().accountSession;
+  await assertStorageLease('active');
 
   const staleHeartbeat = await call('adminSessionHeartbeat', {
     sessionToken: tokenA,
   });
   assert.deepEqual(staleHeartbeat.body.result, { active: false });
+  assert.deepEqual((await db.doc(`users/${uid}`).get()).data().accountSession, takeoverLease);
 
   const staleApiCall = await call('accountGetSubUnits', {
     _adminWebSession: tokenA,
@@ -128,11 +145,13 @@ test('account web sessions support Admin and learner roles', async () => {
     sessionToken: tokenA,
   });
   assert.deepEqual(staleRelease.body.result, { released: false });
+  assert.deepEqual((await db.doc(`users/${uid}`).get()).data().accountSession, takeoverLease);
 
   const currentRelease = await call('adminSessionRelease', {
     sessionToken: tokenB,
   });
   assert.deepEqual(currentRelease.body.result, { released: true });
+  await assertStorageLease('released');
 
   const releasedHeartbeat = await call('adminSessionHeartbeat', {
     sessionToken: tokenB,
@@ -146,4 +165,42 @@ test('account web sessions support Admin and learner roles', async () => {
   });
   assert.equal(learnerClaim.ok, true, JSON.stringify(learnerClaim.body));
   assert.deepEqual(learnerClaim.body.result, { claimed: true, occupied: false });
+  await assertStorageLease('active');
+});
+
+test('reauthenticated learner renews the same session before submitting feedback', async () => {
+  await db.doc(`users/${uid}`).set({role:'user',status:'active'});
+  await db.doc(`admin_web_sessions/${uid}`).delete();
+  const claim = await call('adminSessionClaim', {sessionToken:tokenA,takeOver:false});
+  assert.deepEqual(claim.body.result, {claimed:true,occupied:false});
+  const oldAuthTime = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url')).auth_time;
+  // Auth timestamps have whole-second precision; ensure reauthentication changes it.
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  const response = await fetch(
+    `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}` +
+      '/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key',
+    {
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password,returnSecureToken:true}),
+    },
+  );
+  assert.equal(response.status, 200);
+  idToken = (await response.json()).idToken;
+  const newAuthTime = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64url')).auth_time;
+  assert.ok(newAuthTime > oldAuthTime);
+  const feedback = {_adminWebSession:tokenA,category:'idea',message:'A useful application suggestion.'};
+  const stale = await call('feedbackSubmit', feedback);
+  assert.equal(stale.ok, false);
+  assert.equal(stale.body.error.status, 'UNAUTHENTICATED');
+
+  const renewed = await call('adminSessionClaim', {sessionToken:tokenA,takeOver:false});
+  assert.deepEqual(renewed.body.result, {claimed:true,occupied:false});
+  await assertStorageLease('active');
+  const heartbeat = await call('adminSessionHeartbeat', {sessionToken:tokenA});
+  assert.deepEqual(heartbeat.body.result, {active:true});
+  const submitted = await call('feedbackSubmit', feedback);
+  assert.equal(submitted.ok, true, JSON.stringify(submitted.body));
+  assert.equal(submitted.body.result.submitted, true);
+  await db.doc(`feedback/${submitted.body.result.feedbackId}`).delete();
+  await db.doc(`feedback_limits/${uid}`).delete();
 });
